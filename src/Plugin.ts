@@ -32,6 +32,10 @@ export abstract class Plugin {
 		return this.data[key];
 	}
 
+	protected log (...args: any[]) {
+		console.log(`[${this.getId()}]`, ...args);
+	}
+
 	private getDataPath () {
 		return `data/${this.getId()}.json`;
 	}

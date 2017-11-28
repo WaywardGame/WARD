@@ -1,7 +1,7 @@
 import { Plugin } from "../Plugin";
 import { sleep } from "../util/Async";
 import discord from "../util/Discord";
-import { seconds } from "../util/Time";
+import { hours, seconds } from "../util/Time";
 import { ChangeType, trello } from "../util/Trello";
 
 const emotes: { [key: string]: string } = {
@@ -16,6 +16,8 @@ const emotes: { [key: string]: string } = {
 };
 
 export class ChangelogPlugin extends Plugin {
+	public updateInterval = hours(1);
+
 	private id = "changelog";
 	private channel = "385039999168413697";
 	public getId () {
@@ -26,7 +28,7 @@ export class ChangelogPlugin extends Plugin {
 	}
 
 	public async update () {
-		console.log("Updating changelog...");
+		this.log("Updating changelog...");
 		const version = await trello.getNewestVersion();
 		const changelog = await trello.getChangelog(version);
 
@@ -47,13 +49,15 @@ export class ChangelogPlugin extends Plugin {
 							change += emoji;
 						}
 					}
-					change += card.name;
-					console.log(`Reporting new change: ${change}`);
+					change += ` ${card.name}`;
+					this.log(`Reporting new change: ${change}`);
 					channel.send(change);
-					await sleep(seconds(2));
+					await sleep(seconds(5));
 				}
 			}
 		}
+
+		this.log("Update complete.");
 	}
 
 	private getEmoji (emote: ChangeType) {
