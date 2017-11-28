@@ -1,0 +1,6 @@
+{
+	"extends": "../../standalone/wayward/tslint.json",
+	"rules": {
+		"no-console": false
+	}
+}
