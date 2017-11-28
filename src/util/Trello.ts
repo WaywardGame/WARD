@@ -70,20 +70,21 @@ export interface ITrelloChangelog {
 
 export interface IChangelog {
 	version: IVersionInfo;
-	sections: { [index: number]: ITrelloCard[] | undefined };
+	sections: { [index: string]: ITrelloCard[] | undefined };
 	unsorted?: ITrelloCard[];
 	changeCount: number;
 }
 
-export enum ChangelogSection {
-	New,
-	Improvements,
-	BugFixes,
-	Balance,
-	Modding,
-	Mod,
-	Technical,
-	Misc
+export enum ChangeType {
+	New = "New",
+	Improvement = "Improvement",
+	Bug = "Bug",
+	Balance = "Balance",
+	Modding = "Modding",
+	Mod = "Mod",
+	Technical = "Technical",
+	Misc = "Misc",
+	Regression = "Regression"
 }
 
 const changelogListRegExp = /^\s*(Beta|Release)\s+(\d+)\.(\d+)(?:\.(\d+))?(?:\s+"(.*?)")?(\s+\((January|February|March|April|May|June|July|August|September|October|November|December) (\d+(?:st|nd|rd|th)), (\d+)\))?\s*$/;
@@ -277,28 +278,28 @@ export default class Trello {
 			for (const card of list.cards) {
 				const labels = card.labels;
 
-				let sectionId: ChangelogSection | undefined;
+				let sectionId: ChangeType | undefined;
 
-				if (labels.some((v) => v.name === "New")) {
-					sectionId = ChangelogSection.New;
+				if (labels.some((v) => v.name === ChangeType.New)) {
+					sectionId = ChangeType.New;
 
-				} else if (labels.some((v) => v.name === "Mod")) {
-					sectionId = ChangelogSection.Mod;
+				} else if (labels.some((v) => v.name === ChangeType.Mod)) {
+					sectionId = ChangeType.Mod;
 
-				} else if (labels.some((v) => v.name === "Modding")) {
-					sectionId = ChangelogSection.Modding;
+				} else if (labels.some((v) => v.name === ChangeType.Modding)) {
+					sectionId = ChangeType.Modding;
 
-				} else if (labels.some((v) => v.name === "Improvement")) {
-					sectionId = ChangelogSection.Improvements;
+				} else if (labels.some((v) => v.name === ChangeType.Improvement)) {
+					sectionId = ChangeType.Improvement;
 
-				} else if (labels.some((v) => v.name === "Bug")) {
-					sectionId = ChangelogSection.BugFixes;
+				} else if (labels.some((v) => v.name === ChangeType.Bug)) {
+					sectionId = ChangeType.Bug;
 
-				} else if (labels.some((v) => v.name === "Balance")) {
-					sectionId = ChangelogSection.Balance;
+				} else if (labels.some((v) => v.name === ChangeType.Balance)) {
+					sectionId = ChangeType.Balance;
 
-				} else if (labels.some((v) => v.name === "Technical")) {
-					sectionId = ChangelogSection.Technical;
+				} else if (labels.some((v) => v.name === ChangeType.Technical)) {
+					sectionId = ChangeType.Technical;
 				}
 
 				if (sectionId === undefined) {
@@ -317,7 +318,7 @@ export default class Trello {
 			}
 		}
 
-		const sectionKeys = Object.keys(ChangelogSection);
+		const sectionKeys = Object.keys(ChangeType);
 		for (let i = 0; i < sectionKeys.length / 2; i++) {
 			const section = changelog.sections[i];
 			if (section) {

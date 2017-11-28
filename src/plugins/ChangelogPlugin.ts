@@ -1,29 +1,23 @@
 import { Plugin } from "../Plugin";
-import { trello } from "../util/Trello";
+import { sleep } from "../util/Async";
+import discord from "../util/Discord";
+import { seconds } from "../util/Time";
+import { ChangeType, trello } from "../util/Trello";
 
-enum ChangeEmote {
-	New,
-	Improvement,
-	Bug,
-	Balance,
-	Modding,
-	Mod,
-	Technical,
-	Regression
-}
-const emotes = {
-	[ChangeEmote.New]: "changenew",
-	[ChangeEmote.Improvement]: "changeimprovement",
-	[ChangeEmote.Bug]: "changebug",
-	[ChangeEmote.Balance]: "changebalance",
-	[ChangeEmote.Modding]: "changemodding",
-	[ChangeEmote.Mod]: "changemod",
-	[ChangeEmote.Technical]: "changetechnical",
-	[ChangeEmote.Regression]: "changeregression"
+const emotes: { [key: string]: string } = {
+	[ChangeType.New]: "_new",
+	[ChangeType.Improvement]: "_improvement",
+	[ChangeType.Bug]: "_bug",
+	[ChangeType.Balance]: "_balance",
+	[ChangeType.Modding]: "_modding",
+	[ChangeType.Mod]: "_mod",
+	[ChangeType.Technical]: "_technical",
+	[ChangeType.Regression]: "_regression"
 };
 
 export class ChangelogPlugin extends Plugin {
 	private id = "changelog";
+	private channel = "385039999168413697";
 	public getId () {
 		return this.id;
 	}
@@ -36,6 +30,8 @@ export class ChangelogPlugin extends Plugin {
 		const version = await trello.getNewestVersion();
 		const changelog = await trello.getChangelog(version);
 
+		const channel = discord.channels.find("id", this.channel);
+
 		if (changelog.unsorted) {
 			for (const card of changelog.unsorted) {
 				let listedChanges = await this.getData("listedChanges") as string[];
@@ -44,9 +40,26 @@ export class ChangelogPlugin extends Plugin {
 				}
 				if (!listedChanges.includes(card.id)) {
 					listedChanges.push(card.id);
-					console.log(`Reporting new change: ${card.name}`);
+					let change = "";
+					for (const label of card.labels) {
+						const emoji = this.getEmoji(label.name as ChangeType);
+						if (emoji) {
+							change += emoji;
+						}
+					}
+					change += card.name;
+					console.log(`Reporting new change: ${change}`);
+					channel.send(change);
+					await sleep(seconds(2));
 				}
 			}
 		}
+	}
+
+	private getEmoji (emote: ChangeType) {
+		if (!emotes[emote]) {
+			return;
+		}
+		return discord.emojis.find("name", emotes[emote]);
 	}
 }
