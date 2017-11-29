@@ -3,7 +3,7 @@ import { Channel } from "discord.js";
 import { Plugin } from "../Plugin";
 import { sleep } from "../util/Async";
 import discord from "../util/Discord";
-import { hours, seconds } from "../util/Time";
+import { minutes, seconds } from "../util/Time";
 import { ChangeType, IVersionInfo, trello } from "../util/Trello";
 
 const skipLog = false;
@@ -36,10 +36,11 @@ const changeOrder = [
 ];
 
 export class ChangelogPlugin extends Plugin {
-	public updateInterval = hours(1);
+	public updateInterval = minutes(5);
 
 	private id = "changelog";
 	private channel: Channel;
+	private isReporting = false;
 	public getId () {
 		return this.id;
 	}
@@ -48,13 +49,19 @@ export class ChangelogPlugin extends Plugin {
 	}
 
 	public async update () {
+		if (this.isReporting) {
+			return;
+		}
+
 		this.log("Updating changelog...");
 		this.channel = discord.channels.find("id", channel);
 
 		const version = await trello.getNewestVersion();
+		this.isReporting = true;
 		await this.changelog(version);
 		await this.changelog(internalRegressionDone);
 		await this.changelog(generalDone);
+		this.isReporting = false;
 
 		this.log("Update complete.");
 	}
