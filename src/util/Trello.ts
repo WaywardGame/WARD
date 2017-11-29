@@ -25,7 +25,7 @@ export function getVersionInfo (version: string): IVersionInfo {
 		stage: versionInfo[1] ? versionInfo[1] as "beta" | "release" : "beta",
 		major: parseInt(versionInfo[2], 10),
 		minor: parseInt(versionInfo[3], 10),
-		patch: versionInfo[4] ? parseInt(versionInfo[4], 10) : 0
+		patch: versionInfo[4] ? parseInt(versionInfo[4], 10) : 0,
 	};
 }
 
@@ -87,14 +87,15 @@ export enum ChangeType {
 	Technical = "Technical",
 	Internal = "Internal",
 	Misc = "Misc",
-	Regression = "Regression"
+	Regression = "Regression",
 }
 
+// tslint:disable-next-line max-line-length
 const changelogListRegExp = /^\s*(Beta|Release)\s+(\d+)\.(\d+)(?:\.(\d+))?(?:\s+"(.*?)")?(\s+\((January|February|March|April|May|June|July|August|September|October|November|December) (\d+(?:st|nd|rd|th)), (\d+)\))?\s*$/;
 
 enum VersionInfoStage {
 	beta,
-	release
+	release,
 }
 
 function sortVersionInfo (infoA: IVersionInfo, infoB: IVersionInfo, reverse = false): number {
@@ -119,15 +120,12 @@ export default class Trello {
 	private versionCache: IVersionInfo[];
 	private lastCachedVersions = 0;
 
-	public async getChangelog (list: string): Promise<IChangelog | undefined>;
-	public async getChangelog (versionInfo: IVersionInfo): Promise<IChangelog | undefined>;
-	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined>;
 	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined> {
 		let changelog: ITrelloChangelog;
 		if (typeof versionInfo === "string") {
 			changelog = {
 				version: undefined,
-				list: await this.getCards(versionInfo)
+				list: await this.getCards(versionInfo),
 			};
 
 		} else {
@@ -140,40 +138,25 @@ export default class Trello {
 		return changelog ? this.parseChangelog(changelog) : undefined;
 	}
 
-	public async getVersions (maxVersion?: IVersionInfo, board?: ITrelloBoard): Promise<IVersionInfo[]> {
+	public async getVersions (maxVersion?: IVersionInfo): Promise<IVersionInfo[]> {
 		const result = [];
-		if (!board) {
-			if (Date.now() - this.lastCachedVersions < minutes(20)) {
-				return this.versionCache;
-			}
+		if (Date.now() - this.lastCachedVersions < minutes(20)) {
+			return this.versionCache;
+		}
 
-			const cfg = await config.get();
+		const cfg = await config.get();
 
-			// check both open and unopened lists on the default board
-			board = await this.getBoard(cfg.trello.board);
-			if (board) {
-				result.push(...await this.getVersions(undefined, board));
-				board = await this.getBoard(cfg.trello.board, true);
-				result.push(...await this.getVersions(undefined, board));
-			}
-
-		} else {
-			// check the lists of the board provided
-			if (board.lists) {
-				for (const list of board.lists) {
-					const listVersionInfo = this.getListVersionInfo(list);
-					if (!listVersionInfo) {
-						continue;
-					}
-
-					result.push(listVersionInfo);
-				}
-			}
+		// Check both open and unopened lists on the default board
+		let board = await this.getBoard(cfg.trello.board);
+		if (board) {
+			result.push(...this.getCardsFromBoard(board));
+			board = await this.getBoard(cfg.trello.board, true);
+			result.push(...this.getCardsFromBoard(board));
 		}
 
 		result.sort((infoA, infoB) => sortVersionInfo(infoA, infoB, true));
 		if (maxVersion) {
-			// remove versions past the maximum version
+			// Remove versions past the maximum version
 			while (sortVersionInfo(result[0], maxVersion) > 0) {
 				result.shift();
 			}
@@ -187,28 +170,53 @@ export default class Trello {
 
 	public async getNewestVersion () {
 		const versions = await this.getVersions();
+
 		return versions[0];
 	}
 
+	private getCardsFromBoard (board: ITrelloBoard) {
+		const result = [];
+
+		if (board.lists) {
+			for (const list of board.lists) {
+				const listVersionInfo = this.getListVersionInfo(list);
+				if (!listVersionInfo) {
+					continue;
+				}
+
+				result.push(listVersionInfo);
+			}
+		}
+
+		return result;
+	}
+
 	private async getCards (list: ITrelloList | string): Promise<ITrelloList> {
-		return this.trelloRequest(`/lists/${typeof list === "string" ? list : list.id}?cards=open&fields=name&card_fields=name,labels,pos,dateLastActivity,shortUrl`);
+		list = typeof list === "string" ? list : list.id;
+
+		return this.trelloRequest(
+			`/lists/${list}?cards=open&fields=name&card_fields=name,labels,pos,dateLastActivity,shortUrl`,
+		);
 	}
 
 	private async getBoard (boardId: string, checkClosed: boolean = false): Promise<ITrelloBoard> {
-		return this.trelloRequest(`/boards/${boardId}?lists=${checkClosed ? "closed" : "open"}&list_fields=name&fields=name,desc`);
+		const closed = checkClosed ? "closed" : "open";
+
+		return this.trelloRequest(`/boards/${boardId}?lists=${closed}&list_fields=name&fields=name,desc`);
 	}
 
 	private async trelloRequest (rq: string) {
 		const cfg = await config.get();
+
 		return request(`${api}${rq}&key=${cfg.trello.key}`, {
-			json: true
+			json: true,
 		});
 	}
 
 	private getListVersionInfo (list: ITrelloList): IVersionInfo | undefined {
 		const match = list.name.match(changelogListRegExp);
 		if (!match) {
-			// is not a valid version list
+			// Not a valid version list
 			return undefined;
 		}
 
@@ -217,10 +225,11 @@ export default class Trello {
 			stage: match[1].toLowerCase() as "beta" | "release",
 			major: parseInt(match[2], 10),
 			minor: parseInt(match[3], 10),
-			patch: match[4] ? parseInt(match[4], 10) : 0
+			patch: match[4] ? parseInt(match[4], 10) : 0,
 		};
 
-		listVersionInfo.str = `${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
+		listVersionInfo.str =
+			`${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
 
 		if (match[5]) {
 			listVersionInfo.name = match[5];
@@ -233,29 +242,12 @@ export default class Trello {
 		return listVersionInfo;
 	}
 
-	private async findChangelogList (versionInfo: IVersionInfo, board?: ITrelloBoard): Promise<ITrelloChangelog | undefined> {
-		if (!board) {
+	private async findChangelogList (versionInfo: IVersionInfo): Promise<ITrelloChangelog | undefined> {
+		const cfg = await config.get();
 
-			const cfg = await config.get();
-
-			// check both open and unopened lists on the default board
-			board = await this.getBoard(cfg.trello.board);
-			if (board) {
-				let result = await this.findChangelogList(versionInfo, board);
-				if (result) {
-					return result;
-				}
-
-				board = await this.getBoard(cfg.trello.board, true);
-				result = await this.findChangelogList(versionInfo, board);
-
-				if (result) {
-					return result;
-				}
-			}
-
-		} else {
-			// check the lists of the board provided
+		let result: ITrelloChangelog | undefined;
+		// Check both open and unopened lists on the default board
+		await this.forBoard(cfg.trello.board, async board => {
 			if (board.lists) {
 				for (const list of board.lists) {
 					const listVersionInfo = this.getListVersionInfo(list);
@@ -263,77 +255,48 @@ export default class Trello {
 						continue;
 					}
 
-					// check if the list changelog is the same version as the changelog list we're searching for
+					// Check if the list changelog is the same version as the changelog list we're searching for
 					if (isSameVersion(listVersionInfo, versionInfo)) {
-						return {
+						result = {
 							version: listVersionInfo,
-							list: await this.getCards(list) // update cards
+							list: await this.getCards(list), // Update cards
 						};
+
+						return false;
 					}
 				}
 			}
+		});
+
+		return result;
+	}
+
+	private async forBoard (boardId: string, cb: (board: ITrelloBoard) => Promise<boolean | undefined>) {
+		let board = await this.getBoard(boardId);
+		if (board) {
+			let result = await cb(board);
+			if (result === false) {
+				return true;
+			}
+
+			board = await this.getBoard(boardId, true);
+			result = await cb(board);
+			if (result === false) {
+				return true;
+			}
 		}
 
-		return undefined;
+		return false;
 	}
 
 	private parseChangelog (changelogData: ITrelloChangelog): IChangelog {
-		const changelog: IChangelog = {
-			version: changelogData.version,
-			sections: {},
-			unsorted: changelogData.list.cards,
-			changeCount: 0
-		};
+		let changelog: IChangelog;
 		const list = changelogData.list;
 		if (list.cards) {
-			changelog.changeCount = list.cards.length;
-
-			for (const card of list.cards) {
-				const labels = card.labels;
-
-				let sectionId: ChangeType | undefined;
-
-				if (labels.some((v) => v.name === ChangeType.New)) {
-					sectionId = ChangeType.New;
-
-				} else if (labels.some((v) => v.name === ChangeType.Mod)) {
-					sectionId = ChangeType.Mod;
-
-				} else if (labels.some((v) => v.name === ChangeType.Modding)) {
-					sectionId = ChangeType.Modding;
-
-				} else if (labels.some((v) => v.name === ChangeType.Improvement)) {
-					sectionId = ChangeType.Improvement;
-
-				} else if (labels.some((v) => v.name === ChangeType.Bug)) {
-					sectionId = ChangeType.Bug;
-
-				} else if (labels.some((v) => v.name === ChangeType.Balance)) {
-					sectionId = ChangeType.Balance;
-
-				} else if (labels.some((v) => v.name === ChangeType.Technical)) {
-					sectionId = ChangeType.Technical;
-
-				} else if (labels.some((v) => v.name === ChangeType.Internal)) {
-					sectionId = ChangeType.Internal;
-
-				}
-
-				if (sectionId === undefined) {
-					// tslint:disable-next-line no-console
-					console.log(`[Trello] Missing section id for ${card.name}`, card);
-					continue;
-				}
-
-				card.important = labels.some((v) => v.name === "Important");
-
-				let section = changelog.sections[sectionId];
-				if (!section) {
-					section = changelog.sections[sectionId] = [];
-				}
-
-				section.push(card);
-			}
+			changelog = {
+				version: changelogData.version,
+				...this.parseCards(list.cards),
+			} as IChangelog;
 		}
 
 		const sectionKeys = Object.keys(ChangeType);
@@ -345,6 +308,47 @@ export default class Trello {
 		}
 
 		return changelog;
+	}
+
+	private parseCards (cards: ITrelloCard[]) {
+		const changelog: Partial<IChangelog> = {
+			sections: {},
+			unsorted: cards,
+			changeCount: cards.length,
+		};
+
+		for (const card of cards) {
+			const sectionId = this.getChangeType(card);
+
+			if (sectionId === undefined) {
+				// tslint:disable-next-line no-console
+				console.log(`[Trello] Missing section id for ${card.name}`, card);
+				continue;
+			}
+
+			card.important = card.labels.some(v => v.name === "Important");
+
+			let section = changelog.sections[sectionId];
+			if (!section) {
+				section = changelog.sections[sectionId] = [];
+			}
+
+			section.push(card);
+		}
+
+		return changelog;
+	}
+
+	private getChangeType (card: ITrelloCard) {
+		let changeType: ChangeType | undefined;
+
+		for (const label of card.labels) {
+			if (label.name in ChangeType) {
+				changeType = label.name as ChangeType;
+			}
+		}
+
+		return changeType;
 	}
 
 }

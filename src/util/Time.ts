@@ -13,3 +13,7 @@ export function hours (a: number) {
 export function days (a: number) {
 	return a * 1000 * 60 * 60 * 24;
 }
+
+export function never () {
+	return Infinity;
+}

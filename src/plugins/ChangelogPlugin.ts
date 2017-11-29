@@ -4,9 +4,14 @@ import { Plugin } from "../Plugin";
 import { sleep } from "../util/Async";
 import discord from "../util/Discord";
 import { minutes, seconds } from "../util/Time";
-import { ChangeType, IVersionInfo, trello } from "../util/Trello";
+import { ChangeType, ITrelloCard, IVersionInfo, trello } from "../util/Trello";
 
+/**
+ * Set this variable to true and allow the plugin to update once to save that the bot has reported all possible changes.
+ * This is useful when the api changes.
+ */
 const skipLog = false;
+
 const channel = "225111620290871296";
 const internalRegressionDone = "5860937f318e0bde03f73dc0";
 const generalDone = "571b0344f800eaf864b2c5e7";
@@ -20,7 +25,7 @@ const emotes: { [key: string]: string } = {
 	[ChangeType.Mod]: "_mod",
 	[ChangeType.Technical]: "_technical",
 	[ChangeType.Internal]: "_internal",
-	[ChangeType.Regression]: "_regression"
+	[ChangeType.Regression]: "_regression",
 };
 
 const changeOrder = [
@@ -32,23 +37,24 @@ const changeOrder = [
 	ChangeType.Mod,
 	ChangeType.Technical,
 	ChangeType.Internal,
-	ChangeType.Regression
+	ChangeType.Regression,
 ];
 
-export class ChangelogPlugin extends Plugin {
+export enum ChangelogData {
+	ReportedChanges,
+}
+
+export class ChangelogPlugin extends Plugin<ChangelogData> {
 	public updateInterval = minutes(5);
 
-	private id = "changelog";
 	private channel: Channel;
 	private isReporting = false;
-	public getId () {
-		return this.id;
-	}
-	public setId (pid: string) {
-		this.id = pid;
+
+	public getDefaultId () {
+		return "changelog";
 	}
 
-	public async update () {
+	public async onUpdate () {
 		if (this.isReporting) {
 			return;
 		}
@@ -76,33 +82,44 @@ export class ChangelogPlugin extends Plugin {
 		changes.sort((a, b) => new Date(a.dateLastActivity).getTime() - new Date(b.dateLastActivity).getTime());
 
 		for (const card of changes) {
-			let listedChanges = await this.getData("listedChanges") as string[];
-			if (!listedChanges) {
-				this.setData("listedChanges", listedChanges = []);
+			await this.reportChange(card);
+		}
+	}
+
+	private async reportChange (card: ITrelloCard) {
+		let listedChanges = await this.getData(ChangelogData.ReportedChanges) as string[];
+		if (!listedChanges) {
+			this.setData(ChangelogData.ReportedChanges, listedChanges = []);
+		}
+
+		if (!listedChanges.includes(card.id)) {
+			listedChanges.push(card.id);
+			if (skipLog) {
+				return;
 			}
 
-			if (!listedChanges.includes(card.id)) {
-				listedChanges.push(card.id);
-				if (skipLog) {
-					continue;
-				}
+			let change = this.generateChangeTypeEmojiPrefix(card);
 
-				let change = "";
-				card.labels.sort((a, b) => changeOrder.indexOf(a.name as ChangeType) - changeOrder.indexOf(b.name as ChangeType));
-				for (const label of card.labels) {
-					const emoji = this.getEmoji(label.name as ChangeType);
-					if (emoji) {
-						change += emoji;
-					}
-				}
+			change += ` ${card.name} ${card.shortUrl}`;
+			this.log(`Reporting new change: ${change}`);
+			this.channel.send(change);
 
-				change += ` ${card.name} ${card.shortUrl}`;
-				this.log(`Reporting new change: ${change}`);
-				this.channel.send(change);
+			await sleep(seconds(5));
+		}
+	}
 
-				await sleep(seconds(5));
+	private generateChangeTypeEmojiPrefix (card: ITrelloCard) {
+		let result = "";
+
+		card.labels.sort((a, b) => changeOrder.indexOf(a.name as ChangeType) - changeOrder.indexOf(b.name as ChangeType));
+		for (const label of card.labels) {
+			const emoji = this.getEmoji(label.name as ChangeType);
+			if (emoji) {
+				result += emoji;
 			}
 		}
+
+		return result;
 	}
 
 	private getEmoji (emote: ChangeType) {

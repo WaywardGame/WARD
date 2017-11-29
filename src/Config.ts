@@ -4,26 +4,30 @@ export interface IConfig {
 	discord: {
 		username: string;
 		token: string;
+		guild: string;
 	};
 	trello: {
 		board: string;
 		key: string;
 	};
+	ward: {
+		commandPrefix: string;
+	};
 }
 
 export class Config {
-	private onGetHandlers: Array<(cfg: any) => any> = [];
+	private onGetHandlers: Array<(cfg: IConfig) => any> = [];
 	private result: any;
 	private isGetting = false;
 
-	public async get () {
+	public async get (): Promise<IConfig> {
 		if (this.result) {
 			return this.result;
 
 		} else {
 			if (!this.isGetting) {
 				this.isGetting = true;
-				fs.readFile("config.json", "utf8").then((text) => {
+				fs.readFile("config.json", "utf8").then(text => {
 					const result = JSON.parse(text);
 					this.result = result;
 					for (const onGetHandler of this.onGetHandlers) {
@@ -32,13 +36,13 @@ export class Config {
 
 					delete this.onGetHandlers;
 					this.isGetting = false;
-				}).catch((err) => {
+				}).catch(err => {
 					// tslint:disable-next-line no-console
 					console.log("Can't load config file");
 				});
 			}
 
-			return new Promise((resolve) => {
+			return new Promise<IConfig>(resolve => {
 				this.onGetHandlers.push(resolve);
 			});
 		}
