@@ -14,25 +14,32 @@ export class Ward {
 		if (this.stopped && !this.onStop) {
 			this.stopped = false;
 
-			const cfg = await config.get();
-			await discord.login(cfg.discord.token);
+			await config.get();
 
 			while (!this.stopped) {
 				this.update();
 				await sleep(100);
 			}
 
+			await this.login();
 			const promises: Array<Promise<any>> = [];
 			for (const pid in this.plugins) {
 				promises.push(this.plugins[pid].save());
 			}
 			await Promise.all(promises);
-
-			await discord.destroy();
+			await this.logout();
 
 			this.onStop();
 			delete this.onStop;
 		}
+	}
+
+	public async login () {
+		const cfg = await config.get();
+		await discord.login(cfg.discord.token);
+	}
+	public async logout () {
+		await discord.destroy();
 	}
 
 	public async stop () {
