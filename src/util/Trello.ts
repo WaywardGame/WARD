@@ -56,6 +56,7 @@ export interface ITrelloCard {
 	labels: ITrelloCardLabel[];
 	important: boolean;
 	dateLastActivity: string;
+	shortUrl: string;
 }
 
 export interface ITrelloCardLabel {
@@ -190,7 +191,7 @@ export default class Trello {
 	}
 
 	private async getCards (list: ITrelloList | string): Promise<ITrelloList> {
-		return this.trelloRequest(`/lists/${typeof list === "string" ? list : list.id}?cards=open&fields=name&card_fields=name,labels,pos,dateLastActivity`);
+		return this.trelloRequest(`/lists/${typeof list === "string" ? list : list.id}?cards=open&fields=name&card_fields=name,labels,pos,dateLastActivity,shortUrl`);
 	}
 
 	private async getBoard (boardId: string, checkClosed: boolean = false): Promise<ITrelloBoard> {

@@ -74,7 +74,7 @@ export class ChangelogPlugin extends Plugin {
 						change += emoji;
 					}
 				}
-				change += ` ${card.name}`;
+				change += ` ${card.name} ${card.shortUrl}`;
 				this.log(`Reporting new change: ${change}`);
 				this.channel.send(change);
 
