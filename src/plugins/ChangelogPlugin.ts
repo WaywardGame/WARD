@@ -23,6 +23,18 @@ const emotes: { [key: string]: string } = {
 	[ChangeType.Regression]: "_regression"
 };
 
+const changeOrder = [
+	ChangeType.New,
+	ChangeType.Improvement,
+	ChangeType.Bug,
+	ChangeType.Balance,
+	ChangeType.Modding,
+	ChangeType.Mod,
+	ChangeType.Technical,
+	ChangeType.Internal,
+	ChangeType.Regression
+];
+
 export class ChangelogPlugin extends Plugin {
 	public updateInterval = hours(1);
 
@@ -69,6 +81,7 @@ export class ChangelogPlugin extends Plugin {
 				}
 
 				let change = "";
+				card.labels.sort((a, b) => changeOrder.indexOf(a.name as ChangeType) - changeOrder.indexOf(b.name as ChangeType));
 				for (const label of card.labels) {
 					const emoji = this.getEmoji(label.name as ChangeType);
 					if (emoji) {
