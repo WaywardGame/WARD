@@ -1,3 +1,245 @@
 {
-	"extends": "../../standalone/wayward/tslint.json"
+    "extends": "tslint:all",
+    "rulesDirectory": [
+        "./tslint/"
+    ],
+    "rules": {
+        "no-implicit-dependencies": false,
+        "no-floating-promises": false,
+        "no-unbound-method": false,
+        "no-inferred-empty-object-type": false,
+        "binary-expression-operand-order": false,
+        "completed-docs": false,
+        "forin": false,
+        "match-default-export-name": false,
+        "no-use-before-declare": false,
+        "newline-before-return": false,
+        "no-any": false,
+        "no-bitwise": false,
+        "no-default-export": false,
+        "no-empty": false,
+        "no-internal-module": false,
+        "no-namespace": false,
+        "no-non-null-assertion": false,
+        "no-null-keyword": false,
+        "no-object-literal-type-assertion": false,
+        "no-parameter-properties": false,
+        "no-parameter-reassignment": false,
+        "no-string-literal": false,
+        "no-submodule-imports": false,
+        "no-this-assignment": false,
+        "no-trailing-whitespace": false,
+        "no-unsafe-any": false,
+        "number-literal-format": false,
+        "object-literal-shorthand": false,
+        "object-literal-sort-keys": false,
+        "prefer-conditional-expression": false,
+        "prefer-for-of": false,
+        "prefer-function-over-method": false,
+        "prefer-switch": false,
+        "space-before-function-paren": false,
+        "strict-type-predicates": false,
+        "switch-default": false,
+        "unified-signatures": false,
+        "strict-boolean-expressions": false,
+        // "strict-boolean-expressions": [
+        //     true,
+        //     "allow-null-union",
+        //     "allow-undefined-union",
+        //     "allow-boolean-or-undefined"
+        // ],
+        "max-file-line-count": [
+            false
+        ],
+        "switch-final-break": [
+            false
+        ],
+        "no-magic-numbers": [
+            false
+        ],
+        "cyclomatic-complexity": [
+            false
+        ],
+        "align": [
+            true,
+            "statements"
+        ],
+        "indent": [
+            true,
+            "tabs"
+        ],
+        "max-line-length": [
+            false
+        ],
+        "member-access": [
+            true,
+            "check-accessor"
+        ],
+        "member-ordering": [
+            true,
+            {
+                "order": [
+                    "public-static-field",
+                    "protected-static-field",
+                    "private-static-field",
+                    "public-instance-field",
+                    "protected-instance-field",
+                    "private-instance-field",
+                    "public-constructor",
+                    "protected-constructor",
+                    "private-constructor",
+                    "public-instance-method",
+                    "protected-instance-method",
+                    "private-instance-method"
+                ]
+            }
+        ],
+        "interface-name": [
+            false
+        ],
+        "comment-format": [
+            false
+        ],
+        "typedef": [
+            false
+        ],
+        "linebreak-style": [
+            "CRLF"
+        ],
+        "only-arrow-functions": [
+            false
+        ],
+        "max-classes-per-file": [
+            false
+        ],
+        "trailing-comma": [
+            true,
+            {
+                "multiline": "never",
+                "singleline": "never"
+            }
+        ],
+        "variable-name": [
+            true,
+            "allow-leading-underscore"
+        ],
+        "whitespace": [
+            true,
+            "check-branch",
+            "check-decl",
+            "check-operator",
+            "check-module",
+            "check-separator",
+            "check-type"
+        ],
+        "padding-line-between-statements": [
+            true,
+            {
+                "blankLine": "always",
+                "prev": [
+                    "if",
+                    "switch",
+                    "for",
+                    "forof",
+                    "forin",
+                    "do",
+                    "while",
+                    "break",
+                    "continue",
+                    "throw"
+                ],
+                "next": "*"
+            },
+            {
+                "blankLine": "always",
+                "prev": "*",
+                "next": [
+                    "else",
+                    "elseif"
+                ]
+            }
+        ]
+    },
+    "jsRules": {
+        "align": [
+            true,
+            "statements"
+        ],
+        "indent": [
+            true,
+            "tabs"
+        ],
+        "max-line-length": [
+            false
+        ],
+        "member-ordering": [
+            true,
+            {
+                "order": [
+                    "public-static-field",
+                    "protected-static-field",
+                    "private-static-field",
+                    "public-instance-field",
+                    "protected-instance-field",
+                    "private-instance-field",
+                    "public-constructor",
+                    "protected-constructor",
+                    "private-constructor",
+                    "public-instance-method",
+                    "protected-instance-method",
+                    "private-instance-method"
+                ]
+            }
+        ],
+        "interface-name": [
+            false
+        ],
+        "forin": false,
+        "no-bitwise": false,
+        "no-empty-interface": true,
+        "no-empty": false,
+        "no-internal-module": false,
+        "no-namespace": false,
+        "no-object-literal-type-assertion": false,
+        "no-reference": true,
+        "no-string-literal": false,
+        "no-this-assignment": false,
+        "no-trailing-whitespace": false,
+        "no-var-keyword": true,
+        "object-literal-shorthand": false,
+        "object-literal-sort-keys": false,
+        "prefer-conditional-expression": false,
+        "prefer-const": true,
+        "prefer-for-of": false,
+        "space-before-function-paren": false,
+        "switch-default": false,
+        "triple-equals": true,
+        "unified-signatures": false,
+        "only-arrow-functions": [
+            false
+        ],
+        "max-classes-per-file": [
+            false
+        ],
+        "trailing-comma": [
+            true,
+            {
+                "multiline": "never",
+                "singleline": "never"
+            }
+        ],
+        "variable-name": [
+            true,
+            "allow-leading-underscore"
+        ],
+        "whitespace": [
+            true,
+            "check-branch",
+            "check-decl",
+            "check-operator",
+            "check-module",
+            "check-separator",
+            "check-type"
+        ]
+    }
 }

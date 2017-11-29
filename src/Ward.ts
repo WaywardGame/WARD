@@ -26,6 +26,7 @@ export class Ward {
 			for (const pid in this.plugins) {
 				promises.push(this.plugins[pid].save());
 			}
+
 			await Promise.all(promises);
 			await this.logout();
 
@@ -67,6 +68,7 @@ export class Ward {
 		while (pid in this.plugins) {
 			pid = `${plugin.getId()}-${i++}`;
 		}
+
 		plugin.setId(pid);
 		this.plugins[pid] = plugin;
 		return pid;
@@ -89,6 +91,7 @@ async function exitHandler (err?: Error) {
 		// tslint:disable-next-line no-console
 		console.log(err.stack);
 	}
+
 	await ward.stop();
 	process.exit();
 }

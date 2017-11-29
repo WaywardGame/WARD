@@ -61,6 +61,7 @@ export class ChangelogPlugin extends Plugin {
 			if (!listedChanges) {
 				this.setData("listedChanges", listedChanges = []);
 			}
+
 			if (!listedChanges.includes(card.id)) {
 				listedChanges.push(card.id);
 				if (skipLog) {
@@ -74,6 +75,7 @@ export class ChangelogPlugin extends Plugin {
 						change += emoji;
 					}
 				}
+
 				change += ` ${card.name} ${card.shortUrl}`;
 				this.log(`Reporting new change: ${change}`);
 				this.channel.send(change);
@@ -85,8 +87,9 @@ export class ChangelogPlugin extends Plugin {
 
 	private getEmoji (emote: ChangeType) {
 		if (!emotes[emote]) {
-			return;
+			return undefined;
 		}
+
 		return discord.emojis.find("name", emotes[emote]);
 	}
 }

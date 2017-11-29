@@ -9,6 +9,11 @@
 		"noImplicitThis": true,
 		"noUnusedLocals": true,
 		"removeComments": true,
-		"declaration": true
+		"declaration": true,
+        "plugins": [
+            {
+                "name": "tslint-language-service"
+            }
+        ]
 	}
 }

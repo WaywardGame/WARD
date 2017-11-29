@@ -19,6 +19,7 @@ export class Config {
 	public async get () {
 		if (this.result) {
 			return this.result;
+
 		} else {
 			if (!this.isGetting) {
 				this.isGetting = true;
@@ -28,6 +29,7 @@ export class Config {
 					for (const onGetHandler of this.onGetHandlers) {
 						onGetHandler(this.result);
 					}
+
 					delete this.onGetHandlers;
 					this.isGetting = false;
 				}).catch((err) => {
@@ -35,6 +37,7 @@ export class Config {
 					console.log("Can't load config file");
 				});
 			}
+
 			return new Promise((resolve) => {
 				this.onGetHandlers.push(resolve);
 			});
