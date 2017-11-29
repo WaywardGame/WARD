@@ -15,13 +15,13 @@ export class Ward {
 			this.stopped = false;
 
 			await config.get();
+			await this.login();
 
 			while (!this.stopped) {
 				this.update();
 				await sleep(100);
 			}
 
-			await this.login();
 			const promises: Array<Promise<any>> = [];
 			for (const pid in this.plugins) {
 				promises.push(this.plugins[pid].save());
