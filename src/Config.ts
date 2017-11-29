@@ -31,6 +31,7 @@ export class Config {
 					delete this.onGetHandlers;
 					this.isGetting = false;
 				}).catch((err) => {
+					// tslint:disable-next-line no-console
 					console.log("Can't load config file");
 				});
 			}

@@ -55,6 +55,7 @@ export interface ITrelloCard {
 	pos: number;
 	labels: ITrelloCardLabel[];
 	important: boolean;
+	dateLastActivity: string;
 }
 
 export interface ITrelloCardLabel {
@@ -83,6 +84,7 @@ export enum ChangeType {
 	Modding = "Modding",
 	Mod = "Mod",
 	Technical = "Technical",
+	Internal = "Internal",
 	Misc = "Misc",
 	Regression = "Regression"
 }
@@ -116,15 +118,25 @@ export default class Trello {
 	private versionCache: IVersionInfo[];
 	private lastCachedVersions = 0;
 
-	public async getChangelog (versionInfo: IVersionInfo): Promise<IChangelog | undefined> {
-		const changelog = await this.findChangelogList(versionInfo);
+	public async getChangelog (list: string): Promise<IChangelog | undefined>;
+	public async getChangelog (versionInfo: IVersionInfo): Promise<IChangelog | undefined>;
+	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined>;
+	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined> {
+		let changelog: ITrelloChangelog;
+		if (typeof versionInfo === "string") {
+			changelog = {
+				version: undefined,
+				list: await this.getCards(versionInfo)
+			};
 
-		if (changelog) {
-			changelog.list = await this.getCards(changelog.list);
-			return this.parseChangelog(changelog);
+		} else {
+			changelog = await this.findChangelogList(versionInfo);
+			if (changelog) {
+				changelog.list = await this.getCards(changelog.list);
+			}
 		}
 
-		return undefined;
+		return changelog ? this.parseChangelog(changelog) : undefined;
 	}
 
 	public async getVersions (maxVersion?: IVersionInfo, board?: ITrelloBoard): Promise<IVersionInfo[]> {
@@ -177,8 +189,8 @@ export default class Trello {
 		return versions[0];
 	}
 
-	private async getCards (list: ITrelloList): Promise<ITrelloList> {
-		return this.trelloRequest(`/lists/${list.id}?cards=open&fields=name&card_fields=name,labels,pos`);
+	private async getCards (list: ITrelloList | string): Promise<ITrelloList> {
+		return this.trelloRequest(`/lists/${typeof list === "string" ? list : list.id}?cards=open&fields=name&card_fields=name,labels,pos,dateLastActivity`);
 	}
 
 	private async getBoard (boardId: string, checkClosed: boolean = false): Promise<ITrelloBoard> {
@@ -300,9 +312,14 @@ export default class Trello {
 
 				} else if (labels.some((v) => v.name === ChangeType.Technical)) {
 					sectionId = ChangeType.Technical;
+
+				} else if (labels.some((v) => v.name === ChangeType.Internal)) {
+					sectionId = ChangeType.Internal;
+
 				}
 
 				if (sectionId === undefined) {
+					// tslint:disable-next-line no-console
 					console.log(`[Trello] Missing section id for ${card.name}`, card);
 					continue;
 				}

@@ -1,7 +1,9 @@
 import { Plugin } from "./Plugin";
 import { sleep } from "./util/Async";
 
+import config from "./Config";
 import { ChangelogPlugin } from "./plugins/ChangelogPlugin";
+import discord from "./util/Discord";
 
 export class Ward {
 	private plugins: { [key: string]: Plugin } = {};
@@ -11,15 +13,23 @@ export class Ward {
 	public async start () {
 		if (this.stopped && !this.onStop) {
 			this.stopped = false;
+
+			const cfg = await config.get();
+			await discord.login(cfg.discord.token);
+
 			while (!this.stopped) {
 				this.update();
 				await sleep(100);
 			}
+
 			const promises: Array<Promise<any>> = [];
 			for (const pid in this.plugins) {
 				promises.push(this.plugins[pid].save());
 			}
 			await Promise.all(promises);
+
+			await discord.destroy();
+
 			this.onStop();
 			delete this.onStop;
 		}
@@ -69,6 +79,7 @@ process.stdin.resume();
 
 async function exitHandler (err?: Error) {
 	if (err) {
+		// tslint:disable-next-line no-console
 		console.log(err.stack);
 	}
 	await ward.stop();

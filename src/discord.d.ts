@@ -1,3 +1,5 @@
+/// <reference types="discord.js" />
+
 declare module 'discord.js' {
 	interface Channel {
 		send (text: string): void;

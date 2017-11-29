@@ -33,6 +33,7 @@ export abstract class Plugin {
 	}
 
 	protected log (...args: any[]) {
+		// tslint:disable-next-line no-console
 		console.log(`[${this.getId()}]`, ...args);
 	}
 
