@@ -1,7 +1,7 @@
 import { Guild, GuildMember, Message, Role } from "discord.js";
 
 import { Plugin } from "../Plugin";
-import { days } from "../util/Time";
+import { days, hours } from "../util/Time";
 
 interface ITrackedUser {
 	id: string;
@@ -15,6 +15,8 @@ export enum RegularsData {
 }
 
 export class RegularsPlugin extends Plugin<RegularsData> {
+	public updateInterval = hours(12);
+
 	private members: { [key: string]: ITrackedUser };
 	private regularRole: Role;
 	private guild: Guild;
@@ -34,6 +36,23 @@ export class RegularsPlugin extends Plugin<RegularsData> {
 		this.regularRole = this.guild.roles.find("name", "regular");
 	}
 
+	public onUpdate () {
+		const today = this.getToday();
+		for (const memberId in this.members) {
+			const trackedMember = this.members[memberId];
+
+			if (trackedMember.lastDay < today - 1) {
+				trackedMember.talent--;
+
+				if (trackedMember.talent == 0) {
+					const member = this.guild.members.find("id", trackedMember.id);
+					member.removeRole(this.regularRole);
+					delete this.members[memberId];
+				}
+			}
+		}
+	}
+
 	public onCommand (message: Message, command: string, ...args: string[]) {
 		if (command === "talent") {
 			this.commandTalent(message, command, args[0]);
@@ -44,8 +63,12 @@ export class RegularsPlugin extends Plugin<RegularsData> {
 		this.updateMember(message.member, 1);
 	}
 
+	private getToday () {
+		return Math.floor(Date.now() / days(1));
+	}
+
 	private updateMember (member: GuildMember, score: number) {
-		const today = Math.floor(Date.now() / days(1));
+		const today = this.getToday();
 
 		let trackedMember = this.members[member.id];
 		if (!trackedMember) {

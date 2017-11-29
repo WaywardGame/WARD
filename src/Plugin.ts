@@ -13,9 +13,9 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 	public abstract getDefaultId (): string;
 
 	/* hooks */
-	public async onUpdate?(): Promise<any>;
-	public async onStart?(guild: Guild): Promise<any>;
-	public async onStop?(): Promise<any>;
+	public onUpdate?(): any;
+	public onStart?(guild: Guild): any;
+	public onStop?(): any;
 	public onMessage?(message: Message): any;
 	public onCommand?(message: Message, command: string, ...args: string[]): any;
 
