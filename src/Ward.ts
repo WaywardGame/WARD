@@ -4,6 +4,7 @@ import config, { IConfig } from "./Config";
 import { Plugin } from "./Plugin";
 import { ChangelogPlugin } from "./plugins/ChangelogPlugin";
 import { RegularsPlugin } from "./plugins/RegularsPlugin";
+import { RoleTogglePlugin } from "./plugins/RoleTogglePlugin";
 import { sleep } from "./util/Async";
 import discord from "./util/Discord";
 
@@ -27,6 +28,7 @@ export class Ward {
 		this.config = cfg;
 		this.addPlugin(new ChangelogPlugin());
 		this.addPlugin(new RegularsPlugin());
+		this.addPlugin(new RoleTogglePlugin());
 	}
 
 	public async start () {
@@ -37,6 +39,8 @@ export class Ward {
 
 			await login();
 			this.guild = discord.guilds.find("id", this.config.discord.guild);
+
+			this.pluginHookSetGuild();
 
 			discord.addListener("message", (message: Message) => {
 				this.onMessage(message);
@@ -144,7 +148,7 @@ export class Ward {
 			const plugin = this.plugins[pluginName];
 			plugin.config = this.config.ward.plugins[pluginName];
 			if (plugin.onStart) {
-				await this.plugins[pluginName].onStart(this.guild);
+				await this.plugins[pluginName].onStart();
 			}
 		}
 	}
@@ -155,6 +159,13 @@ export class Ward {
 			if (plugin.onStop) {
 				await this.plugins[pluginName].onStop();
 			}
+		}
+	}
+
+	private pluginHookSetGuild () {
+		for (const pluginName in this.plugins) {
+			const plugin = this.plugins[pluginName];
+			plugin.guild = this.guild;
 		}
 	}
 

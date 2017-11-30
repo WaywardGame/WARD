@@ -21,6 +21,7 @@ export interface IPluginConfig {
 export abstract class Plugin<DataIndex extends string | number = string | number, Config extends {} = {}> {
 	public updateInterval = never();
 	public lastUpdate = 0;
+	public guild: Guild;
 
 	private _config: Config & IPluginConfig;
 	private pluginData: any = {};
@@ -42,7 +43,7 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 
 	/* hooks */
 	public onUpdate?(): any;
-	public onStart?(guild: Guild): any;
+	public onStart?(): any;
 	public onStop?(): any;
 	public onMessage?(message: Message): any;
 	public onCommand?(message: Message, command: string, ...args: string[]): any;
@@ -55,6 +56,10 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 	}
 
 	public async save () {
+		if (Object.keys(this.pluginData).length === 0) {
+			return;
+		}
+
 		await fs.mkdir("data").catch(err => { });
 
 		await fs.writeFile(this.getDataPath(), JSON.stringify(this.pluginData));

@@ -1,8 +1,10 @@
-import { Guild, GuildMember, Message, Role } from "discord.js";
+import { Collection, GuildMember, Message, Role } from "discord.js";
 
 import { Plugin } from "../Plugin";
+import { sleep } from "../util/Async";
 import { days, hours } from "../util/Time";
 
+const colorRegex = /#[A-F0-9]{6}/;
 function parseColorInput (color: string) {
 	if (color.length === 3) {
 		color = `${color[0]}${color[0]}${color[1]}${color[1]}${color[2]}${color[2]}`;
@@ -42,20 +44,19 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 	private topMembers: ITrackedMember[];
 	private roleRegular: Role;
 	private roleMod: Role;
-	private guild: Guild;
 
 	public getDefaultId () {
 		return "regulars";
 	}
 
-	public async onStart (guild: Guild) {
-		this.guild = guild;
-
+	public async onStart () {
 		this.members = await this.data(RegularsData.TrackedMembers, {});
 		this.updateTopMembers();
 
 		this.roleRegular = this.guild.roles.find("name", "regular");
 		this.roleMod = this.guild.roles.find("name", "mod");
+
+		this.removeUnusedColorRoles();
 	}
 
 	public onUpdate () {
@@ -152,26 +153,18 @@ I will not send any other notification messages, apologies for the interruption.
 		this.topMembers.splice(3, Infinity);
 	}
 
-	private async commandColor (message: Message, color: string) {
-		if (message.member.highestRole.position < this.roleRegular.position) {
-			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
+	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
+		if (colorRoles) {
+			await sleep(10000);
 
-			return;
+		} else {
+			colorRoles = this.guild.roles.filter(r => colorRegex.test(r.name));
 		}
 
-		const colorRegex = /#[A-F0-9]{6}/;
-		const colorRoles = message.member.roles.filter(r => colorRegex.test(r.name));
-		await message.member.removeRoles(colorRoles);
 		for (const role of colorRoles.values()) {
 			if (role.members.size === 0) {
 				await role.delete();
 			}
-		}
-
-		if (!/none|reset|remove/.test(color)) {
-			color = parseColorInput(color);
-			const colorRole = await this.getColorRole(color);
-			await message.member.addRole(colorRole);
 		}
 	}
 
@@ -238,5 +231,39 @@ The members with the most talent are:
 2. ${this.getMemberName(this.topMembers[1].id)}: ${this.topMembers[1].talent}
 3. ${this.getMemberName(this.topMembers[2].id)}: ${this.topMembers[2].talent}
 		`);
+	}
+
+	private async commandColor (message: Message, color: string) {
+		if (message.member.highestRole.position < this.roleRegular.position) {
+			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
+
+			return;
+		}
+
+		if (!color) {
+			this.reply(message, "you must provide a valid color. Examples: `f00` is red, `123456` is dark blue.");
+
+			return;
+		}
+
+		const isRemoving = !/none|reset|remove/.test(color);
+
+		color = parseColorInput(color);
+		if (!isRemoving && !colorRegex.test(color)) {
+			this.reply(message, "you must provide a valid color. Examples: `f00` is red, `123456` is dark blue.");
+
+			return;
+		}
+
+		const colorRoles = message.member.roles.filter(r => colorRegex.test(r.name));
+		await message.member.removeRoles(colorRoles);
+		this.removeUnusedColorRoles(colorRoles);
+
+		if (isRemoving) {
+			return;
+		}
+
+		const colorRole = await this.getColorRole(color);
+		await message.member.addRole(colorRole);
 	}
 }
