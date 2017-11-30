@@ -19,7 +19,7 @@ export interface IConfig {
 }
 
 export class Config {
-	private onGetHandlers: Array<(cfg: IConfig) => any> = [];
+	private onGetHandlers: Array<[(cfg: IConfig) => any, (err: Error) => any]> = [];
 	private result: any;
 	private isGetting = false;
 
@@ -34,7 +34,7 @@ export class Config {
 					const result = JSON.parse(text);
 					this.result = result;
 					for (const onGetHandler of this.onGetHandlers) {
-						onGetHandler(this.result);
+						onGetHandler[0](this.result);
 					}
 
 					delete this.onGetHandlers;
@@ -42,11 +42,16 @@ export class Config {
 				}).catch(err => {
 					// tslint:disable-next-line no-console
 					console.log("Can't load config file");
+					for (const onGetHandler of this.onGetHandlers) {
+						onGetHandler[1](err);
+					}
+
+					delete this.onGetHandlers;
 				});
 			}
 
-			return new Promise<IConfig>(resolve => {
-				this.onGetHandlers.push(resolve);
+			return new Promise<IConfig>((resolve, reject) => {
+				this.onGetHandlers.push([resolve, reject]);
 			});
 		}
 	}
