@@ -3,13 +3,13 @@ import { Message } from "discord.js";
 import { Plugin } from "../Plugin";
 
 export interface IRoleTogglePluginConfig {
-	pingRoles: { [key: string]: string[] };
+	toggleableRoles: { [key: string]: string[] };
 }
 
 export class RoleTogglePlugin extends Plugin<any, IRoleTogglePluginConfig> {
 
 	public getDefaultId () {
-		return "waywardPing";
+		return "roleToggle";
 	}
 
 	public onCommand (message: Message, command: string, ...args: string[]) {
@@ -19,15 +19,21 @@ export class RoleTogglePlugin extends Plugin<any, IRoleTogglePluginConfig> {
 	}
 
 	private commandRole (message: Message, roleName: string) {
+		if (!roleName) {
+			this.reply(message, "you must provide a role to toggle.");
+
+			return;
+		}
+
 		const role = this.guild.roles.find(r => {
 			const pingRole = r.name.toLowerCase();
-			if (this.config.pingRoles[pingRole] && this.config.pingRoles[pingRole].includes(roleName)) {
+			if (this.config.toggleableRoles[pingRole] && this.config.toggleableRoles[pingRole].includes(roleName)) {
 				return true;
 			}
 		});
 
 		if (!role) {
-			this.reply(message, `sorry, I couldn't find a role by the name ${roleName}.`);
+			this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`);
 
 			return;
 		}
