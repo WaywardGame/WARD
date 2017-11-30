@@ -1,15 +1,16 @@
 language: node_js
-
 node_js:
-  - "8.9.1"
-  
+- 8.9.1
 before_script:
-  - npm install -g gulp-cli
-  
+- npm install -g gulp-cli
 script:
-  - gulp compile-test
-  
+- gulp compile-test
 notifications:
   email:
     on_success: never
     on_failure: always
+env:
+  global:
+    secure: Le+iy5spjdYMoQh2Qa24G6LA17jtxhgdUwrUWEsbiDNIlpNO6LY3/LS7mfCU3OBAecI6Iq1DcPgMkUaeVQctQGKNrggQ72b1/WVEHNS/ChsLORjj/kzMWvGWcm+JmBgauRPT5DPsrk8rNCcopeXMupsjxdvyqfWlLINjYginDLiEb/KW6Z8qAN3MSIR3/jZm2V4KAJmtTuxRtdF33UgJr0GbI/uXkSKzP69zWHtwKF2GuX2Z13nqHF4XVCjBcygWCxye9CnWcHGlpKsoHoCN8DNehJy7uU9LU1fXRUmF9q52iOX3CjBQ/krj4vcREGmvjybKIiHg/ZQ404YqAzVdpISCsL9cZXKbmtmtMV1cwMTTrURf9VDn8Po3KcGQi9GzEv8brCsHgBSXna2Raf70YIQZzl//VRP0vVODxU/jC2eb3z/0Wy9iO4PzupeRtIK+LBmhoL3v4flI1/bSo75s6Egl7+eLVXufb9ukd5qf15Ez+OgqeKhiEgVPOGKaYcjnrr15C0sD7hcDFAPrRER3Ub333i4p+ShAyknvEpN/HRu8xMEMoKviFQDyzzlOy9sj+uoBsL8X7bRLzMXUBR9blsCupP62ACUuEK5+pLWiT3JGBTCot/N8JLI4U6XRn5wYRTgwh+3+vAP+Sny8X8sdhnb4y+pBQB8oYaIOpHr/LzY=
+before_install:
+- echo $password | gpg --passphrase-fd 0 config.json.gpg
