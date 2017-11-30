@@ -1,4 +1,4 @@
-import { Guild, Message } from "discord.js";
+import { Collection, Guild, GuildMember, Message } from "discord.js";
 import * as fs from "mz/fs";
 
 import { getTime, never, TimeUnit } from "./util/Time";
@@ -104,6 +104,26 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 		}
 
 		message.reply(reply);
+	}
+
+	/**
+	 * @param member Can be an ID, a tag, part of a display name, or part of a username
+	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
+	 * and the matching member if one member matches
+	 */
+	protected findMember (member: string): GuildMember | Collection<string, GuildMember> | undefined {
+		member = member.toLowerCase();
+		const results = this.guild.members.filter(m =>
+			m.displayName.toLowerCase().includes(member) ||
+			m.id == member ||
+			m.user.tag == member,
+		);
+
+		switch (results.size) {
+			case 0: return undefined;
+			case 1: return results.first();
+			default: return results;
+		}
 	}
 
 	private getDataPath () {

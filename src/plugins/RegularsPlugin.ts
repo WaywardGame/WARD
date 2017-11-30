@@ -187,7 +187,7 @@ I will not send any other notification messages, apologies for the interruption.
 			return "Unknown";
 		}
 
-		return member.nickname || member.user.username;
+		return member.displayName;
 	}
 
 	// tslint:disable cyclomatic-complexity
@@ -195,17 +195,21 @@ I will not send any other notification messages, apologies for the interruption.
 		let member = message.member;
 
 		if (queryMember) {
-			member = this.guild.members.find("nickname", queryMember) ||
-				this.guild.members.find(m => m.user.username.toLowerCase() == queryMember.toLowerCase());
+			const resultingQueryMember = this.findMember(queryMember);
 
-			if (!member) {
+			if (resultingQueryMember instanceof Collection) {
+				this.reply(message, "I found multiple members with that name. Can you be more specific?");
+				return;
+
+			} else if (!resultingQueryMember) {
 				this.reply(message, "I couldn't find a member by that name.");
-
 				return;
 			}
+
+			member = resultingQueryMember;
 		}
 
-		const memberName = member.nickname || member.user.username;
+		const memberName = member.displayName;
 
 		const trackedMember = this.members[member.id];
 		if (!trackedMember) {
@@ -233,7 +237,7 @@ The members with the most talent are:
 		`);
 	}
 
-	private async commandColor (message: Message, color: string) {
+	private async commandColor (message: Message, color?: string) {
 		if (message.member.highestRole.position < this.roleRegular.position) {
 			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
 
@@ -246,7 +250,7 @@ The members with the most talent are:
 			return;
 		}
 
-		const isRemoving = !/none|reset|remove/.test(color);
+		const isRemoving = /none|reset|remove/.test(color);
 
 		color = parseColorInput(color);
 		if (!isRemoving && !colorRegex.test(color)) {

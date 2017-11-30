@@ -1,4 +1,4 @@
-import { Message } from "discord.js";
+import { Collection, Message, Role } from "discord.js";
 
 import { Plugin } from "../Plugin";
 
@@ -7,21 +7,26 @@ export interface IRoleTogglePluginConfig {
 }
 
 export class RoleTogglePlugin extends Plugin<any, IRoleTogglePluginConfig> {
+	private roleMod: Role;
 
 	public getDefaultId () {
 		return "roleToggle";
 	}
 
+	public onStart () {
+		this.roleMod = this.guild.roles.find("name", "mod");
+	}
+
 	public onCommand (message: Message, command: string, ...args: string[]) {
 		switch (command) {
-			case "role": return this.commandRole(message, args[0]);
+			case "role": return this.commandRole(message, args[0], args[1]);
 		}
 	}
 
-	private commandRole (message: Message, roleName: string) {
+	// tslint:disable cyclomatic-complexity
+	private commandRole (message: Message, roleName?: string, queryMember?: string) {
 		if (!roleName) {
 			this.reply(message, "you must provide a role to toggle.");
-
 			return;
 		}
 
@@ -34,15 +39,35 @@ export class RoleTogglePlugin extends Plugin<any, IRoleTogglePluginConfig> {
 
 		if (!role) {
 			this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`);
-
 			return;
 		}
 
-		if (message.member.roles.has(role.id)) {
-			message.member.removeRole(role);
+		let toggleMember = message.member;
+		if (queryMember) {
+			if (!message.member.roles.has(this.roleMod.id)) {
+				this.reply(message, "only mods can toggle the roles of other members.");
+				return;
+			}
+
+			const resultingQueryMember = this.findMember(queryMember);
+
+			if (resultingQueryMember instanceof Collection) {
+				this.reply(message, "I found multiple members with that name. Can you be more specific?");
+				return;
+
+			} else if (!resultingQueryMember) {
+				this.reply(message, "I couldn't find a member by that name.");
+				return;
+			}
+
+			toggleMember = resultingQueryMember;
+		}
+
+		if (toggleMember.roles.has(role.id)) {
+			toggleMember.removeRole(role);
 
 		} else {
-			message.member.addRole(role);
+			toggleMember.addRole(role);
 		}
 	}
 }

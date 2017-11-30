@@ -24,7 +24,6 @@
 		"max-file-line-count": [  true, 1000 ],
 		"max-line-length": [true, 120],
 		"member-access": [ true, "check-accessor" ],
-		"newline-before-return": true,
 		"no-angle-bracket-type-assertion": true,
 		"no-arg": true,
 		"no-consecutive-blank-lines": [ true, 3 ],
@@ -94,6 +93,7 @@
 		// "prefer-function-over-method": true,
 		// "no-object-literal-type-assertion": true,
 		// "space-before-function-paren": true,
+		// "newline-before-return": true,
 		
 		"comment-format": [
 			true,
