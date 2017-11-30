@@ -97,8 +97,7 @@
 		
 		"comment-format": [
 			true,
-			"check-space",
-			"check-uppercase"
+			"check-space"
 		],
 		"member-ordering": [
 			true,

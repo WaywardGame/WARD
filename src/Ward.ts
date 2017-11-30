@@ -36,7 +36,6 @@ export class Ward {
 			this.commandPrefix = this.config.ward.commandPrefix;
 
 			await login();
-			discord.user.setGame("TARS");
 			this.guild = discord.guilds.find("id", this.config.discord.guild);
 
 			discord.addListener("message", (message: Message) => {
@@ -103,7 +102,15 @@ export class Ward {
 	}
 
 	private onMessage (message: Message) {
-		if (message.guild.id !== this.guild.id || message.author.bot) {
+		if (message.author.bot) {
+			return;
+		}
+
+		if (!message.member) {
+			message.member = this.guild.members.find("id", message.author.id);
+		}
+
+		if (!message.member) {
 			return;
 		}
 

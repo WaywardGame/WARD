@@ -93,6 +93,14 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 		console.log(`[${this.getId()}]`, ...args);
 	}
 
+	protected reply (message: Message, reply: string) {
+		if (!message.guild) {
+			reply = reply[0].toUpperCase() + reply.slice(1);
+		}
+
+		message.reply(reply);
+	}
+
 	private getDataPath () {
 		return `data/${this.getId()}.json`;
 	}

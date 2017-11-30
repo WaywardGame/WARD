@@ -3,6 +3,18 @@ import { Guild, GuildMember, Message, Role } from "discord.js";
 import { Plugin } from "../Plugin";
 import { days, hours } from "../util/Time";
 
+function parseColorInput (color: string) {
+	if (color.length === 3) {
+		color = `${color[0]}${color[0]}${color[1]}${color[1]}${color[2]}${color[2]}`;
+	}
+
+	if (!color.startsWith("#")) {
+		color = `#${color}`;
+	}
+
+	return color.toUpperCase();
+}
+
 interface ITrackedMember {
 	id: string;
 	talent: number;
@@ -20,6 +32,7 @@ export interface IRegularsConfig {
 	talentForNewDay: number;
 	talentForMessage: number;
 	daysVisitedMultiplier: number;
+	regularMilestoneTalent: number;
 }
 
 export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
@@ -27,7 +40,8 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 
 	private members: { [key: string]: ITrackedMember };
 	private topMembers: ITrackedMember[];
-	private regularRole: Role;
+	private roleRegular: Role;
+	private roleMod: Role;
 	private guild: Guild;
 
 	public getDefaultId () {
@@ -40,7 +54,8 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 		this.members = await this.data(RegularsData.TrackedMembers, {});
 		this.updateTopMembers();
 
-		this.regularRole = this.guild.roles.find("name", "regular");
+		this.roleRegular = this.guild.roles.find("name", "regular");
+		this.roleMod = this.guild.roles.find("name", "mod");
 	}
 
 	public onUpdate () {
@@ -53,7 +68,7 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 
 				if (trackedMember.talent == 0) {
 					const member = this.guild.members.find("id", trackedMember.id);
-					member.removeRole(this.regularRole);
+					member.removeRole(this.roleRegular);
 					delete this.members[memberId];
 				}
 			}
@@ -62,8 +77,9 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 
 	public onCommand (message: Message, command: string, ...args: string[]) {
 		switch (command) {
-			case "talent": return this.commandTalent(message, command, args[0]);
+			case "talent": return this.commandTalent(message, args[0]);
 			case "top": return this.commandTop(message);
+			case "color": return this.commandColor(message, args[0]);
 		}
 	}
 
@@ -101,9 +117,21 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 		}
 
 		trackedMember.talent += Math.floor(score * multiplier);
-		if (trackedMember.talent > 20 && member.highestRole.position < this.regularRole.position) {
-			member.addRole(this.regularRole);
-			// TODO congratulate user for becoming a regular
+		if (
+			trackedMember.talent > this.config.regularMilestoneTalent &&
+			member.highestRole.position < this.roleRegular.position
+		) {
+			member.addRole(this.roleRegular);
+			this.log(`${this.getMemberName(member)} has become a regular!`);
+			member.user.send(`
+Hey ${this.getMemberName(member)}! You have become a regular on ${this.guild.name}.
+
+As a regular, you may now change your username color whenever you please, using the !color command.
+Examples: \`!color f00\` would make your username bright red, \`!color 123456\` would make you a dark blue.
+Like any other of my commands, you may use it in the Wayward server or in a PM with me.
+
+I will not send any other notification messages, apologies for the interruption.
+			`);
 		}
 
 		this.updateTopMember(trackedMember);
@@ -124,8 +152,53 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 		this.topMembers.splice(3, Infinity);
 	}
 
+	private async commandColor (message: Message, color: string) {
+		if (message.member.highestRole.position < this.roleRegular.position) {
+			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
+
+			return;
+		}
+
+		const colorRegex = /#[A-F0-9]{6}/;
+		const colorRoles = message.member.roles.filter(r => colorRegex.test(r.name));
+		await message.member.removeRoles(colorRoles);
+		for (const role of colorRoles.values()) {
+			if (role.members.size === 0) {
+				await role.delete();
+			}
+		}
+
+		if (!/none|reset|remove/.test(color)) {
+			color = parseColorInput(color);
+			const colorRole = await this.getColorRole(color);
+			await message.member.addRole(colorRole);
+		}
+	}
+
+	private async getColorRole (color: string) {
+		let colorRole = this.guild.roles.find("name", color);
+		if (!colorRole) {
+			colorRole = await this.guild.createRole({
+				name: color,
+				color,
+				position: this.roleMod.position + 1,
+			});
+		}
+
+		return colorRole;
+	}
+
+	private getMemberName (memberOrId: string | GuildMember) {
+		const member = typeof memberOrId == "string" ? this.guild.members.find("id", memberOrId) : memberOrId;
+		if (!member) {
+			return "Unknown";
+		}
+
+		return member.nickname || member.user.username;
+	}
+
 	// tslint:disable cyclomatic-complexity
-	private commandTalent (message: Message, command: string, queryMember?: string) {
+	private commandTalent (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
@@ -133,7 +206,7 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 				this.guild.members.find(m => m.user.username.toLowerCase() == queryMember.toLowerCase());
 
 			if (!member) {
-				message.reply("I couldn't find a member by that name.");
+				this.reply(message, "I couldn't find a member by that name.");
 
 				return;
 			}
@@ -143,7 +216,7 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 
 		const trackedMember = this.members[member.id];
 		if (!trackedMember) {
-			message.reply(queryMember ?
+			this.reply(message, queryMember ?
 				`${memberName} has not gained talent yet.` :
 				"you have not gained talent yet.",
 			);
@@ -152,27 +225,18 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 		}
 
 		const talent = this.members[member.id].talent;
-		message.reply(queryMember ?
+		this.reply(message, queryMember ?
 			`the talent of ${memberName} is ${talent}.` :
 			`your talent is ${talent}.`,
 		);
 	}
 
-	private getMemberNameFromId (id: string) {
-		const member = this.guild.members.find("id", id);
-		if (!member) {
-			return "Unknown";
-		}
-
-		return member.nickname || member.user.username;
-	}
-
 	private commandTop (message: Message) {
-		message.reply(`
+		this.reply(message, `
 The members with the most talent are:
-1. ${this.getMemberNameFromId(this.topMembers[0].id)}: ${this.topMembers[0].talent}
-2. ${this.getMemberNameFromId(this.topMembers[1].id)}: ${this.topMembers[1].talent}
-3. ${this.getMemberNameFromId(this.topMembers[2].id)}: ${this.topMembers[2].talent}
+1. ${this.getMemberName(this.topMembers[0].id)}: ${this.topMembers[0].talent}
+2. ${this.getMemberName(this.topMembers[1].id)}: ${this.topMembers[1].talent}
+3. ${this.getMemberName(this.topMembers[2].id)}: ${this.topMembers[2].talent}
 		`);
 	}
 }
