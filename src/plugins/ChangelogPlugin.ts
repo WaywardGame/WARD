@@ -3,7 +3,7 @@ import { Channel } from "discord.js";
 import { Plugin } from "../Plugin";
 import { sleep } from "../util/Async";
 import discord from "../util/Discord";
-import { minutes, seconds } from "../util/Time";
+import { hours, seconds } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, trello } from "../util/Trello";
 
 /**
@@ -11,10 +11,6 @@ import { ChangeType, ITrelloCard, IVersionInfo, trello } from "../util/Trello";
  * This is useful when the api changes.
  */
 const skipLog = false;
-
-const channel = "225111620290871296";
-const internalRegressionDone = "5860937f318e0bde03f73dc0";
-const generalDone = "571b0344f800eaf864b2c5e7";
 
 const emotes: { [key: string]: string } = {
 	[ChangeType.New]: "_new",
@@ -44,14 +40,24 @@ export enum ChangelogData {
 	ReportedChanges,
 }
 
-export class ChangelogPlugin extends Plugin<ChangelogData> {
-	public updateInterval = minutes(5);
+export interface IChangelogConfig {
+	reportingChannel: string;
+	reportedLists?: string[];
+}
+
+export class ChangelogPlugin extends Plugin<ChangelogData, IChangelogConfig> {
+	public updateInterval = hours(1);
 
 	private channel: Channel;
 	private isReporting = false;
+	private reportedChanges: string[];
 
 	public getDefaultId () {
 		return "changelog";
+	}
+
+	public async onStart () {
+		this.reportedChanges = await this.data(ChangelogData.ReportedChanges, []) as string[];
 	}
 
 	public async onUpdate () {
@@ -60,16 +66,20 @@ export class ChangelogPlugin extends Plugin<ChangelogData> {
 		}
 
 		this.log("Updating changelog...");
-		this.channel = discord.channels.find("id", channel);
+		this.channel = discord.channels.find("id", this.config.reportingChannel);
 
 		const version = await trello.getNewestVersion();
 		this.isReporting = true;
 		await this.changelog(version);
-		await this.changelog(internalRegressionDone);
-		await this.changelog(generalDone);
-		this.isReporting = false;
+		if (this.config.reportedLists) {
+			for (const list of this.config.reportedLists) {
+				await this.changelog(list);
+			}
+		}
 
+		this.isReporting = false;
 		this.log("Update complete.");
+		this.save();
 	}
 
 	private async changelog (version: IVersionInfo | string) {
@@ -87,13 +97,9 @@ export class ChangelogPlugin extends Plugin<ChangelogData> {
 	}
 
 	private async reportChange (card: ITrelloCard) {
-		let listedChanges = await this.getData(ChangelogData.ReportedChanges) as string[];
-		if (!listedChanges) {
-			this.setData(ChangelogData.ReportedChanges, listedChanges = []);
-		}
 
-		if (!listedChanges.includes(card.id)) {
-			listedChanges.push(card.id);
+		if (!this.reportedChanges.includes(card.id)) {
+			this.reportedChanges.push(card.id);
 			if (skipLog) {
 				return;
 			}

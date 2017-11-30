@@ -1,6 +1,6 @@
 import { Guild, Message } from "discord.js";
 
-import config from "./Config";
+import config, { IConfig } from "./Config";
 import { Plugin } from "./Plugin";
 import { ChangelogPlugin } from "./plugins/ChangelogPlugin";
 import { RegularsPlugin } from "./plugins/RegularsPlugin";
@@ -16,35 +16,42 @@ async function logout () {
 }
 
 export class Ward {
+	private config: IConfig;
 	private guild: Guild;
 	private commandPrefix: string;
 	private plugins: { [key: string]: Plugin } = {};
 	private stopped = true;
 	private onStop: () => any;
 
+	constructor(cfg: IConfig) {
+		this.config = cfg;
+		this.addPlugin(new ChangelogPlugin());
+		this.addPlugin(new RegularsPlugin());
+	}
+
 	public async start () {
 		if (this.stopped && !this.onStop) {
 			this.stopped = false;
 
-			const cfg = await config.get();
-			this.commandPrefix = cfg.ward.commandPrefix;
+			this.commandPrefix = this.config.ward.commandPrefix;
 
 			await login();
-			this.guild = discord.guilds.find("id", cfg.discord.guild);
+			discord.user.setGame("TARS");
+			this.guild = discord.guilds.find("id", this.config.discord.guild);
 
 			discord.addListener("message", (message: Message) => {
 				this.onMessage(message);
 			});
 
-			await this.startPlugins();
+			await this.pluginHookStart();
 
 			while (!this.stopped) {
 				await this.update();
 				await sleep(100);
 			}
 
-			await this.stopPlugins();
-			await this.savePlugins();
+			await this.pluginHookStop();
+			await this.pluginHookSave();
 
 			await logout();
 
@@ -85,6 +92,7 @@ export class Ward {
 		}
 
 		plugin.setId(pid);
+		plugin.config = this.config.ward.plugins[pid];
 		this.plugins[pid] = plugin;
 
 		return pid;
@@ -95,7 +103,7 @@ export class Ward {
 	}
 
 	private onMessage (message: Message) {
-		if (message.guild.id !== this.guild.id) {
+		if (message.guild.id !== this.guild.id || message.author.bot) {
 			return;
 		}
 
@@ -103,12 +111,7 @@ export class Ward {
 			this.onCommand(message);
 
 		} else {
-			for (const pluginName in this.plugins) {
-				const plugin = this.plugins[pluginName];
-				if (plugin.onMessage) {
-					plugin.onMessage(message);
-				}
-			}
+			this.pluginHookMessage(message);
 		}
 	}
 
@@ -129,16 +132,17 @@ export class Ward {
 		}
 	}
 
-	private async startPlugins () {
+	private async pluginHookStart () {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
+			plugin.config = this.config.ward.plugins[pluginName];
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart(this.guild);
 			}
 		}
 	}
 
-	private async stopPlugins () {
+	private async pluginHookStop () {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
 			if (plugin.onStop) {
@@ -147,7 +151,7 @@ export class Ward {
 		}
 	}
 
-	private async savePlugins () {
+	private async pluginHookSave () {
 		const promises: Array<Promise<any>> = [];
 		for (const pid in this.plugins) {
 			promises.push(this.plugins[pid].save());
@@ -155,12 +159,22 @@ export class Ward {
 
 		await Promise.all(promises);
 	}
+
+	private pluginHookMessage (message: Message) {
+		for (const pluginName in this.plugins) {
+			const plugin = this.plugins[pluginName];
+			if (plugin.onMessage) {
+				plugin.onMessage(message);
+			}
+		}
+	}
 }
 
-const ward = new Ward();
-ward.addPlugin(new ChangelogPlugin());
-ward.addPlugin(new RegularsPlugin());
-ward.start();
+let ward: Ward;
+config.get().then(cfg => {
+	ward = new Ward(cfg);
+	ward.start();
+});
 
 // So the program will not close instantly
 process.stdin.resume();
@@ -171,7 +185,10 @@ async function exitHandler (err?: Error) {
 		console.log(err.stack);
 	}
 
-	await ward.stop();
+	await Promise.race([
+		ward.stop(),
+		sleep(2000),
+	]);
 	process.exit();
 }
 
@@ -179,3 +196,4 @@ process.on("SIGINT", exitHandler);
 process.on("SIGUSR1", exitHandler);
 process.on("SIGUSR2", exitHandler);
 process.on("uncaughtException", exitHandler);
+process.on("unhandledRejection", exitHandler);

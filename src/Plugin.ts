@@ -1,14 +1,42 @@
 import { Guild, Message } from "discord.js";
 import * as fs from "mz/fs";
 
-import { never } from "./util/Time";
+import { getTime, never, TimeUnit } from "./util/Time";
 
-export abstract class Plugin<DataIndex extends string | number = string | number> {
+
+const valRegex = /([0-9\.]+) ?([a-z]+)/;
+function getUpdateInterval (val: string | [TimeUnit, number]) {
+	if (typeof val == "string") {
+		const [, number, unit] = val.match(valRegex);
+		val = [unit as TimeUnit, +number];
+	}
+
+	return getTime(val[0], val[1]);
+}
+
+export interface IPluginConfig {
+	updateInterval?: string | [TimeUnit, number];
+}
+
+export abstract class Plugin<DataIndex extends string | number = string | number, Config extends {} = {}> {
 	public updateInterval = never();
 	public lastUpdate = 0;
-	private data: any = {};
+
+	private _config: Config & IPluginConfig;
+	private pluginData: any = {};
 	private loaded = false;
 	private id = this.getDefaultId();
+
+	public get config () {
+		return this._config;
+	}
+	public set config (cfg: Config & IPluginConfig) {
+		this._config = cfg;
+
+		if (cfg.updateInterval) {
+			this.updateInterval = getUpdateInterval(cfg.updateInterval);
+		}
+	}
 
 	public abstract getDefaultId (): string;
 
@@ -29,11 +57,11 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 	public async save () {
 		await fs.mkdir("data").catch(err => { });
 
-		await fs.writeFile(this.getDataPath(), JSON.stringify(this.data));
+		await fs.writeFile(this.getDataPath(), JSON.stringify(this.pluginData));
 	}
 
-	protected async setData (key: DataIndex, data: any) {
-		this.data[key] = data;
+	protected setData (key: DataIndex, data: any) {
+		this.pluginData[key] = data;
 	}
 	protected async getData (key: DataIndex): Promise<any> {
 		if (!this.loaded) {
@@ -43,7 +71,21 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 			}
 		}
 
-		return this.data[key];
+		return this.pluginData[key];
+	}
+	protected async data (key: DataIndex, defaultValue: any) {
+		if (!this.loaded) {
+			this.loaded = true;
+			if (await fs.exists(this.getDataPath())) {
+				this.pluginData = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
+			}
+		}
+
+		if (this.pluginData[key] === undefined) {
+			this.pluginData[key] = defaultValue;
+		}
+
+		return this.pluginData[key];
 	}
 
 	protected log (...args: any[]) {

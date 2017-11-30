@@ -12,6 +12,9 @@ export interface IConfig {
 	};
 	ward: {
 		commandPrefix: string;
+		plugins: {
+			[key: string]: any;
+		};
 	};
 }
 
