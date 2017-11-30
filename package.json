@@ -14,6 +14,9 @@
 		"request": "2.83.0",
 		"mz": "2.7.0"
 	},
+	"engines": {
+		"node": "8.9.1"
+	},
 	"devDependencies": {
 		"@types/request-promise-native": "1.0.10",
 		"@types/mz": "0.0.32",
