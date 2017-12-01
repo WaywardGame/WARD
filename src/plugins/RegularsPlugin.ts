@@ -2,6 +2,7 @@ import { Collection, GuildMember, Message, Role } from "discord.js";
 
 import { Plugin } from "../Plugin";
 import { sleep } from "../util/Async";
+import discord from "../util/Discord";
 import { days, hours } from "../util/Time";
 
 const colorRegex = /#[A-F0-9]{6}/;
@@ -69,7 +70,10 @@ export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
 
 				if (trackedMember.talent == 0) {
 					const member = this.guild.members.find("id", trackedMember.id);
-					member.removeRole(this.roleRegular);
+					if (member) {
+						member.removeRole(this.roleRegular);
+					}
+
 					delete this.members[memberId];
 				}
 			}
@@ -215,6 +219,15 @@ I will not send any other notification messages, apologies for the interruption.
 		}
 
 		const memberName = member.displayName;
+
+		if (member.user.bot) {
+			this.reply(message, member.id == discord.user.id ?
+				"my talent is limitless." :
+				`the talent of ${memberName} is limitless.`,
+			);
+
+			return;
+		}
 
 		const trackedMember = this.members[member.id];
 		if (!trackedMember) {
