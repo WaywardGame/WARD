@@ -1,19 +1,16 @@
 import * as fs from "mz/fs";
 
 export interface IConfig {
-	discord: {
-		username: string;
-		token: string;
-		guild: string;
+	commandPrefix: string;
+	plugins: {
+		[key: string]: any;
 	};
-	trello: {
-		board: string;
-		key: string;
-	};
-	ward: {
-		commandPrefix: string;
-		plugins: {
-			[key: string]: any;
+	apis: {
+		[key: string]: any;
+		discord: {
+			username: string;
+			token: string;
+			guild: string;
 		};
 	};
 }
@@ -56,6 +53,3 @@ export class Config {
 		}
 	}
 }
-
-const config = new Config();
-export default config;

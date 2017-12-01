@@ -1,12 +1,12 @@
 import { Collection, Message, Role } from "discord.js";
 
-import { Plugin } from "../Plugin";
+import { Plugin } from "../core/Plugin";
 
 export interface IRoleTogglePluginConfig {
 	toggleableRoles: { [key: string]: string[] };
 }
 
-export class RoleTogglePlugin extends Plugin<any, IRoleTogglePluginConfig> {
+export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 	private roleMod: Role;
 
 	public getDefaultId () {

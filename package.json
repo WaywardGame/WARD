@@ -7,12 +7,13 @@
 		"type": "git",
 		"url": "https://github.com/WaywardGame/WARD"
 	},
-	"main": "out/Ward.js",
+	"main": "out/main.js",
 	"dependencies": {
 		"discord.js": "11.2.1",
 		"request-promise-native": "1.0.5",
 		"request": "2.83.0",
-		"mz": "2.7.0"
+		"mz": "2.7.0",
+		"reflect-metadata": "0.1.10"
 	},
 	"engines": {
 		"node": "8.9.1"

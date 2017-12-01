@@ -1,7 +1,8 @@
-import { Collection, Guild, GuildMember, Message } from "discord.js";
+import { Collection, Guild, GuildMember, Message, User } from "discord.js";
 import * as fs from "mz/fs";
 
-import { getTime, never, TimeUnit } from "./util/Time";
+import { getTime, never, TimeUnit } from "../util/Time";
+import { Importable } from "./Importable";
 
 
 const valRegex = /([0-9\.]+) ?([a-z]+)/;
@@ -18,28 +19,29 @@ export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
 }
 
-export abstract class Plugin<DataIndex extends string | number = string | number, Config extends {} = {}> {
+export interface IGetApi<T> {
+	(name: string): T;
+}
+
+export abstract class Plugin<Config extends {} = {}, DataIndex extends string | number = string | number>
+	extends Importable<Config & IPluginConfig> {
+
 	public updateInterval = never();
 	public lastUpdate = 0;
-	public guild: Guild;
 
-	private _config: Config & IPluginConfig;
+	public guild: Guild;
+	public user: User;
+
 	private pluginData: any = {};
 	private loaded = false;
-	private id = this.getDefaultId();
 
-	public get config () {
-		return this._config;
-	}
 	public set config (cfg: Config & IPluginConfig) {
-		this._config = cfg;
+		super.config = cfg;
 
 		if (cfg.updateInterval) {
 			this.updateInterval = getUpdateInterval(cfg.updateInterval);
 		}
 	}
-
-	public abstract getDefaultId (): string;
 
 	/* hooks */
 	public onUpdate?(): any;
@@ -47,13 +49,6 @@ export abstract class Plugin<DataIndex extends string | number = string | number
 	public onStop?(): any;
 	public onMessage?(message: Message): any;
 	public onCommand?(message: Message, command: string, ...args: string[]): any;
-
-	public getId () {
-		return this.id;
-	}
-	public setId (pid: string) {
-		this.id = pid;
-	}
 
 	public async save () {
 		if (Object.keys(this.pluginData).length === 0) {

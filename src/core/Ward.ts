@@ -1,50 +1,49 @@
-import { Guild, Message } from "discord.js";
+import { Client, Guild, Message } from "discord.js";
 
-import config, { IConfig } from "./Config";
+import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
+import { RegularsPlugin } from "../plugins/RegularsPlugin";
+import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
+import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
+import { sleep } from "../util/Async";
+import { Trello } from "../util/Trello";
+import { Twitch } from "../util/Twitch";
+import { Api, metadataKeyImport } from "./Api";
+import { IConfig } from "./Config";
+import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
-import { ChangelogPlugin } from "./plugins/ChangelogPlugin";
-import { RegularsPlugin } from "./plugins/RegularsPlugin";
-import { RoleTogglePlugin } from "./plugins/RoleTogglePlugin";
-import { sleep } from "./util/Async";
-import discord from "./util/Discord";
-
-async function login () {
-	const cfg = await config.get();
-	await discord.login(cfg.discord.token);
-}
-async function logout () {
-	await discord.destroy();
-}
 
 export class Ward {
 	private config: IConfig;
 	private guild: Guild;
+	private discord: Client;
 	private commandPrefix: string;
 	private plugins: { [key: string]: Plugin } = {};
+	private apis: { [key: string]: Api } = {};
 	private stopped = true;
 	private onStop: () => any;
 
 	constructor(cfg: IConfig) {
 		this.config = cfg;
+		this.addApi(new Trello());
+		this.addApi(new Twitch());
 		this.addPlugin(new ChangelogPlugin());
 		this.addPlugin(new RegularsPlugin());
 		this.addPlugin(new RoleTogglePlugin());
+		this.addPlugin(new TwitchStreamPlugin());
 	}
 
 	public async start () {
 		if (this.stopped && !this.onStop) {
 			this.stopped = false;
 
-			this.commandPrefix = this.config.ward.commandPrefix;
+			this.commandPrefix = this.config.commandPrefix;
 
-			await login();
-			this.guild = discord.guilds.find("id", this.config.discord.guild);
+			await this.login();
+			this.guild = this.discord.guilds.find("id", this.config.apis.discord.guild);
 
-			this.pluginHookSetGuild();
+			this.pluginHookInit();
 
-			discord.addListener("message", (message: Message) => {
-				this.onMessage(message);
-			});
+			this.discord.addListener("message", m => this.onMessage(m));
 
 			await this.pluginHookStart();
 
@@ -56,7 +55,7 @@ export class Ward {
 			await this.pluginHookStop();
 			await this.pluginHookSave();
 
-			await logout();
+			await this.logout();
 
 			this.onStop();
 			delete this.onStop;
@@ -88,21 +87,34 @@ export class Ward {
 	}
 
 	public addPlugin (plugin: Plugin) {
-		let pid = plugin.getId();
-		let i = 0;
-		while (pid in this.plugins) {
-			pid = `${plugin.getId()}-${i++}`;
-		}
+		const id = this.addImportable(plugin, this.plugins);
+		plugin.config = this.config.plugins[id];
 
-		plugin.setId(pid);
-		plugin.config = this.config.ward.plugins[pid];
-		this.plugins[pid] = plugin;
-
-		return pid;
+		return id;
 	}
 
 	public removePlugin (pid: string) {
 		delete this.plugins[pid];
+	}
+
+	public addApi (api: Api) {
+		const id = this.addImportable(api, this.apis);
+		api.config = this.config.apis[id];
+
+		return id;
+	}
+
+	private addImportable (importable: Importable, obj: { [key: string]: Importable }) {
+		let id = importable.getId();
+		let i = 0;
+		while (id in obj) {
+			id = `${importable.getId()}-${i++}`;
+		}
+
+		importable.setId(id);
+		obj[id] = importable;
+
+		return id;
 	}
 
 	private onMessage (message: Message) {
@@ -143,10 +155,19 @@ export class Ward {
 		}
 	}
 
+	private async login () {
+		this.discord = new Client();
+		await this.discord.login(this.config.apis.discord.token);
+	}
+	private async logout () {
+		await this.discord.destroy();
+		delete this.discord;
+	}
+
 	private async pluginHookStart () {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
-			plugin.config = this.config.ward.plugins[pluginName];
+			plugin.config = this.config.plugins[pluginName];
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart();
 			}
@@ -162,11 +183,28 @@ export class Ward {
 		}
 	}
 
-	private pluginHookSetGuild () {
+	private pluginHookInit () {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
+			plugin.user = this.discord.user;
 			plugin.guild = this.guild;
+			for (const property in plugin) {
+				const metadata = Reflect.getMetadata(metadataKeyImport, plugin, property);
+				if (metadata) {
+					(plugin as any)[property] = this.getApi(metadata);
+				}
+			}
 		}
+	}
+
+	private getApi (name: string) {
+		for (const apiName in this.apis) {
+			if (apiName.startsWith(name) && !isNaN(+apiName.slice(name.length))) {
+				return this.apis[apiName];
+			}
+		}
+
+		return undefined;
 	}
 
 	private async pluginHookSave () {
@@ -187,31 +225,3 @@ export class Ward {
 		}
 	}
 }
-
-let ward: Ward;
-config.get().then(cfg => {
-	ward = new Ward(cfg);
-	ward.start();
-});
-
-// So the program will not close instantly
-process.stdin.resume();
-
-async function exitHandler (err?: Error) {
-	if (err) {
-		// tslint:disable-next-line no-console
-		console.log(err.stack);
-	}
-
-	await Promise.race([
-		ward.stop(),
-		sleep(2000),
-	]);
-	process.exit();
-}
-
-process.on("SIGINT", exitHandler);
-process.on("SIGUSR1", exitHandler);
-process.on("SIGUSR2", exitHandler);
-process.on("uncaughtException", exitHandler);
-process.on("unhandledRejection", exitHandler);

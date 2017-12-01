@@ -1,10 +1,10 @@
 import { Channel } from "discord.js";
 
-import { Plugin } from "../Plugin";
+import { ImportApi } from "../core/Api";
+import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import discord from "../util/Discord";
 import { hours, seconds } from "../util/Time";
-import { ChangeType, ITrelloCard, IVersionInfo, trello } from "../util/Trello";
+import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
 
 /**
  * Set this variable to true and allow the plugin to update once to save that the bot has reported all possible changes.
@@ -45,12 +45,15 @@ export interface IChangelogConfig {
 	reportedLists?: string[];
 }
 
-export class ChangelogPlugin extends Plugin<ChangelogData, IChangelogConfig> {
+export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 	public updateInterval = hours(1);
 
 	private channel: Channel;
 	private isReporting = false;
 	private reportedChanges: string[];
+
+	@ImportApi("trello")
+	private trello: Trello = undefined;
 
 	public getDefaultId () {
 		return "changelog";
@@ -66,9 +69,9 @@ export class ChangelogPlugin extends Plugin<ChangelogData, IChangelogConfig> {
 		}
 
 		this.log("Updating changelog...");
-		this.channel = discord.channels.find("id", this.config.reportingChannel);
+		this.channel = this.guild.channels.find("id", this.config.reportingChannel);
 
-		const version = await trello.getNewestVersion();
+		const version = await this.trello.getNewestVersion();
 		this.isReporting = true;
 		await this.changelog(version);
 		if (this.config.reportedLists) {
@@ -83,7 +86,7 @@ export class ChangelogPlugin extends Plugin<ChangelogData, IChangelogConfig> {
 	}
 
 	private async changelog (version: IVersionInfo | string) {
-		const changelog = await trello.getChangelog(version);
+		const changelog = await this.trello.getChangelog(version);
 		const changes = changelog.unsorted;
 		if (!changes) {
 			return;
@@ -133,6 +136,6 @@ export class ChangelogPlugin extends Plugin<ChangelogData, IChangelogConfig> {
 			return undefined;
 		}
 
-		return discord.emojis.find("name", emotes[emote]);
+		return this.guild.emojis.find("name", emotes[emote]);
 	}
 }

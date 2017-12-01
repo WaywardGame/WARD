@@ -16,6 +16,7 @@
 		"eofline": true,
 		"import-spacing": true,
 		"indent": [  true, "tabs" ],
+		"no-console": true,
 		"interface-name": true,
 		"jsdoc-format": true,
 		"linebreak-style": [ true, "CRLF" ],

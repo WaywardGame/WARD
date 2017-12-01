@@ -5,25 +5,34 @@ import * as chaiAsPromised from "chai-as-promised";
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-import config, { IConfig } from "../Config";
+import { Config, IConfig } from "../core/Config";
 import { days, getTime, hours, minutes, seconds, TimeUnit } from "../util/Time";
-import { IVersionInfo, trello } from "../util/Trello";
+import { IVersionInfo, Trello } from "../util/Trello";
 
 let configPassed = false;
+let config: IConfig;
 
 describe("[Utilities]", () => {
 	it("[Config]", async () => {
-		await expect(config.get()).to.eventually.satisfy((cfg: IConfig) =>
+		config = await new Config().get();
+		expect(config).satisfy((cfg: IConfig) =>
 			typeof cfg == "object" &&
-			"trello" in cfg &&
-			"discord" in cfg &&
-			"ward" in cfg,
+			"commandPrefix" in cfg &&
+			"apis" in cfg &&
+			"plugins" in cfg,
 		);
 		configPassed = true;
 	});
 
 	describe("[Trello]", () => {
 		describe("version lists", () => {
+			let trello: Trello;
+			before(() => {
+				trello = new Trello();
+				trello.setId(trello.getId());
+				trello.config = config.apis.trello;
+			});
+
 			it("should get a list of all versions", async () => {
 				if (!configPassed) {
 					return;

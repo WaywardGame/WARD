@@ -10,6 +10,7 @@
 		"noUnusedLocals": true,
 		"removeComments": true,
 		"declaration": true,
+		"experimentalDecorators": true,
         "plugins": [
             {
                 "name": "tslint-language-service"

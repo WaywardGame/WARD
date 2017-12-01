@@ -1,7 +1,9 @@
 import * as request from "request-promise-native";
 
-import config from "../Config";
+import { Api } from "../core/Api";
 import { minutes } from "./Time";
+
+const endpoint = "https://api.trello.com/1";
 
 export interface IVersionInfo {
 	str: string;
@@ -113,12 +115,19 @@ function sortVersionInfo (infoA: IVersionInfo, infoB: IVersionInfo, reverse = fa
 	return reverse ? -result : result;
 }
 
-const api = "https://api.trello.com/1";
+export interface ITrelloConfig {
+	board: string;
+	key: string;
+}
 
-export default class Trello {
+export class Trello extends Api<ITrelloConfig> {
 
 	private versionCache: IVersionInfo[];
 	private lastCachedVersions = 0;
+
+	public getDefaultId () {
+		return "trello";
+	}
 
 	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined> {
 		let changelog: ITrelloChangelog;
@@ -144,13 +153,11 @@ export default class Trello {
 			return this.versionCache;
 		}
 
-		const cfg = await config.get();
-
 		// Check both open and unopened lists on the default board
-		let board = await this.getBoard(cfg.trello.board);
+		let board = await this.getBoard(this.config.board);
 		if (board) {
 			result.push(...this.getCardsFromBoard(board));
-			board = await this.getBoard(cfg.trello.board, true);
+			board = await this.getBoard(this.config.board, true);
 			result.push(...this.getCardsFromBoard(board));
 		}
 
@@ -206,9 +213,7 @@ export default class Trello {
 	}
 
 	private async trelloRequest (rq: string) {
-		const cfg = await config.get();
-
-		return request(`${api}${rq}&key=${cfg.trello.key}`, {
+		return request(`${endpoint}${rq}&key=${this.config.key}`, {
 			json: true,
 		});
 	}
@@ -243,11 +248,9 @@ export default class Trello {
 	}
 
 	private async findChangelogList (versionInfo: IVersionInfo): Promise<ITrelloChangelog | undefined> {
-		const cfg = await config.get();
-
 		let result: ITrelloChangelog | undefined;
 		// Check both open and unopened lists on the default board
-		await this.forBoard(cfg.trello.board, async board => {
+		await this.forBoard(this.config.board, async board => {
 			if (board.lists) {
 				for (const list of board.lists) {
 					const listVersionInfo = this.getListVersionInfo(list);
@@ -350,7 +353,4 @@ export default class Trello {
 
 		return changeType;
 	}
-
 }
-
-export const trello = new Trello();

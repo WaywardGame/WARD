@@ -1,8 +1,7 @@
 import { Collection, GuildMember, Message, Role } from "discord.js";
 
-import { Plugin } from "../Plugin";
+import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import discord from "../util/Discord";
 import { days, hours } from "../util/Time";
 
 const colorRegex = /#[A-F0-9]{6}/;
@@ -38,7 +37,7 @@ export interface IRegularsConfig {
 	regularMilestoneTalent: number;
 }
 
-export class RegularsPlugin extends Plugin<RegularsData, IRegularsConfig> {
+export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	public updateInterval = hours(12);
 
 	private members: { [key: string]: ITrackedMember };
@@ -221,7 +220,7 @@ I will not send any other notification messages, apologies for the interruption.
 		const memberName = member.displayName;
 
 		if (member.user.bot) {
-			this.reply(message, member.id == discord.user.id ?
+			this.reply(message, member.id == this.user.id ?
 				"my talent is limitless." :
 				`the talent of ${memberName} is limitless.`,
 			);
