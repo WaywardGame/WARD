@@ -65,9 +65,13 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		if (toggleMember.roles.has(role.id)) {
 			toggleMember.removeRole(role);
+			this.log(`Removed role ${role.name} from ${toggleMember.displayName}`);
+			this.reply(message, `Removed role ${role.name} from ${toggleMember.displayName}`);
 
 		} else {
 			toggleMember.addRole(role);
+			this.log(`Added role ${role.name} to ${toggleMember.displayName}`);
+			this.reply(message, `Added role ${role.name} to ${toggleMember.displayName}`);
 		}
 	}
 }
