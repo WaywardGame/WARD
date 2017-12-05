@@ -84,6 +84,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 			case "talent": return this.commandTalent(message, args[0]);
 			case "top": return this.commandTop(message);
 			case "color": return this.commandColor(message, args[0]);
+			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
 		}
 	}
 
@@ -205,12 +206,7 @@ I will not send any other notification messages, apologies for the interruption.
 		if (queryMember) {
 			const resultingQueryMember = this.findMember(queryMember);
 
-			if (resultingQueryMember instanceof Collection) {
-				this.reply(message, "I found multiple members with that name. Can you be more specific?");
-				return;
-
-			} else if (!resultingQueryMember) {
-				this.reply(message, "I couldn't find a member by that name.");
+			if (!this.validateFindResult(message, resultingQueryMember)) {
 				return;
 			}
 
@@ -286,5 +282,32 @@ The members with the most talent are:
 
 		const colorRole = await this.getColorRole(color);
 		await message.member.addRole(colorRole);
+	}
+
+	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {
+		if (queryMember === undefined || !amt) {
+			this.reply(message, "you must provide a member to update the talent on and the amount to change the talent by.");
+			return;
+		}
+
+		const member = this.findMember(queryMember);
+		if (!this.validateFindResult(message, member)) {
+			return;
+		}
+
+		let trackedMember = this.members[member.id];
+		if (!trackedMember) {
+			trackedMember = this.members[member.id] = {
+				id: member.id,
+				talent: 0,
+				daysVisited: 0,
+				lastDay: 0,
+			};
+		}
+
+		trackedMember.talent += amt;
+
+		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
+		this.reply(message, `I ${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`);
 	}
 }

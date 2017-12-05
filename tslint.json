@@ -11,7 +11,7 @@
 		"ban-comma-operator": true,
 		"class-name": true,
 		"curly": true,
-		"cyclomatic-complexity": [ true, 5 ],
+		"cyclomatic-complexity": [ true, 6 ],
 		"encoding": true,
 		"eofline": true,
 		"import-spacing": true,

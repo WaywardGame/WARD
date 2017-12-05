@@ -1,6 +1,7 @@
 import { Collection, Guild, GuildMember, Message, User } from "discord.js";
 import * as fs from "mz/fs";
 
+import { Logger } from "../util/Log";
 import { getTime, never, TimeUnit } from "../util/Time";
 import { Importable } from "./Importable";
 
@@ -89,11 +90,11 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	}
 
 	protected log (...args: any[]) {
-		// tslint:disable-next-line no-console
-		console.log(`[${this.getId()}]`, ...args);
+		Logger.log(this.getId(), ...args);
 	}
 
 	protected reply (message: Message, reply: string) {
+		reply = reply.trim();
 		if (!message.guild) {
 			reply = reply[0].toUpperCase() + reply.slice(1);
 		}
@@ -119,6 +120,22 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 			case 1: return results.first();
 			default: return results;
 		}
+	}
+
+	protected validateFindResult (
+		message: Message,
+		result: GuildMember | Collection<string, GuildMember> | undefined,
+	): result is GuildMember {
+		if (result instanceof Collection) {
+			this.reply(message, "I found multiple members with that name. Can you be more specific?");
+			return false;
+
+		} else if (!result) {
+			this.reply(message, "I couldn't find a member by that name.");
+			return false;
+		}
+
+		return true;
 	}
 
 	private getDataPath () {

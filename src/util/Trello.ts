@@ -1,6 +1,7 @@
 import * as request from "request-promise-native";
 
 import { Api } from "../core/Api";
+import { Logger } from "./Log";
 import { minutes } from "./Time";
 
 const endpoint = "https://api.trello.com/1";
@@ -325,7 +326,7 @@ export class Trello extends Api<ITrelloConfig> {
 
 			if (sectionId === undefined) {
 				// tslint:disable-next-line no-console
-				console.log(`[Trello] Missing section id for ${card.name}`, card);
+				Logger.log("trello", `Missing section id for ${card.name}`, card);
 				continue;
 			}
 

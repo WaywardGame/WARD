@@ -1,4 +1,5 @@
 import * as fs from "mz/fs";
+import { Logger } from "../util/Log";
 
 export interface IConfig {
 	commandPrefix: string;
@@ -38,7 +39,7 @@ export class Config {
 					this.isGetting = false;
 				}).catch(err => {
 					// tslint:disable-next-line no-console
-					console.log("Can't load config file");
+					Logger.log("config", "Can't load config file");
 					for (const onGetHandler of this.onGetHandlers) {
 						onGetHandler[1](err);
 					}

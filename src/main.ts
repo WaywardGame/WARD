@@ -4,6 +4,7 @@ import "reflect-metadata";
 import { Config } from "./core/Config";
 import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
+import { Logger } from "./util/Log";
 
 let ward: Ward;
 
@@ -25,7 +26,7 @@ start();
 async function exitHandler (err?: Error) {
 	if (err) {
 		// tslint:disable-next-line no-console
-		console.log(err.stack);
+		Logger.log("main", err.stack);
 	}
 
 	await stop();

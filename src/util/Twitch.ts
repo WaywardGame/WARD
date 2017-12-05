@@ -2,6 +2,7 @@ import * as request from "request-promise-native";
 
 import { Api } from "../core/Api";
 import { sleep } from "./Async";
+import { Logger } from "./Log";
 import { minutes } from "./Time";
 
 const endpoint = "https://api.twitch.tv/helix/";
@@ -48,7 +49,7 @@ export interface ITwitchConfig {
 	client: string;
 }
 
-let sleepTime = 2000;
+let sleepTime = 10000;
 let isRequesting = false;
 let lastRequestTime = 0;
 
@@ -62,11 +63,11 @@ export class Twitch extends Api<ITwitchConfig> {
 	}
 
 	public async getStream (streamer: string): Promise<IStream> {
-		return (await this.twitchRequest(`streams?user_id=${streamer}`)).data[0];
+		return this.twitchRequest(`streams?user_id=${streamer}`).then(result => result.data[0]);
 	}
 
 	public async getUser (by: "id" | "name", name: string): Promise<IUser> {
-		return (await this.twitchRequest(`users?${by == "name" ? "login" : "id"}=${name}`)).data[0];
+		return this.twitchRequest(`users?${by == "name" ? "login" : "id"}=${name}`).then(result => result.data[0]);
 	}
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
@@ -92,24 +93,38 @@ export class Twitch extends Api<ITwitchConfig> {
 
 		isRequesting = true;
 
-		if (Date.now() - lastRequestTime < sleepTime) {
-			await sleep(sleepTime - (Date.now() - lastRequestTime));
-		}
+		let result: any;
+		let tries = 0;
+		do {
+			if (Date.now() - lastRequestTime < sleepTime) {
+				await sleep(sleepTime - (Date.now() - lastRequestTime));
+			}
 
-		const result = request(`${endpoint}${rq}`, {
-			headers: {
-				"Client-ID": this.config.client,
-			},
-			json: true,
-		});
+			try {
+				const r = request(`${endpoint}${rq}`, {
+					headers: {
+						"Client-ID": this.config.client,
+					},
+					json: true,
+				});
 
-		result.then(r => {
-			isRequesting = false;
-			lastRequestTime = Date.now();
+				result = await r;
 
-			const ratelimit = result.response.headers["ratelimit-limit"];
-			sleepTime = minutes(1) / +ratelimit;
-		});
+				const ratelimit = r.response.headers["ratelimit-limit"];
+				sleepTime = minutes(1) / +ratelimit;
+			} catch (err) {
+				tries++;
+				if (tries > 100) {
+					throw err;
+				}
+
+				Logger.log(err);
+			}
+
+		} while (!result);
+
+		isRequesting = false;
+		lastRequestTime = Date.now();
 
 		return result;
 	}
