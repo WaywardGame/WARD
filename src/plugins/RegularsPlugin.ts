@@ -2,7 +2,7 @@ import { Collection, GuildMember, Message, Role } from "discord.js";
 
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import { days, hours } from "../util/Time";
+import { days, hours, minutes } from "../util/Time";
 
 const colorRegex = /#[A-F0-9]{6}/;
 function parseColorInput (color: string) {
@@ -39,6 +39,7 @@ export interface IRegularsConfig {
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	public updateInterval = hours(12);
+	public autosaveInterval = minutes(30);
 
 	private members: { [key: string]: ITrackedMember };
 	private topMembers: ITrackedMember[];
@@ -285,6 +286,11 @@ The members with the most talent are:
 	}
 
 	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {
+		if (!message.member.roles.has(this.roleMod.id)) {
+			this.reply(message, "only mods may manually modify talent of members.");
+			return;
+		}
+
 		if (queryMember === undefined || !amt) {
 			this.reply(message, "you must provide a member to update the talent on and the amount to change the talent by.");
 			return;
@@ -309,5 +315,11 @@ The members with the most talent are:
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
 		this.reply(message, `I ${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`);
+		this.log(
+			message.member.displayName,
+			`${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`,
+		);
+
+		this.updateTopMember(trackedMember);
 	}
 }

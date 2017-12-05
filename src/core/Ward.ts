@@ -81,6 +81,11 @@ export class Ward {
 				promises.push(plugin.onUpdate());
 				plugin.lastUpdate = Date.now();
 			}
+
+			if (Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
+				promises.push(plugin.save());
+				plugin.lastAutosave = Date.now();
+			}
 		}
 
 		await Promise.all(promises);

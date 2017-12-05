@@ -2,7 +2,7 @@ import { Collection, Guild, GuildMember, Message, User } from "discord.js";
 import * as fs from "mz/fs";
 
 import { Logger } from "../util/Log";
-import { getTime, never, TimeUnit } from "../util/Time";
+import { getTime, never, TimeUnit, hours } from "../util/Time";
 import { Importable } from "./Importable";
 
 
@@ -18,6 +18,7 @@ function getUpdateInterval (val: string | [TimeUnit, number]) {
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
+	autosaveInterval?: string | [TimeUnit, number];
 }
 
 export interface IGetApi<T> {
@@ -29,6 +30,8 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 
 	public updateInterval = never();
 	public lastUpdate = 0;
+	public autosaveInterval = hours(2);
+	public lastAutosave = 0;
 
 	public guild: Guild;
 	public user: User;
@@ -41,6 +44,10 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 
 		if (cfg.updateInterval) {
 			this.updateInterval = getUpdateInterval(cfg.updateInterval);
+		}
+
+		if (cfg.autosaveInterval) {
+			this.autosaveInterval = getUpdateInterval(cfg.autosaveInterval);
 		}
 	}
 
