@@ -2,19 +2,8 @@ import { Collection, Guild, GuildMember, Message, User } from "discord.js";
 import * as fs from "mz/fs";
 
 import { Logger } from "../util/Log";
-import { getTime, never, TimeUnit, hours } from "../util/Time";
+import { getTime, hours, never, TimeUnit } from "../util/Time";
 import { Importable } from "./Importable";
-
-
-const valRegex = /([0-9\.]+) ?([a-z]+)/;
-function getUpdateInterval (val: string | [TimeUnit, number]) {
-	if (typeof val == "string") {
-		const [, number, unit] = val.match(valRegex);
-		val = [unit as TimeUnit, +number];
-	}
-
-	return getTime(val[0], val[1]);
-}
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
@@ -43,11 +32,11 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		super.config = cfg;
 
 		if (cfg.updateInterval) {
-			this.updateInterval = getUpdateInterval(cfg.updateInterval);
+			this.updateInterval = getTime(cfg.updateInterval);
 		}
 
 		if (cfg.autosaveInterval) {
-			this.autosaveInterval = getUpdateInterval(cfg.autosaveInterval);
+			this.autosaveInterval = getTime(cfg.autosaveInterval);
 		}
 	}
 

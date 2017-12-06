@@ -26,12 +26,30 @@ export enum TimeUnit {
 	Days = "days",
 }
 
-export function getTime (unit: TimeUnit, a: number) {
+// tslint:disable cyclomatic-complexity
+const valRegex = /([0-9\.]+) ?([a-z]+)/;
+export function getTime (unit: TimeUnit, amt: number): number;
+export function getTime (time: string | [TimeUnit, number]): number;
+export function getTime (unit: TimeUnit | string | [TimeUnit, number], amt?: number) {
+	if (typeof unit == "string" && amt === undefined) {
+		const match = unit.match(valRegex);
+		amt = +match[1];
+		unit = match[2] as TimeUnit;
+
+	} else {
+		unit = unit;
+	}
+
+	if (Array.isArray(unit)) {
+		amt = unit[1];
+		unit = unit[0];
+	}
+
 	switch (unit) {
-		case TimeUnit.Seconds: return seconds(a);
-		case TimeUnit.Minutes: return minutes(a);
-		case TimeUnit.Hours: return hours(a);
-		case TimeUnit.Days: return days(a);
-		default: return a;
+		case TimeUnit.Seconds: return seconds(amt);
+		case TimeUnit.Minutes: return minutes(amt);
+		case TimeUnit.Hours: return hours(amt);
+		case TimeUnit.Days: return days(amt);
+		default: return amt;
 	}
 }

@@ -82,5 +82,12 @@ describe("[Utilities]", () => {
 			expect(getTime(TimeUnit.Hours, 1)).eq(3600000);
 			expect(getTime(TimeUnit.Days, 1)).eq(86400000);
 		});
+		it("should work for string times", () => {
+			expect(getTime("1 milliseconds")).eq(1);
+			expect(getTime("1 seconds")).eq(1000);
+			expect(getTime("1 minutes")).eq(60000);
+			expect(getTime("1 hours")).eq(3600000);
+			expect(getTime("1 days")).eq(86400000);
+		});
 	});
 });

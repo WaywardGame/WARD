@@ -2,7 +2,7 @@ import { Collection, GuildMember, Message, Role } from "discord.js";
 
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import { days, hours, minutes } from "../util/Time";
+import { days, getTime, hours, minutes } from "../util/Time";
 
 const colorRegex = /#[A-F0-9]{6}/;
 function parseColorInput (color: string) {
@@ -22,6 +22,10 @@ interface ITrackedMember {
 	talent: number;
 	lastDay: number;
 	daysVisited: number;
+	maxTalentForMessageBlockStartTime: number;
+	maxTalentForMessageBlockMessagesSent: number;
+	talentLossForMessageBlockStartTime: number;
+	talentLossForMessageBlockMessagesSent: number;
 }
 
 export enum RegularsData {
@@ -33,6 +37,10 @@ export interface IRegularsConfig {
 	daysBeforeTalentLoss: number;
 	talentForNewDay: number;
 	talentForMessage: number;
+	// 0: maximum talent in 1: amount of time
+	maxTalentForMessage: [number, string];
+	// 0: amount of talent in 1: amount of time where any additional messages reduce your talent by 2: amount
+	talentLossForMessage: [number, string, number];
 	daysVisitedMultiplier: number;
 	regularMilestoneTalent: number;
 }
@@ -90,11 +98,66 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	}
 
 	public onMessage (message: Message) {
-		if (this.config.excludedChannels && this.config.excludedChannels.includes(message.channel.id)) {
+		if (
+			!message.guild ||
+			(this.config.excludedChannels && this.config.excludedChannels.includes(message.channel.id))
+		) {
 			return;
 		}
 
-		this.updateMember(message.member, this.config.talentForMessage);
+		this.onMemberMessage(message.member);
+	}
+
+	private onMemberMessage (member: GuildMember) {
+		const trackedMember = this.getTrackedMember(member.id);
+
+		let talentChange = this.config.talentForMessage;
+
+		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxTalentForMessage[1]) < Date.now()) {
+			trackedMember.maxTalentForMessageBlockStartTime = Date.now();
+			trackedMember.maxTalentForMessageBlockMessagesSent = 0;
+			this.log(`${member.displayName} has sent their first message for the hour.`);
+
+		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxTalentForMessage[0]) {
+			talentChange = 0;
+			this.log(`${member.displayName} has earned the maximum talent for the hour.`);
+		}
+
+		trackedMember.maxTalentForMessageBlockMessagesSent++;
+
+		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.talentLossForMessage[1]) < Date.now()) {
+			trackedMember.talentLossForMessageBlockStartTime = Date.now();
+			trackedMember.talentLossForMessageBlockMessagesSent = 0;
+			this.log(`${member.displayName} has sent their first message for the 10 minutes.`);
+
+		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.talentLossForMessage[0]) {
+			talentChange = -this.config.talentLossForMessage[2];
+			this.log(`${member.displayName} is sending too many messages!`);
+		}
+
+		trackedMember.talentLossForMessageBlockMessagesSent++;
+
+		this.updateMember(member, talentChange);
+	}
+
+	private getTrackedMember (id: string) {
+		const today = this.getToday();
+
+		let trackedMember = this.members[id];
+		if (!trackedMember) {
+			trackedMember = this.members[id] = {
+				id,
+				talent: 0,
+				daysVisited: 0,
+				lastDay: today,
+				maxTalentForMessageBlockStartTime: Date.now(),
+				maxTalentForMessageBlockMessagesSent: 0,
+				talentLossForMessageBlockStartTime: Date.now(),
+				talentLossForMessageBlockMessagesSent: 0,
+			};
+		}
+
+		return trackedMember;
 	}
 
 	private getToday () {
@@ -103,16 +166,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 	private updateMember (member: GuildMember, score: number) {
 		const today = this.getToday();
-
-		let trackedMember = this.members[member.id];
-		if (!trackedMember) {
-			trackedMember = this.members[member.id] = {
-				id: member.id,
-				talent: 0,
-				daysVisited: 0,
-				lastDay: today,
-			};
-		}
+		const trackedMember = this.getTrackedMember(member.id);
 
 		const multiplier = 1 + trackedMember.daysVisited * this.config.daysVisitedMultiplier;
 
@@ -123,6 +177,15 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		}
 
 		trackedMember.talent += Math.floor(score * multiplier);
+
+		this.checkMemberRegular(member);
+
+		this.updateTopMember(trackedMember);
+	}
+
+	private checkMemberRegular (member: GuildMember) {
+		const trackedMember = this.getTrackedMember(member.id);
+
 		if (
 			trackedMember.talent > this.config.regularMilestoneTalent &&
 			member.highestRole.position < this.roleRegular.position
@@ -139,8 +202,6 @@ Like any other of my commands, you may use it in the Wayward server or in a PM w
 I will not send any other notification messages, apologies for the interruption.
 			`);
 		}
-
-		this.updateTopMember(trackedMember);
 	}
 
 	private updateTopMember (trackedMember: ITrackedMember) {
@@ -301,16 +362,7 @@ The members with the most talent are:
 			return;
 		}
 
-		let trackedMember = this.members[member.id];
-		if (!trackedMember) {
-			trackedMember = this.members[member.id] = {
-				id: member.id,
-				talent: 0,
-				daysVisited: 0,
-				lastDay: 0,
-			};
-		}
-
+		const trackedMember = this.getTrackedMember(member.id);
 		trackedMember.talent += amt;
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
