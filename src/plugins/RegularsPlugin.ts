@@ -313,7 +313,7 @@ The members with the most talent are:
 	}
 
 	private async commandColor (message: Message, color?: string) {
-		if (this.isUserRegular(message.member)) {
+		if (!this.isUserRegular(message.member)) {
 			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
 
 			return;
