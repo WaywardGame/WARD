@@ -188,7 +188,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 		if (
 			trackedMember.talent > this.config.regularMilestoneTalent &&
-			member.highestRole.position < this.roleRegular.position
+			!member.roles.has(this.roleRegular.id) && !member.roles.has(this.roleMod.id)
 		) {
 			member.addRole(this.roleRegular);
 			this.log(`${this.getMemberName(member)} has become a regular!`);
