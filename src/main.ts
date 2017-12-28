@@ -9,13 +9,14 @@ import { Logger } from "./util/Log";
 let ward: Ward;
 
 async function start () {
+	Logger.setShouldSaveLog();
 	const config = await new Config().get();
 	ward = new Ward(config);
 	ward.start();
 }
 async function stop () {
 	await Promise.race([
-		ward.stop(),
+		ward && ward.stop(),
 		sleep(2000),
 	]);
 }
