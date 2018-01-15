@@ -46,6 +46,7 @@ export interface IRegularsConfig {
 	// 0: amount of talent in 1: amount of time where any additional messages reduce your talent by 2: amount
 	talentLossForMessage: [number, string, number];
 	daysVisitedMultiplier: number;
+	daysVisitedMultiplierReduction: number;
 	regularMilestoneTalent: number;
 }
 
@@ -172,7 +173,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		const today = this.getToday();
 		const trackedMember = this.getTrackedMember(member.id);
 
-		const multiplier = 1 + trackedMember.daysVisited * this.config.daysVisitedMultiplier;
+		const multiplier = 1 +
+			(trackedMember.daysVisited * this.config.daysVisitedMultiplier) ** this.config.daysVisitedMultiplierReduction;
 
 		if (trackedMember.lastDay < today) {
 			trackedMember.daysVisited++;
