@@ -96,9 +96,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	public onCommand (message: Message, command: string, ...args: string[]) {
 		switch (command) {
 			case "talent": return this.commandTalent(message, args[0]);
-			case "top": return this.commandTop(message);
+			case "top": return this.commandTop(message, +args[0], +args[1]);
 			case "color": return this.commandColor(message, args[0]);
 			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
+			case "consecutive-days": return this.commandConsecutiveDays(message, args[0]);
 		}
 	}
 
@@ -216,13 +217,13 @@ I will not send any other notification messages, apologies for the interruption.
 		}
 
 		this.topMembers.sort((a, b) => b.talent - a.talent);
-		this.topMembers.splice(3, Infinity);
+		this.topMembers.splice(20, Infinity);
 	}
 
 	private updateTopMembers () {
 		this.topMembers = Object.values(this.members);
 		this.topMembers.sort((a, b) => b.talent - a.talent);
-		this.topMembers.splice(3, Infinity);
+		this.topMembers.splice(20, Infinity);
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
@@ -309,13 +310,24 @@ I will not send any other notification messages, apologies for the interruption.
 		);
 	}
 
-	private commandTop (message: Message) {
-		this.reply(message, `
-The members with the most talent are:
-1. ${this.getMemberName(this.topMembers[0].id)}: ${this.topMembers[0].talent}
-2. ${this.getMemberName(this.topMembers[1].id)}: ${this.topMembers[1].talent}
-3. ${this.getMemberName(this.topMembers[2].id)}: ${this.topMembers[2].talent}
-		`);
+	private commandTop (message: Message, quantity: number, offset: number) {
+		quantity = isNaN(+quantity) ? 3 : Math.max(1, Math.min(20, quantity));
+		offset = isNaN(+offset) ? 1 : Math.max(1, Math.min(20, offset));
+
+		let response = `
+${offset == 1 ? `Top ${quantity}` : `Users with the most talent (quantity: ${quantity}, starting at: ${offset})`}:`;
+
+		for (let i = 0; i < quantity; i++) {
+			const member = this.topMembers[offset + i - 1];
+			if (member === undefined) {
+				break;
+			}
+
+			response += `
+${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
+		}
+
+		this.reply(message, response);
 	}
 
 	private async commandColor (message: Message, color?: string) {
@@ -379,5 +391,46 @@ The members with the most talent are:
 		);
 
 		this.updateTopMember(trackedMember);
+	}
+
+	private commandConsecutiveDays (message: Message, queryMember?: string) {
+		let member = message.member;
+
+		if (queryMember) {
+			const resultingQueryMember = this.findMember(queryMember);
+
+			if (!this.validateFindResult(message, resultingQueryMember)) {
+				return;
+			}
+
+			member = resultingQueryMember;
+		}
+
+		const memberName = member.displayName;
+
+		if (member.user.bot) {
+			this.reply(message, member.id == this.user.id ?
+				"I have existed longer than time itself." :
+				`${memberName} has existed longer than time itself.`,
+			);
+
+			return;
+		}
+
+		const trackedMember = this.members[member.id];
+		if (!trackedMember) {
+			this.reply(message, queryMember ?
+				`${memberName} has not gained talent yet.` :
+				"you have not gained talent yet.",
+			);
+
+			return;
+		}
+
+		const daysVisited = this.members[member.id].daysVisited;
+		this.reply(message, queryMember ?
+			`${memberName} has chatted for ${daysVisited} days.` :
+			`you have chatted for ${daysVisited} days.`,
+		);
 	}
 }
