@@ -99,7 +99,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 			case "top": return this.commandTop(message, +args[0], +args[1]);
 			case "color": return this.commandColor(message, args[0]);
 			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
-			case "consecutive-days": return this.commandConsecutiveDays(message, args[0]);
+			case "days": return this.commandDaysChatted(message, args[0]);
 		}
 	}
 
@@ -393,7 +393,7 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.updateTopMember(trackedMember);
 	}
 
-	private commandConsecutiveDays (message: Message, queryMember?: string) {
+	private commandDaysChatted (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
@@ -429,8 +429,8 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 
 		const daysVisited = this.members[member.id].daysVisited;
 		this.reply(message, queryMember ?
-			`${memberName} has chatted for ${daysVisited} days.` :
-			`you have chatted for ${daysVisited} days.`,
+			`${memberName} has chatted on ${daysVisited} days.` :
+			`you have chatted on ${daysVisited} days.`,
 		);
 	}
 }
