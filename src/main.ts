@@ -31,7 +31,7 @@ async function exitHandler (err?: Error) {
 	}
 
 	await stop();
-	process.exit();
+	process.exit(err ? 1 : 0);
 }
 
 process.on("SIGINT", exitHandler);
