@@ -21,7 +21,7 @@ function parseColorInput (color: string) {
 	return color.toUpperCase();
 }
 
-interface ITrackedMember {
+export interface ITrackedMember {
 	id: string;
 	talent: number;
 	lastDay: number;
@@ -114,6 +114,26 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		this.onMemberMessage(message.member);
 	}
 
+	public getTrackedMember (id: string) {
+		const today = this.getToday();
+
+		let trackedMember = this.members[id];
+		if (!trackedMember) {
+			trackedMember = this.members[id] = {
+				id,
+				talent: 0,
+				daysVisited: 0,
+				lastDay: today,
+				maxTalentForMessageBlockStartTime: Date.now(),
+				maxTalentForMessageBlockMessagesSent: 0,
+				talentLossForMessageBlockStartTime: Date.now(),
+				talentLossForMessageBlockMessagesSent: 0,
+			};
+		}
+
+		return trackedMember;
+	}
+
 	private onMemberMessage (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
 
@@ -144,26 +164,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		trackedMember.talentLossForMessageBlockMessagesSent++;
 
 		this.updateMember(member, talentChange);
-	}
-
-	private getTrackedMember (id: string) {
-		const today = this.getToday();
-
-		let trackedMember = this.members[id];
-		if (!trackedMember) {
-			trackedMember = this.members[id] = {
-				id,
-				talent: 0,
-				daysVisited: 0,
-				lastDay: today,
-				maxTalentForMessageBlockStartTime: Date.now(),
-				maxTalentForMessageBlockMessagesSent: 0,
-				talentLossForMessageBlockStartTime: Date.now(),
-				talentLossForMessageBlockMessagesSent: 0,
-			};
-		}
-
-		return trackedMember;
 	}
 
 	private getToday () {

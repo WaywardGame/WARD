@@ -7,10 +7,11 @@ import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import { sleep } from "../util/Async";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, metadataKeyImport } from "./Api";
+import { Api, metadataKeyImportApi, metadataKeyImportPlugin } from "./Api";
 import { IConfig } from "./Config";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
+import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 
 export class Ward {
 	private config: IConfig;
@@ -30,6 +31,7 @@ export class Ward {
 		this.addPlugin(new RegularsPlugin());
 		this.addPlugin(new RoleTogglePlugin());
 		this.addPlugin(new TwitchStreamPlugin());
+		this.addPlugin(new GiveawayPlugin());
 	}
 
 	public async start () {
@@ -194,9 +196,16 @@ export class Ward {
 			plugin.user = this.discord.user;
 			plugin.guild = this.guild;
 			for (const property in plugin) {
-				const metadata = Reflect.getMetadata(metadataKeyImport, plugin, property);
+				// import apis
+				let metadata = Reflect.getMetadata(metadataKeyImportApi, plugin, property);
 				if (metadata) {
 					(plugin as any)[property] = this.getApi(metadata);
+				}
+
+				// import other plugins
+				metadata = Reflect.getMetadata(metadataKeyImportPlugin, plugin, property);
+				if (metadata) {
+					(plugin as any)[property] = this.plugins[metadata];
 				}
 			}
 		}

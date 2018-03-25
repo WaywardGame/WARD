@@ -2,6 +2,7 @@ import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { minutes } from "../util/Time";
 import { IStream, Twitch } from "../util/Twitch";
+import { TextChannel } from "discord.js";
 
 export interface IStreamDetector {
 	game?: string;
@@ -73,7 +74,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 		if (!this.trackedStreams[stream.id]) {
 			const user = await this.twitch.getUser("id", stream.user_id);
 			this.log(`Channel ${user.display_name} went live: ${stream.title}`);
-			this.guild.channels.find("id", streamDetector.channel)
+			(this.guild.channels.find("id", streamDetector.channel) as TextChannel)
 				.send(streamDetector.message
 					.replace("{name}", user.display_name)
 					.replace("{title}", stream.title)

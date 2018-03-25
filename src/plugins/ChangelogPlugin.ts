@@ -1,4 +1,4 @@
-import { Channel } from "discord.js";
+import { TextChannel } from "discord.js";
 
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
@@ -48,7 +48,7 @@ export interface IChangelogConfig {
 export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 	public updateInterval = hours(1);
 
-	private channel: Channel;
+	private channel: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
 
@@ -69,7 +69,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 		}
 
 		this.log("Updating changelog...");
-		this.channel = this.guild.channels.find("id", this.config.reportingChannel);
+		this.channel = this.guild.channels.find("id", this.config.reportingChannel) as TextChannel;
 
 		const version = await this.trello.getNewestVersion();
 		this.isReporting = true;
