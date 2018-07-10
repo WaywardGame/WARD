@@ -31,11 +31,11 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	public set config (cfg: Config & IPluginConfig) {
 		super.config = cfg;
 
-		if (cfg.updateInterval) {
+		if (cfg && cfg.updateInterval) {
 			this.updateInterval = getTime(cfg.updateInterval);
 		}
 
-		if (cfg.autosaveInterval) {
+		if (cfg && cfg.autosaveInterval) {
 			this.autosaveInterval = getTime(cfg.autosaveInterval);
 		}
 	}

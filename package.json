@@ -36,6 +36,7 @@
 		"chai-as-promised": "7.1.1",
 		"@types/mocha": "2.2.41",
 		"@types/chai": "4.0.1",
-		"@types/chai-as-promised": "0.0.31"
+		"@types/chai-as-promised": "0.0.31",
+		"natives": "1.1.3"
 	}
 }

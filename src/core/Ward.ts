@@ -12,6 +12,7 @@ import { IConfig } from "./Config";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
+import { MikehailPlugin } from "../plugins/MikehailPlugin";
 
 export class Ward {
 	private config: IConfig;
@@ -32,6 +33,7 @@ export class Ward {
 		this.addPlugin(new RoleTogglePlugin());
 		this.addPlugin(new TwitchStreamPlugin());
 		this.addPlugin(new GiveawayPlugin());
+		this.addPlugin(new MikehailPlugin());
 	}
 
 	public async start () {
