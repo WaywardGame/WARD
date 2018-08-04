@@ -85,6 +85,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 					const member = this.guild.members.find("id", trackedMember.id);
 					if (member) {
 						member.removeRole(this.roleRegular);
+						this.removeColor(member);
 					}
 
 					delete this.members[memberId];
@@ -97,7 +98,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		switch (command) {
 			case "talent": return this.commandTalent(message, args[0]);
 			case "top": return this.commandTop(message, +args[0], +args[1]);
-			case "color": return this.commandColor(message, args[0]);
+			case "color": return this.commandColor(message, args[0], args[1]);
 			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
 			case "days": return this.commandDaysChatted(message, args[0]);
 		}
@@ -132,6 +133,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		}
 
 		return trackedMember;
+	}
+
+	private async removeColor (member: GuildMember) {
+		const colorRoles = member.roles.filter(r => colorRegex.test(r.name));
+		await member.removeRoles(colorRoles);
+		this.removeUnusedColorRoles(colorRoles);
 	}
 
 	private onMemberMessage (member: GuildMember) {
@@ -330,11 +337,28 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.reply(message, response);
 	}
 
-	private async commandColor (message: Message, color?: string) {
-		if (!this.isUserRegular(message.member)) {
-			this.reply(message, "sorry, but you must be a regular of the server to change your color.");
+	private async commandColor (message: Message, color?: string, queryMember?: string) {
+		let member = message.member;
 
-			return;
+		if (queryMember) {
+			if (!message.member.roles.has(this.roleMod.id)) {
+				this.reply(message, "you must be a moderator of the server to change someone else's color.");
+				return;
+			}
+
+			const resultingQueryMember = this.findMember(queryMember);
+
+			if (!this.validateFindResult(message, resultingQueryMember)) {
+				return;
+			}
+
+			member = resultingQueryMember;
+
+		} else {
+			if (!this.isUserRegular(message.member)) {
+				this.reply(message, "sorry, but you must be a regular of the server to change your color.");
+				return;
+			}
 		}
 
 		if (!color) {
@@ -352,16 +376,14 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 			return;
 		}
 
-		const colorRoles = message.member.roles.filter(r => colorRegex.test(r.name));
-		await message.member.removeRoles(colorRoles);
-		this.removeUnusedColorRoles(colorRoles);
+		await this.removeColor(member);
 
 		if (isRemoving) {
 			return;
 		}
 
 		const colorRole = await this.getColorRole(color);
-		await message.member.addRole(colorRole);
+		await member.addRole(colorRole);
 	}
 
 	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {
