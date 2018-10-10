@@ -103,9 +103,10 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected findMember (member: string): GuildMember | Collection<string, GuildMember> | undefined {
+	protected async findMember (member: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
 		member = member.toLowerCase();
-		const results = this.guild.members.filter(m =>
+		const guild = await this.guild.fetchMembers();
+		const results = guild.members.filter(m =>
 			m.displayName.toLowerCase().includes(member) ||
 			m.id == member ||
 			m.user.tag == member,

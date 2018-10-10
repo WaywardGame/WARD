@@ -125,7 +125,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 		do {
 			const winnerIndex = Math.floor(Math.random() * users.length);
 			for (const winner of users.splice(winnerIndex, 1)) {
-				winners.push(this.findMember(winner) as GuildMember);
+				winners.push(await this.findMember(winner) as GuildMember);
 			}
 		} while (winners.length < winnerCount);
 

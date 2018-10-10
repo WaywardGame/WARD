@@ -24,7 +24,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 	}
 
 	// tslint:disable cyclomatic-complexity
-	private commandRole (message: Message, roleName?: string, queryMember?: string) {
+	private async commandRole (message: Message, roleName?: string, queryMember?: string) {
 		if (!roleName) {
 			this.reply(message, "you must provide a role to toggle.");
 			return;
@@ -49,7 +49,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 				return;
 			}
 
-			const resultingQueryMember = this.findMember(queryMember);
+			const resultingQueryMember = await this.findMember(queryMember);
 
 			if (resultingQueryMember instanceof Collection) {
 				this.reply(message, "I found multiple members with that name. Can you be more specific?");

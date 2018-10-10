@@ -276,11 +276,11 @@ I will not send any other notification messages, apologies for the interruption.
 	}
 
 	// tslint:disable cyclomatic-complexity
-	private commandTalent (message: Message, queryMember?: string) {
+	private async commandTalent (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
-			const resultingQueryMember = this.findMember(queryMember);
+			const resultingQueryMember = await this.findMember(queryMember);
 
 			if (!this.validateFindResult(message, resultingQueryMember)) {
 				return;
@@ -346,7 +346,7 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 				return;
 			}
 
-			const resultingQueryMember = this.findMember(queryMember);
+			const resultingQueryMember = await this.findMember(queryMember);
 
 			if (!this.validateFindResult(message, resultingQueryMember)) {
 				return;
@@ -397,7 +397,7 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 			return;
 		}
 
-		const member = this.findMember(queryMember);
+		const member = await this.findMember(queryMember);
 		if (!this.validateFindResult(message, member)) {
 			return;
 		}
@@ -415,11 +415,11 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.updateTopMember(trackedMember);
 	}
 
-	private commandDaysChatted (message: Message, queryMember?: string) {
+	private async commandDaysChatted (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
-			const resultingQueryMember = this.findMember(queryMember);
+			const resultingQueryMember = await this.findMember(queryMember);
 
 			if (!this.validateFindResult(message, resultingQueryMember)) {
 				return;
