@@ -5,7 +5,7 @@ import { sleep } from "./Async";
 import { Logger } from "./Log";
 import { minutes } from "./Time";
 
-const endpoint = "https://api.twitch.tv/helix/";
+const endpoint = "https://api.twitch.tv/kraken/";
 
 export enum StreamType {
 	Live = "live",
@@ -14,9 +14,8 @@ export enum StreamType {
 }
 
 export interface IStream {
-	id: string;
-	user_id: string;
-	game_id: string;
+	_id: number;
+	game: string;
 	community_ids: string[];
 	type: StreamType;
 	title: string;
@@ -24,6 +23,11 @@ export interface IStream {
 	started_at: string;
 	language: string;
 	thumbnail_url: string;
+	channel: {
+		name: string;
+		display_name: string;
+		_id: number;
+	}
 }
 
 export interface IUser {
@@ -39,10 +43,11 @@ export interface IUser {
 }
 
 export interface IPaginatedResult {
-	data: any[];
-	pagination: {
-		cursor?: string;
-	};
+	streams: any[];
+	_total: number;
+	_links: {
+		next: string;
+	}
 }
 
 export interface ITwitchConfig {
@@ -59,29 +64,24 @@ export class Twitch extends Api<ITwitchConfig> {
 	}
 
 	public async getStreams (game: string): Promise<IStream[]> {
-		return this.paginationTwitchRequest(`streams?game_id=${game}&first=100`);
+		return this.paginationTwitchRequest(`streams?game=${game}&limit=100`);
 	}
 
 	public async getStream (streamer: string): Promise<IStream> {
-		return this.twitchRequest(`streams?user_id=${streamer}`).then(result => result.data[0]);
-	}
-
-	public async getUser (by: "id" | "name", name: string): Promise<IUser> {
-		return this.twitchRequest(`users?${by == "name" ? "login" : "id"}=${name}`).then(result => result.data[0]);
+		return this.twitchRequest(`streams/${streamer}`).then(result => result.stream);
 	}
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
 		const results = [];
 		let rqResult: IPaginatedResult;
 		do {
-			const cursor = rqResult && rqResult.pagination.cursor ? `&after=${rqResult.pagination.cursor}` : "";
-			rqResult = await this.twitchRequest(rq + cursor);
+			rqResult = await this.twitchRequest(rqResult ? rqResult._links.next : rq);
 			if (!rqResult) {
 				break;
 			}
 
-			results.push(...rqResult.data);
-		} while (rqResult.pagination.cursor);
+			results.push(...rqResult.streams || []);
+		} while (rqResult.streams && rqResult.streams.length >= 100);
 
 		return results;
 	}
@@ -101,7 +101,7 @@ export class Twitch extends Api<ITwitchConfig> {
 			}
 
 			try {
-				const r = request(`${endpoint}${rq}`, {
+				const r = request(`${rq.startsWith(endpoint) ? "" : endpoint}${rq}`, {
 					headers: {
 						"Client-ID": this.config.client,
 					},
