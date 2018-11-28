@@ -18,13 +18,13 @@ export interface IStream {
 	game: string;
 	community_ids: string[];
 	type: StreamType;
-	title: string;
 	viewer_count: number;
 	started_at: string;
 	language: string;
 	thumbnail_url: string;
 	channel: {
 		name: string;
+		status: string;
 		display_name: string;
 		_id: number;
 	}

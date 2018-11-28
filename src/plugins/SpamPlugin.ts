@@ -3,7 +3,7 @@ import { Plugin } from "../core/Plugin";
 import { Message } from "discord.js";
 import { sleep } from "../util/Async";
 
-const discordURLRegex = /^discord\.gg\/[A-Za-z0-9]{4,}$/;
+const discordURLRegex = /\bdiscord\.gg\/[A-Za-z0-9]{4,}\b/;
 
 export class SpamPlugin extends Plugin<{}> {
 	public getDefaultId () {
