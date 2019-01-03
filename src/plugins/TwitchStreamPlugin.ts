@@ -1,8 +1,9 @@
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
-import { minutes } from "../util/Time";
+import { minutes, seconds } from "../util/Time";
 import { IStream, Twitch } from "../util/Twitch";
 import { TextChannel } from "discord.js";
+import { sleep } from "../util/Async";
 
 export interface IStreamDetector {
 	game?: string;
@@ -81,7 +82,9 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 					.replace("{link}", `https://twitch.tv/${stream.channel.name}`));
 		}
 
-		this.trackedStreams[stream.channel.name] = time;
+		sleep(seconds(1)).then(() => {
+			this.trackedStreams[stream.channel.name] = time;
+		});
 	}
 }
 
