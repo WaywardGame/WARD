@@ -83,7 +83,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 				if (trackedMember.talent == 0) {
 					const member = this.guild.members.find("id", trackedMember.id);
-					if (member) {
+					if (member && !member.roles.has(this.roleMod.id)) {
 						member.removeRole(this.roleRegular);
 						this.removeColor(member);
 					}
