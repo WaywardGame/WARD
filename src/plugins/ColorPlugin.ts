@@ -93,6 +93,16 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 	}
 
 	private async commandColor (message: Message, color?: string, queryMember?: string) {
+		if (!color) {
+			this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
+			return;
+		}
+
+		if (/list|all/.test(color)) {
+			this.reply(message, `${this.getValidColorExamples()}`);
+			return;
+		}
+
 		let member = message.member;
 
 		if (queryMember) {
@@ -114,16 +124,6 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 				this.reply(message, "sorry, but you must be a regular of the server to change your color.");
 				return;
 			}
-		}
-
-		if (!color) {
-			this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
-			return;
-		}
-
-		if (/list|all/.test(color)) {
-			this.reply(message, `${this.getValidColorExamples()}`);
-			return;
 		}
 
 		const isRemoving = /none|reset|remove/.test(color);
@@ -149,7 +149,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 		this.reply(message, new RichEmbed()
 			.setColor(colorRole.color)
-			.setDescription(`<@${member.id}>, your color has been changed to **${colorRole.name}**.`));
+			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole.name}**.`));
 	}
 
 	private getValidColorExamples () {
