@@ -25,6 +25,7 @@ export class Series {
 	public then (name: string, ...parallel: Tasks) {
 		let fn;
 		if (parallel.length > 1) fn = Series.parallel(...parallel);
+		else if (parallel.length === 0) fn = name, name = "";
 		else fn = Series.getTask(parallel[0]);
 
 		if (name && typeof fn === "function") nameFunction(name, fn as AnyFunction);

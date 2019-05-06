@@ -30,6 +30,28 @@ export default class TypescriptWatch {
 		return this;
 	}
 
+	public async once () {
+		const ocwd = process.cwd();
+		process.chdir(this.inDir);
+		const declaration = this.declaration ? `--declaration --declarationDir ${this.declaration}` : "";
+		const task = exec(`npx tsc --outDir ${this.outDir} --pretty ${declaration}`);
+		process.chdir(ocwd);
+
+		task.stderr!.on("data", data => process.stderr.write(data));
+
+		task.stdout!.on("data", data => {
+			if (this.onDataHandler && this.onDataHandler(data.toString()) === false)
+				return;
+
+			process.stdout.write(handleTscOut(0, data, `${path.relative(ocwd, this.inDir).replace(/\\/g, "/")}/`));
+		});
+
+		return new Promise<void>((resolve, reject) => task.on("close", code => {
+			if (!code) resolve();
+			else reject(code);
+		}));
+	}
+
 	public watch () {
 		const ocwd = process.cwd();
 		process.chdir(this.inDir);
