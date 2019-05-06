@@ -1,4 +1,4 @@
-import { Collection, Guild, GuildMember, Message, User } from "discord.js";
+import { Collection, Guild, GuildMember, Message, User, RichEmbed } from "discord.js";
 import * as fs from "mz/fs";
 
 import { Logger } from "../util/Log";
@@ -86,16 +86,19 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	}
 
 	protected log (...args: any[]) {
-		Logger.log(this.getId(), ...args);
+		Logger.log([this.guild.name, this.getId()], ...args);
 	}
 
-	protected reply (message: Message, reply: string) {
-		reply = reply.trim();
-		if (!message.guild) {
-			reply = reply[0].toUpperCase() + reply.slice(1);
+	protected reply (message: Message, reply: string | RichEmbed) {
+		if (typeof reply === "string") {
+			reply = reply.trim();
+			if (!message.guild) {
+				reply = reply[0].toUpperCase() + reply.slice(1);
+			}
+			message.reply(reply);
+		} else {
+			message.channel.send(reply);
 		}
-
-		message.reply(reply);
 	}
 
 	/**
@@ -136,6 +139,6 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	}
 
 	private getDataPath () {
-		return `data/${this.getId()}.json`;
+		return `data/${this.guild.id}/${this.getId()}.json`;
 	}
 }

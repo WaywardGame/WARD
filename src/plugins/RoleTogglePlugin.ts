@@ -14,7 +14,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 	}
 
 	public onStart () {
-		this.roleMod = this.guild.roles.find("name", "mod");
+		this.roleMod = this.guild.roles.find(role => role.name === "mod");
 	}
 
 	public onCommand (message: Message, command: string, ...args: string[]) {
@@ -30,9 +30,11 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			return;
 		}
 
+		roleName = roleName.toLowerCase();
+
 		const role = this.guild.roles.find(r => {
 			const pingRole = r.name.toLowerCase();
-			if (this.config.toggleableRoles[pingRole] && this.config.toggleableRoles[pingRole].includes(roleName)) {
+			if (Object.entries(this.config.toggleableRoles).some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName))) {
 				return true;
 			}
 		});

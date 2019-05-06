@@ -14,6 +14,7 @@ import { Plugin } from "./Plugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import { MikehailPlugin } from "../plugins/MikehailPlugin";
 import { SpamPlugin } from "../plugins/SpamPlugin";
+import { ColorsPlugin } from "../plugins/ColorPlugin";
 
 export class Ward {
 	private config: IConfig;
@@ -25,7 +26,7 @@ export class Ward {
 	private stopped = true;
 	private onStop: () => any;
 
-	constructor(cfg: IConfig) {
+	constructor (cfg: IConfig) {
 		this.config = cfg;
 		this.addApi(new Trello());
 		this.addApi(new Twitch());
@@ -36,6 +37,7 @@ export class Ward {
 		this.addPlugin(new GiveawayPlugin());
 		this.addPlugin(new MikehailPlugin());
 		this.addPlugin(new SpamPlugin());
+		this.addPlugin(new ColorsPlugin());
 	}
 
 	public async start () {
@@ -45,7 +47,7 @@ export class Ward {
 			this.commandPrefix = this.config.commandPrefix;
 
 			await this.login();
-			this.guild = this.discord.guilds.find("id", this.config.apis.discord.guild);
+			this.guild = this.discord.guilds.find(guild => guild.id === this.config.apis.discord.guild);
 
 			this.pluginHookInit();
 
@@ -82,6 +84,8 @@ export class Ward {
 		const promises: Array<Promise<any>> = [];
 
 		for (const pluginName in this.plugins) {
+			if (this.config.plugins[pluginName] === false) continue;
+
 			const plugin = this.plugins[pluginName];
 			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval) {
 				promises.push(plugin.onUpdate());
@@ -99,7 +103,10 @@ export class Ward {
 
 	public addPlugin (plugin: Plugin) {
 		const id = this.addImportable(plugin, this.plugins);
-		plugin.config = this.config.plugins[id];
+		const config = this.config.plugins[id];
+		if (config) {
+			plugin.config = config;
+		}
 
 		return id;
 	}
@@ -110,7 +117,10 @@ export class Ward {
 
 	public addApi (api: Api) {
 		const id = this.addImportable(api, this.apis);
-		api.config = this.config.apis[id];
+		const config = this.config.apis[id];
+		if (config) {
+			api.config = config;
+		}
 
 		return id;
 	}
@@ -134,7 +144,7 @@ export class Ward {
 		}
 
 		if (!message.member) {
-			message.member = this.guild.members.find("id", message.author.id);
+			message.member = this.guild.members.find(member => member.id === message.author.id);
 		}
 
 		if (!message.member) {
@@ -159,6 +169,8 @@ export class Ward {
 		}
 
 		for (const pluginName in this.plugins) {
+			if (this.config.plugins[pluginName] === false) continue;
+
 			const plugin = this.plugins[pluginName];
 			if (plugin.onCommand) {
 				this.plugins[pluginName].onCommand(message, command, ...args);
@@ -177,8 +189,11 @@ export class Ward {
 
 	private async pluginHookStart () {
 		for (const pluginName in this.plugins) {
+			const config = this.config.plugins[pluginName];
+			if (config === false) continue;
+
 			const plugin = this.plugins[pluginName];
-			plugin.config = this.config.plugins[pluginName];
+			plugin.config = config;
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart();
 			}
@@ -187,6 +202,8 @@ export class Ward {
 
 	private async pluginHookStop () {
 		for (const pluginName in this.plugins) {
+			if (this.config.plugins[pluginName] === false) continue;
+
 			const plugin = this.plugins[pluginName];
 			if (plugin.onStop) {
 				await this.plugins[pluginName].onStop();
@@ -196,6 +213,8 @@ export class Ward {
 
 	private pluginHookInit () {
 		for (const pluginName in this.plugins) {
+			if (this.config.plugins[pluginName] === false) continue;
+
 			const plugin = this.plugins[pluginName];
 			plugin.user = this.discord.user;
 			plugin.guild = this.guild;
@@ -228,6 +247,8 @@ export class Ward {
 	private async pluginHookSave () {
 		const promises: Array<Promise<any>> = [];
 		for (const pid in this.plugins) {
+			if (this.config.plugins[pid] === false) continue;
+
 			promises.push(this.plugins[pid].save());
 		}
 
@@ -236,6 +257,8 @@ export class Ward {
 
 	private pluginHookMessage (message: Message) {
 		for (const pluginName in this.plugins) {
+			if (this.config.plugins[pluginName] === false) continue;
+
 			const plugin = this.plugins[pluginName];
 			if (plugin.onMessage) {
 				plugin.onMessage(message);

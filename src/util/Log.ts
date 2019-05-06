@@ -5,7 +5,9 @@ export module Logger {
 	const waitToLog: string[] = [];
 	let isReadyToLog = false;
 
-	export async function log (from?: string, ...what: any[]) {
+	export async function log (from?: string | string[], ...what: any[]) {
+		from = Array.isArray(from) ? from.join("] [") : from;
+
 		const time = new Date().toLocaleTimeString();
 		// tslint:disable-next-line no-console
 		console.log(chalk.grey(time), what.length == 0 ? from : chalk.grey(`[${from}]`), ...what);

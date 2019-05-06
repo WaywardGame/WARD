@@ -6,17 +6,17 @@ import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
 import { Logger } from "./util/Log";
 
-let ward: Ward;
+let wards: Ward[];
 
 async function start () {
 	Logger.setShouldSaveLog();
-	const config = await new Config().get();
-	ward = new Ward(config);
-	ward.start();
+	const configs = await new Config().get();
+	wards = configs.map(config => new Ward(config));
+	for (const ward of wards) ward.start();
 }
 async function stop () {
 	await Promise.race([
-		ward && ward.stop(),
+		Promise.all(wards.map(ward => ward && ward.stop())),
 		sleep(2000),
 	]);
 }

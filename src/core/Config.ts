@@ -1,13 +1,14 @@
 import * as fs from "mz/fs";
 import { Logger } from "../util/Log";
+import { IPluginConfig } from "./Plugin";
 
 export interface IConfig {
 	commandPrefix: string;
 	plugins: {
-		[key: string]: any;
+		[key: string]: false | IPluginConfig;
 	};
 	apis: {
-		[key: string]: any;
+		[key: string]: false | object;
 		discord: {
 			username: string;
 			token: string;
@@ -17,11 +18,11 @@ export interface IConfig {
 }
 
 export class Config {
-	private onGetHandlers: Array<[(cfg: IConfig) => any, (err: Error) => any]> = [];
-	private result: any;
+	private onGetHandlers: Array<[(cfgs: IConfig[]) => any, (err: Error) => any]> = [];
+	private result: IConfig[];
 	private isGetting = false;
 
-	public async get (): Promise<IConfig> {
+	public async get (): Promise<IConfig[]> {
 		if (this.result) {
 			return this.result;
 
@@ -29,10 +30,10 @@ export class Config {
 			if (!this.isGetting) {
 				this.isGetting = true;
 				fs.readFile("config.json", "utf8").then(text => {
-					const result = JSON.parse(text);
+					const result = JSON.parse(text) as IConfig[];
 					this.result = result;
-					for (const onGetHandler of this.onGetHandlers) {
-						onGetHandler[0](this.result);
+					for (const [handler] of this.onGetHandlers) {
+						handler(this.result);
 					}
 
 					delete this.onGetHandlers;
@@ -40,15 +41,15 @@ export class Config {
 				}).catch(err => {
 					// tslint:disable-next-line no-console
 					Logger.log("config", "Can't load config file");
-					for (const onGetHandler of this.onGetHandlers) {
-						onGetHandler[1](err);
+					for (const [, errorHandler] of this.onGetHandlers) {
+						errorHandler(err);
 					}
 
 					delete this.onGetHandlers;
 				});
 			}
 
-			return new Promise<IConfig>((resolve, reject) => {
+			return new Promise<IConfig[]>((resolve, reject) => {
 				this.onGetHandlers.push([resolve, reject]);
 			});
 		}

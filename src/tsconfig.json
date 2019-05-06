@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "es2017",
+		"outDir": "out/",
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"forceConsistentCasingInFileNames": true,
+		"noImplicitAny": true,
+		"noImplicitThis": true,
+		"noUnusedLocals": true,
+		"removeComments": true,
+		"declaration": true,
+		"experimentalDecorators": true,
+        "plugins": [
+            {
+                "name": "tslint-language-service"
+            }
+        ]
+	}
+}

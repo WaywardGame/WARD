@@ -1,7 +1,7 @@
 {
 	"name": "wayward.ward",
 	"description": "The Wayward Discord bot.",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"license": "MIT",
 	"repository": {
 		"type": "git",
@@ -9,34 +9,33 @@
 	},
 	"main": "out/main.js",
 	"dependencies": {
-		"discord.js": "11.3.2",
-		"request-promise-native": "1.0.5",
-		"request": "2.85.0",
+		"discord.js": "11.4.2",
+		"request-promise-native": "1.0.7",
+		"request": "2.88.0",
 		"mz": "2.7.0",
-		"reflect-metadata": "0.1.10",
-		"chalk": "2.3.0"
-	},
-	"engines": {
-		"node": "8.9.1"
+		"reflect-metadata": "0.1.13",
+		"chalk": "2.4.2"
 	},
 	"devDependencies": {
-		"@types/request-promise-native": "1.0.10",
+		"@types/request-promise-native": "1.0.16",
 		"@types/mz": "0.0.32",
-		"tslint-language-service": "0.9.6",
-		"tslint": "5.8.0",
-		"gulp": "3.9.1",
-		"gulp-plumber": "1.1.0",
-		"merge2": "1.1.0",
-		"run-sequence": "2.1.0",
-		"typescript": "2.6.2",
-		"gulp-typescript": "3.2.1",
-		"mocha": "3.4.2",
-		"gulp-mocha": "4.3.1",
-		"chai": "4.1.0",
+		"typescript-tslint-plugin": "0.3.1",
+		"tslint": "5.16.0",
+		"gulp": "4.0.1",
+		"gulp-plumber": "1.2.1",
+		"merge2": "1.2.3",
+		"typescript": "3.4.5",
+		"gulp-typescript": "5.0.1",
+		"mocha": "6.1.4",
+		"gulp-mocha": "6.0.0",
+		"ts-node": "8.1.0",
+		"chai": "4.2.0",
 		"chai-as-promised": "7.1.1",
-		"@types/mocha": "2.2.41",
-		"@types/chai": "4.0.1",
-		"@types/chai-as-promised": "0.0.31",
-		"natives": "1.1.3"
+		"@types/del": "4.0.0",
+		"@types/gulp": "4.0.6",
+		"@types/mocha": "5.2.6",
+		"@types/chai": "4.1.7",
+		"@types/chai-as-promised": "7.1.0",
+		"@types/gulp-mocha": "0.0.32"
 	}
 }

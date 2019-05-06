@@ -1,20 +1,27 @@
 {
-	"compilerOptions": {
-		"target": "es2017",
-		"outDir": "out/",
-		"module": "commonjs",
-		"moduleResolution": "node",
-		"forceConsistentCasingInFileNames": true,
-		"noImplicitAny": true,
-		"noImplicitThis": true,
-		"noUnusedLocals": true,
-		"removeComments": true,
-		"declaration": true,
-		"experimentalDecorators": true,
+    "compilerOptions": {
+        "forceConsistentCasingInFileNames": true,
+        "module": "commonjs",
+        "noImplicitReturns": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": false,
+        "strict": true,
+        "strictPropertyInitialization": false,
+        "experimentalDecorators": true,
+        "target": "esnext",
+        "types": [
+            "node"
+        ],
         "plugins": [
             {
-                "name": "tslint-language-service"
+                "name": "typescript-tslint-plugin"
             }
         ]
-	}
+    },
+    "include": [
+        "gulpfile.ts",
+        "gulp/**/*.ts",
+        "gulp/typings/electron-forge.d.ts"
+    ],
+    "version": "2.2.2"
 }

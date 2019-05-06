@@ -75,7 +75,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 		if (!this.trackedStreams[stream.channel.name]) {
 			this.log(`Channel ${stream.channel.display_name} went live: ${stream.channel.status}`);
 
-			(this.guild.channels.find("id", streamDetector.channel) as TextChannel)
+			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
 				.send(streamDetector.message
 					.replace("{name}", escape(stream.channel.display_name))
 					.replace("{title}", escape(stream.channel.status))

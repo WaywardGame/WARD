@@ -69,7 +69,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 		}
 
 		this.log("Updating changelog...");
-		this.channel = this.guild.channels.find("id", this.config.reportingChannel) as TextChannel;
+		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
 
 		const version = await this.trello.getNewestVersion();
 		this.isReporting = true;
@@ -136,6 +136,6 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 			return undefined;
 		}
 
-		return this.guild.emojis.find("name", emotes[emote]);
+		return this.guild.emojis.find(emoji => emoji.name === emotes[emote]);
 	}
 }

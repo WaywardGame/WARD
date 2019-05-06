@@ -1,25 +1,6 @@
-import { Collection, GuildMember, Message, Role } from "discord.js";
-
+import { GuildMember, Message, Role } from "discord.js";
 import { Plugin } from "../core/Plugin";
-import { sleep } from "../util/Async";
 import { days, getTime, hours, minutes } from "../util/Time";
-
-const colorRegex = /#[A-F0-9]{6}/;
-function parseColorInput (color: string) {
-	if (color.startsWith("#")) {
-		color = color.slice(1);
-	}
-
-	if (color.length === 3) {
-		color = `${color[0]}${color[0]}${color[1]}${color[1]}${color[2]}${color[2]}`;
-	}
-
-	if (!color.startsWith("#")) {
-		color = `#${color}`;
-	}
-
-	return color.toUpperCase();
-}
 
 export interface ITrackedMember {
 	id: string;
@@ -58,6 +39,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	private topMembers: ITrackedMember[];
 	private roleRegular: Role;
 	private roleMod: Role;
+	private readonly onRemoveMemberHandlers: ((member: GuildMember) => any)[] = [];
 
 	public getDefaultId () {
 		return "regulars";
@@ -67,10 +49,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		this.members = await this.data(RegularsData.TrackedMembers, {});
 		this.updateTopMembers();
 
-		this.roleRegular = this.guild.roles.find("name", "regular");
-		this.roleMod = this.guild.roles.find("name", "mod");
-
-		this.removeUnusedColorRoles();
+		this.roleRegular = this.guild.roles.find(role => role.name === "regular");
+		this.roleMod = this.guild.roles.find(role => role.name === "mod");
 	}
 
 	public onUpdate () {
@@ -82,10 +62,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 				trackedMember.talent--;
 
 				if (trackedMember.talent == 0) {
-					const member = this.guild.members.find("id", trackedMember.id);
+					const member = this.guild.members.find(member => member.id === trackedMember.id);
 					if (member && !member.roles.has(this.roleMod.id)) {
 						member.removeRole(this.roleRegular);
-						this.removeColor(member);
+						this.onRemoveMemberHandlers.forEach(handler => handler(member));
 					}
 
 					delete this.members[memberId];
@@ -98,7 +78,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		switch (command) {
 			case "talent": return this.commandTalent(message, args[0]);
 			case "top": return this.commandTop(message, +args[0], +args[1]);
-			case "color": return this.commandColor(message, args[0], args[1]);
 			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
 			case "days": return this.commandDaysChatted(message, args[0]);
 		}
@@ -135,10 +114,13 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		return trackedMember;
 	}
 
-	private async removeColor (member: GuildMember) {
-		const colorRoles = member.roles.filter(r => colorRegex.test(r.name));
-		await member.removeRoles(colorRoles);
-		this.removeUnusedColorRoles(colorRoles);
+	public isUserRegular (member: GuildMember) {
+		return member.roles.has(this.roleRegular.id) ||
+			member.highestRole.position >= this.roleMod.position;
+	}
+
+	public onRemoveMember (handler: (member: GuildMember) => any) {
+		this.onRemoveMemberHandlers.push(handler);
 	}
 
 	private onMemberMessage (member: GuildMember) {
@@ -233,46 +215,13 @@ I will not send any other notification messages, apologies for the interruption.
 		this.topMembers.splice(20, Infinity);
 	}
 
-	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
-		if (colorRoles) {
-			await sleep(10000);
-
-		} else {
-			colorRoles = this.guild.roles.filter(r => colorRegex.test(r.name));
-		}
-
-		for (const role of colorRoles.values()) {
-			if (role.members.size === 0) {
-				await role.delete();
-			}
-		}
-	}
-
-	private async getColorRole (color: string) {
-		let colorRole = this.guild.roles.find("name", color);
-		if (!colorRole) {
-			colorRole = await this.guild.createRole({
-				name: color,
-				color,
-				position: this.roleMod.position + 1,
-			});
-		}
-
-		return colorRole;
-	}
-
 	private getMemberName (memberOrId: string | GuildMember) {
-		const member = typeof memberOrId == "string" ? this.guild.members.find("id", memberOrId) : memberOrId;
+		const member = typeof memberOrId == "string" ? this.guild.members.find(member => member.id === memberOrId) : memberOrId;
 		if (!member) {
 			return "Unknown";
 		}
 
 		return member.displayName;
-	}
-
-	private isUserRegular (member: GuildMember) {
-		return member.roles.has(this.roleRegular.id) ||
-			member.highestRole.position >= this.roleMod.position;
 	}
 
 	// tslint:disable cyclomatic-complexity
@@ -335,55 +284,6 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		}
 
 		this.reply(message, response);
-	}
-
-	private async commandColor (message: Message, color?: string, queryMember?: string) {
-		let member = message.member;
-
-		if (queryMember) {
-			if (!message.member.roles.has(this.roleMod.id)) {
-				this.reply(message, "you must be a moderator of the server to change someone else's color.");
-				return;
-			}
-
-			const resultingQueryMember = await this.findMember(queryMember);
-
-			if (!this.validateFindResult(message, resultingQueryMember)) {
-				return;
-			}
-
-			member = resultingQueryMember;
-
-		} else {
-			if (!this.isUserRegular(message.member)) {
-				this.reply(message, "sorry, but you must be a regular of the server to change your color.");
-				return;
-			}
-		}
-
-		if (!color) {
-			this.reply(message, "you must provide a valid color. Examples: `f00` is red, `123456` is dark blue.");
-
-			return;
-		}
-
-		const isRemoving = /none|reset|remove/.test(color);
-
-		color = parseColorInput(color);
-		if (!isRemoving && !colorRegex.test(color)) {
-			this.reply(message, "you must provide a valid color. Examples: `f00` is red, `123456` is dark blue.");
-
-			return;
-		}
-
-		await this.removeColor(member);
-
-		if (isRemoving) {
-			return;
-		}
-
-		const colorRole = await this.getColorRole(color);
-		await member.addRole(colorRole);
 	}
 
 	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {

@@ -7,20 +7,20 @@ const expect = chai.expect;
 
 import { Config, IConfig } from "../core/Config";
 import { days, getTime, hours, minutes, seconds, TimeUnit } from "../util/Time";
-import { IVersionInfo, Trello } from "../util/Trello";
+import { IVersionInfo, Trello, ITrelloConfig } from "../util/Trello";
 
 let configPassed = false;
-let config: IConfig;
+let configs: IConfig[];
 
 describe("[Utilities]", () => {
 	it("[Config]", async () => {
-		config = await new Config().get();
-		expect(config).satisfy((cfg: IConfig) =>
-			typeof cfg == "object" &&
-			"commandPrefix" in cfg &&
-			"apis" in cfg &&
-			"plugins" in cfg,
-		);
+		configs = await new Config().get();
+		expect(configs).satisfy((cfgs: IConfig[]) =>
+			Array.isArray(cfgs) &&
+			cfgs.every(cfg => typeof cfg == "object" &&
+				"commandPrefix" in cfg &&
+				"apis" in cfg &&
+				"plugins" in cfg));
 		configPassed = true;
 	});
 
@@ -30,7 +30,7 @@ describe("[Utilities]", () => {
 			before(() => {
 				trello = new Trello();
 				trello.setId(trello.getId());
-				trello.config = config.apis.trello;
+				trello.config = configs[0].apis.trello as ITrelloConfig;
 			});
 
 			it("should get a list of all versions", async () => {

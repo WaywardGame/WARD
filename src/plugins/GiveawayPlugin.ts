@@ -4,7 +4,7 @@ import { Plugin } from "../core/Plugin";
 import { RegularsPlugin } from "./RegularsPlugin";
 import { ImportPlugin } from "../core/Api";
 
-export interface IGiveawayPluginConfig {
+export type IGiveawayPluginConfig = {
 	channel: string;
 	userLock?: {
 		talent: number;
@@ -34,8 +34,8 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 	}
 
 	public async onStart () {
-		this.roleDev = this.guild.roles.find("name", "wayward-dev");
-		this.channel = this.guild.channels.find("id", this.config.channel) as TextChannel;
+		this.roleDev = this.guild.roles.find(role => role.name === "wayward-dev");
+		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
 		this.giveaway = await this.data(GiveawayData.Giveaway, undefined);
 	}
 
