@@ -1,8 +1,10 @@
 import { Client, Guild, Message } from "discord.js";
-
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
+import { ColorsPlugin } from "../plugins/ColorPlugin";
+import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import { RegularsPlugin } from "../plugins/RegularsPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
+import { SpamPlugin } from "../plugins/SpamPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import { sleep } from "../util/Async";
 import { Trello } from "../util/Trello";
@@ -10,11 +12,10 @@ import { Twitch } from "../util/Twitch";
 import { Api, metadataKeyImportApi, metadataKeyImportPlugin } from "./Api";
 import { IConfig } from "./Config";
 import { Importable } from "./Importable";
-import { Plugin } from "./Plugin";
-import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
-import { MikehailPlugin } from "../plugins/MikehailPlugin";
-import { SpamPlugin } from "../plugins/SpamPlugin";
-import { ColorsPlugin } from "../plugins/ColorPlugin";
+import { Plugin, IPluginConfig } from "./Plugin";
+import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
+import { Logger } from "../util/Log";
+
 
 export class Ward {
 	private config: IConfig;
@@ -35,9 +36,19 @@ export class Ward {
 		this.addPlugin(new RoleTogglePlugin());
 		this.addPlugin(new TwitchStreamPlugin());
 		this.addPlugin(new GiveawayPlugin());
-		this.addPlugin(new MikehailPlugin());
 		this.addPlugin(new SpamPlugin());
 		this.addPlugin(new ColorsPlugin());
+
+		if (cfg.externalPlugins) {
+			for (const pluginCfg of cfg.externalPlugins) {
+				const externalPluginEntryPointModule = require(pluginCfg.classFile);
+				const externalPluginEntryPoint: ExternalPluginEntryPoint = externalPluginEntryPointModule.default;
+				const externalPlugin = externalPluginEntryPoint && externalPluginEntryPoint.initialize &&
+					externalPluginEntryPoint.initialize(ExternalPlugin);
+				if (externalPlugin) this.addPlugin(externalPlugin, pluginCfg);
+				else Logger.log("External Plugins", `Unable to load plugin ${pluginCfg.classFile}`);
+			}
+		}
 	}
 
 	public async start () {
@@ -101,9 +112,9 @@ export class Ward {
 		await Promise.all(promises);
 	}
 
-	public addPlugin (plugin: Plugin) {
+	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
 		const id = this.addImportable(plugin, this.plugins);
-		const config = this.config.plugins[id];
+		config = config || this.config.plugins[id];
 		if (config) {
 			plugin.config = config;
 		}
@@ -189,10 +200,10 @@ export class Ward {
 
 	private async pluginHookStart () {
 		for (const pluginName in this.plugins) {
+			const plugin = this.plugins[pluginName];
 			const config = this.config.plugins[pluginName];
 			if (config === false) continue;
 
-			const plugin = this.plugins[pluginName];
 			plugin.config = config;
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart();
@@ -202,7 +213,7 @@ export class Ward {
 
 	private async pluginHookStop () {
 		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false) continue;
+			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onStop) {
@@ -213,7 +224,7 @@ export class Ward {
 
 	private pluginHookInit () {
 		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false) continue;
+			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName];
 			plugin.user = this.discord.user;
@@ -246,10 +257,10 @@ export class Ward {
 
 	private async pluginHookSave () {
 		const promises: Array<Promise<any>> = [];
-		for (const pid in this.plugins) {
-			if (this.config.plugins[pid] === false) continue;
+		for (const pluginName in this.plugins) {
+			if (this.isDisabledPlugin(pluginName)) continue;
 
-			promises.push(this.plugins[pid].save());
+			promises.push(this.plugins[pluginName].save());
 		}
 
 		await Promise.all(promises);
@@ -257,12 +268,17 @@ export class Ward {
 
 	private pluginHookMessage (message: Message) {
 		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false) continue;
+			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onMessage) {
 				plugin.onMessage(message);
 			}
 		}
+	}
+
+	private isDisabledPlugin (id: string) {
+		const plugin = this.plugins[id];
+		return !(plugin instanceof ExternalPlugin) && this.config.plugins[id] === false;
 	}
 }

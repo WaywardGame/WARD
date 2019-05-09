@@ -6,7 +6,7 @@ import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
 import { Logger } from "./util/Log";
 
-let wards: Ward[];
+let wards: Ward[] = [];
 
 async function start () {
 	Logger.setShouldSaveLog();

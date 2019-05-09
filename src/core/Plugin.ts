@@ -10,6 +10,10 @@ export interface IPluginConfig {
 	autosaveInterval?: string | [TimeUnit, number];
 }
 
+export interface IExternalPluginConfig extends IPluginConfig {
+	classFile: string;
+}
+
 export interface IGetApi<T> {
 	(name: string): T;
 }
@@ -138,7 +142,7 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		return true;
 	}
 
-	private getDataPath () {
+	protected getDataPath () {
 		return `data/${this.guild.id}/${this.getId()}.json`;
 	}
 }

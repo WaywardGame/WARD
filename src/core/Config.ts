@@ -1,9 +1,10 @@
 import * as fs from "mz/fs";
 import { Logger } from "../util/Log";
-import { IPluginConfig } from "./Plugin";
+import { IPluginConfig, IExternalPluginConfig } from "./Plugin";
 
 export interface IConfig {
 	commandPrefix: string;
+	externalPlugins?: IExternalPluginConfig[];
 	plugins: {
 		[key: string]: false | IPluginConfig;
 	};
