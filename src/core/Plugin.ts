@@ -57,14 +57,16 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		}
 
 		await fs.mkdir("data").catch(err => { });
+		await fs.mkdir(`data/${this.guild.id}`).catch(err => { });
+		await fs.mkdir(`data/${this.guild.id}/external`).catch(err => { });
 
 		await fs.writeFile(this.getDataPath(), JSON.stringify(this.pluginData));
 	}
 
-	protected setData (key: DataIndex, data: any) {
+	public setData (key: DataIndex, data: any) {
 		this.pluginData[key] = data;
 	}
-	protected async getData (key: DataIndex): Promise<any> {
+	public async getData (key: DataIndex): Promise<any> {
 		if (!this.loaded) {
 			this.loaded = true;
 			if (await fs.exists(this.getDataPath())) {
@@ -74,7 +76,7 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 
 		return this.pluginData[key];
 	}
-	protected async data (key: DataIndex, defaultValue: any) {
+	public async data (key: DataIndex, defaultValue: any) {
 		if (!this.loaded) {
 			this.loaded = true;
 			if (await fs.exists(this.getDataPath())) {
@@ -89,11 +91,11 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		return this.pluginData[key];
 	}
 
-	protected log (...args: any[]) {
+	public log (...args: any[]) {
 		Logger.log([this.guild.name, this.getId()], ...args);
 	}
 
-	protected reply (message: Message, reply: string | RichEmbed) {
+	public reply (message: Message, reply: string | RichEmbed) {
 		if (typeof reply === "string") {
 			reply = reply.trim();
 			if (!message.guild) {
@@ -101,7 +103,7 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 			}
 			message.reply(reply);
 		} else {
-			message.channel.send(reply);
+			message.channel.send({ embed: reply });
 		}
 	}
 
