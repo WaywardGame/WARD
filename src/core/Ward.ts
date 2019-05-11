@@ -202,9 +202,10 @@ export class Ward {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
 			const config = this.config.plugins[pluginName];
-			if (config === false) continue;
 
-			plugin.config = config;
+			if (config === false) continue;
+			else if (config) plugin.config = config;
+
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart();
 			}
