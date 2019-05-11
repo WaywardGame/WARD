@@ -172,7 +172,7 @@ export class Ward {
 
 	private onCommand (message: Message) {
 		const text = `${message.content.slice(this.commandPrefix.length)} `;
-		const argsIndex = text.indexOf(" ");
+		const argsIndex = / |\n/.exec(text).index;
 		const command = text.slice(0, argsIndex);
 		const args = text.slice(argsIndex).trim().split(" ");
 		if (args[0] === "") {
