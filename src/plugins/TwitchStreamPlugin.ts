@@ -37,11 +37,11 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 	}
 
 	public async onUpdate () {
-		this.log("Updating streams...");
+		// this.log("Updating streams...");
 		const updateTime = Date.now();
 		await this.updateStreams(updateTime);
 		await this.cleanupTrackedStreams(updateTime);
-		this.log("Update complete.");
+		// this.log("Update complete.");
 	}
 
 	private async cleanupTrackedStreams (updateTime: number) {

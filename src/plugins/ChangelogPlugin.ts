@@ -68,7 +68,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 			return;
 		}
 
-		this.log("Updating changelog...");
+		// this.log("Updating changelog...");
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
 
 		const version = await this.trello.getNewestVersion();
@@ -81,7 +81,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 		}
 
 		this.isReporting = false;
-		this.log("Update complete.");
+		// this.log("Update complete.");
 		this.save();
 	}
 
