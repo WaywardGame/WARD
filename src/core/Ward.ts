@@ -174,7 +174,11 @@ export class Ward {
 		const text = `${message.content.slice(this.commandPrefix.length)} `;
 		const argsIndex = / |\n/.exec(text).index;
 		const command = text.slice(0, argsIndex);
-		const args = text.slice(argsIndex).trim().split(" ");
+		const args = text.slice(argsIndex)
+			.trim()
+			.replace(/\n/g, " \n")
+			.split(" ");
+
 		if (args[0] === "") {
 			args.shift();
 		}

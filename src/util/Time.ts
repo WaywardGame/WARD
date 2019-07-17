@@ -14,6 +14,27 @@ export function days (a: number) {
 	return a * 1000 * 60 * 60 * 24;
 }
 
+export function weeks (a: number) {
+	return a * 1000 * 60 * 60 * 24 * 7;
+}
+
+export function months (a: number) {
+	return a * 1000 * 60 * 60 * 24 * 7 * 4.34524166667;
+}
+
+export function years (a: number) {
+	return a * 1000 * 60 * 60 * 24 * 7 * 52.1429;
+}
+
+// why not
+export function decades (a: number) {
+	return a * 1000 * 60 * 60 * 24 * 7 * 52.1429 * 10;
+}
+
+export function centuries (a: number) {
+	return a * 1000 * 60 * 60 * 24 * 7 * 52.1429 * 100;
+}
+
 export function never () {
 	return Infinity;
 }

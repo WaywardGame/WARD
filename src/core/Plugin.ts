@@ -92,7 +92,9 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	}
 
 	public log (...args: any[]) {
-		Logger.log([this.guild.name, this.getId()], ...args);
+		const scope = [this.getId()];
+		if (this.guild) scope.unshift(this.guild.name);
+		Logger.log(scope, ...args);
 	}
 
 	public reply (message: Message, reply: string | RichEmbed) {
@@ -101,9 +103,9 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 			if (!message.guild) {
 				reply = reply[0].toUpperCase() + reply.slice(1);
 			}
-			message.reply(reply);
+			return message.reply(reply);
 		} else {
-			message.channel.send({ embed: reply });
+			return message.channel.send({ embed: reply });
 		}
 	}
 
