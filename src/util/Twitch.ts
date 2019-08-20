@@ -5,7 +5,7 @@ import { sleep } from "./Async";
 import { Logger } from "./Log";
 import { minutes } from "./Time";
 
-const endpoint = "https://api.twitch.tv/kraken/";
+const endpoint = "https://api.twitch.tv/helix/";
 
 export enum StreamType {
 	Live = "live",
@@ -43,11 +43,8 @@ export interface IUser {
 }
 
 export interface IPaginatedResult {
-	streams: any[];
-	_total: number;
-	_links: {
-		next: string;
-	}
+	data: any[];
+	pagination: { cursor: string };
 }
 
 export interface ITwitchConfig {
@@ -64,24 +61,24 @@ export class Twitch extends Api<ITwitchConfig> {
 	}
 
 	public async getStreams (game: string): Promise<IStream[]> {
-		return this.paginationTwitchRequest(`streams?game=${game}&limit=100`);
+		return this.paginationTwitchRequest(`streams?game_id=${game}&first=100`);
 	}
 
-	public async getStream (streamer: string): Promise<IStream> {
-		return this.twitchRequest(`streams/${streamer}`).then(result => result.stream);
+	public async getStream (streamer: string): Promise<IStream | undefined> {
+		return this.twitchRequest(`streams?user_login=${streamer}`).then(result => result.data[0]);
 	}
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
 		const results = [];
 		let rqResult: IPaginatedResult;
 		do {
-			rqResult = await this.twitchRequest(rqResult ? rqResult._links.next : rq);
+			rqResult = await this.twitchRequest(rqResult ? `${rq}&after=${rqResult.pagination.cursor}` : rq);
 			if (!rqResult) {
 				break;
 			}
 
-			results.push(...rqResult.streams || []);
-		} while (rqResult.streams && rqResult.streams.length >= 100);
+			results.push(...rqResult.data || []);
+		} while (rqResult.data && rqResult.data.length >= 100);
 
 		return results;
 	}
@@ -110,7 +107,7 @@ export class Twitch extends Api<ITwitchConfig> {
 
 				result = await r;
 
-				const ratelimit = r.response.headers["ratelimit-limit"];
+				const ratelimit = r.response.headers["Ratelimit-Limit"];
 				sleepTime = minutes(1) / +ratelimit;
 			} catch (err) {
 				tries++;
