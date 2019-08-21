@@ -14,20 +14,8 @@ export enum StreamType {
 }
 
 export interface IStream {
-	_id: number;
-	game: string;
-	community_ids: string[];
-	type: StreamType;
-	viewer_count: number;
-	started_at: string;
-	language: string;
-	thumbnail_url: string;
-	channel: {
-		name: string;
-		status: string;
-		display_name: string;
-		_id: number;
-	}
+	user_name: string;
+	title: string;
 }
 
 export interface IUser {

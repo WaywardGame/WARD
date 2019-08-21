@@ -72,18 +72,18 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 	}
 
 	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {
-		if (!this.trackedStreams[stream.channel.name]) {
-			this.log(`Channel ${stream.channel.display_name} went live: ${stream.channel.status}`);
+		if (!this.trackedStreams[stream.user_name]) {
+			this.log(`Channel ${stream.user_name} went live: ${stream.title}`);
 
 			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
 				.send(streamDetector.message
-					.replace("{name}", escape(stream.channel.display_name))
-					.replace("{title}", escape(stream.channel.status))
-					.replace("{link}", `https://twitch.tv/${stream.channel.name}`));
+					.replace("{name}", escape(stream.user_name))
+					.replace("{title}", escape(stream.title))
+					.replace("{link}", `https://twitch.tv/${stream.user_name}`));
 		}
 
 		sleep(seconds(1)).then(() => {
-			this.trackedStreams[stream.channel.name] = time;
+			this.trackedStreams[stream.user_name] = time;
 		});
 	}
 }
