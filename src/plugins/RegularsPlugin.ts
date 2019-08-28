@@ -29,6 +29,7 @@ export interface IRegularsConfig {
 	daysVisitedMultiplier: number;
 	daysVisitedMultiplierReduction: number;
 	regularMilestoneTalent: number;
+	commands?: boolean;
 }
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
@@ -75,6 +76,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	}
 
 	public onCommand (message: Message, command: string, ...args: string[]) {
+		if (this.config.commands === false) return;
+
 		switch (command) {
 			case "talent": return this.commandTalent(message, args[0]);
 			case "top": return this.commandTop(message, +args[0], +args[1]);
@@ -143,7 +146,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.talentLossForMessage[1]) < Date.now()) {
 			trackedMember.talentLossForMessageBlockStartTime = Date.now();
 			trackedMember.talentLossForMessageBlockMessagesSent = 0;
-			this.log(`${member.displayName} has sent their first message for the 10 minutes.`);
+			this.log(`${member.displayName} has sent their first message for the ${this.config.talentLossForMessage[1]}.`);
 
 		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.talentLossForMessage[0]) {
 			talentChange = -this.config.talentLossForMessage[2];
@@ -191,9 +194,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 			member.user.send(`
 Hey ${this.getMemberName(member)}! You have become a regular on ${this.guild.name}.
 
-As a regular, you may now change your username color whenever you please, using the !color command.
+As a regular, you may now change your username color whenever you please, using the \`!color\` command.
 Examples: \`!color f00\` would make your username bright red, \`!color 123456\` would make you a dark blue.
-Like any other of my commands, you may use it in the Wayward server or in a PM with me.
+Like any other of my commands, you may use it in the ${this.guild.name} server or in a PM with me.
 
 I will not send any other notification messages, apologies for the interruption.
 			`);

@@ -29,7 +29,8 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	@ImportPlugin("regulars")
 	private regularsPlugin: RegularsPlugin = undefined;
-	aboveRole: Role;
+
+	private aboveRole?: Role;
 
 	public getDefaultId () {
 		return "colors";
@@ -85,7 +86,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 			colorRole = await this.guild.createRole({
 				name: color,
 				color,
-				position: this.aboveRole.position + 1,
+				position: this.aboveRole && this.aboveRole.position + 1,
 			});
 		}
 
