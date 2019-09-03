@@ -61,17 +61,33 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 			if (trackedMember.lastDay < today - this.config.daysBeforeTalentLoss) {
 				trackedMember.talent--;
-
-				if (trackedMember.talent == 0) {
-					const member = this.guild.members.find(member => member.id === trackedMember.id);
-					if (member && !member.roles.has(this.roleMod.id)) {
-						member.removeRole(this.roleRegular);
-						this.onRemoveMemberHandlers.forEach(handler => handler(member));
-					}
-
-					delete this.members[memberId];
-				}
 			}
+
+			if (trackedMember.talent == 0) {
+				this.dropTrackedMember(trackedMember);
+			}
+		}
+
+		for (const [, member] of this.guild.members.filter(member => member.roles.has(this.roleRegular.id))) {
+			if (!this.getTrackedMember(member.id, false)) {
+				this.removeRegularFromMember(member);
+			}
+		}
+	}
+
+	private dropTrackedMember (trackedMember: ITrackedMember) {
+		const member = this.guild.members.find(member => member.id === trackedMember.id);
+		this.removeRegularFromMember(member);
+
+		delete this.members[trackedMember.id];
+		this.log(`Dropped tracked member '${this.getMemberName(member)}'`);
+	}
+
+	private removeRegularFromMember (member: GuildMember) {
+		if (member && !member.roles.has(this.roleMod.id)) {
+			member.removeRole(this.roleRegular);
+			this.onRemoveMemberHandlers.forEach(handler => handler(member));
+			this.log(`Removed regular from member '${this.getMemberName(member)}'`);
 		}
 	}
 
@@ -97,10 +113,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		this.onMemberMessage(message.member);
 	}
 
-	public getTrackedMember (id: string) {
+	public getTrackedMember (id: string, create = true) {
 		const today = this.getToday();
 
 		let trackedMember = this.members[id];
+		if (!create) return trackedMember;
+
 		if (!trackedMember) {
 			trackedMember = this.members[id] = {
 				id,

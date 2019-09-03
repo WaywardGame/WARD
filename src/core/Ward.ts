@@ -103,10 +103,10 @@ export class Ward {
 				plugin.lastUpdate = Date.now();
 			}
 
-			if (Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
-				promises.push(plugin.save());
-				plugin.lastAutosave = Date.now();
-			}
+			promises.push(plugin.save());
+			// if (Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
+			// 	plugin.lastAutosave = Date.now();
+			// }
 		}
 
 		await Promise.all(promises);
@@ -209,6 +209,8 @@ export class Ward {
 
 			if (config === false) continue;
 			else if (config) plugin.config = config;
+
+			await plugin.initData();
 
 			if (plugin.onStart) {
 				await this.plugins[pluginName].onStart();

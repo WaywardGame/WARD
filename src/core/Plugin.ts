@@ -7,7 +7,7 @@ import { Importable } from "./Importable";
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
-	autosaveInterval?: string | [TimeUnit, number];
+	// autosaveInterval?: string | [TimeUnit, number];
 }
 
 export interface IExternalPluginConfig extends IPluginConfig {
@@ -39,9 +39,9 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 			this.updateInterval = getTime(cfg.updateInterval);
 		}
 
-		if (cfg && cfg.autosaveInterval) {
-			this.autosaveInterval = getTime(cfg.autosaveInterval);
-		}
+		// if (cfg && cfg.autosaveInterval) {
+		// 	this.autosaveInterval = getTime(cfg.autosaveInterval);
+		// }
 	}
 
 	/* hooks */
@@ -60,29 +60,28 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		await fs.mkdir(`data/${this.guild.id}`).catch(err => { });
 		await fs.mkdir(`data/${this.guild.id}/external`).catch(err => { });
 
-		await fs.writeFile(this.getDataPath(), JSON.stringify(this.pluginData));
+		const data = {
+			...this.pluginData,
+			_lastUpdate: this.lastUpdate,
+		};
+
+		await fs.writeFile(this.getDataPath(), JSON.stringify(data));
 	}
 
 	public setData (key: DataIndex, data: any) {
 		this.pluginData[key] = data;
 	}
-	public async getData (key: DataIndex): Promise<any> {
-		if (!this.loaded) {
-			this.loaded = true;
-			if (await fs.exists(this.getDataPath())) {
-				this.data = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
-			}
-		}
-
-		return this.pluginData[key];
-	}
-	public async data (key: DataIndex, defaultValue: any) {
+	public async initData () {
 		if (!this.loaded) {
 			this.loaded = true;
 			if (await fs.exists(this.getDataPath())) {
 				this.pluginData = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
+				if (this.pluginData._lastUpdate) this.lastUpdate = this.pluginData._lastUpdate;
 			}
 		}
+	}
+	public async data (key: DataIndex, defaultValue: any) {
+		this.initData();
 
 		if (this.pluginData[key] === undefined) {
 			this.pluginData[key] = defaultValue;
