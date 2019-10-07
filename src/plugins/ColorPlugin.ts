@@ -7,15 +7,17 @@ import { RegularsPlugin } from "./RegularsPlugin";
 
 const colorRegex = /#[A-F0-9]{6}/;
 function parseColorInput (color: string) {
-	if (!color.startsWith("#")) {
-		return color;
-	}
+	color = color.toUpperCase();
 
-	if (color.length === 4) {
-		color = `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`;
-	}
+	if (color[0] === "#")
+		color = color.slice(1);
 
-	return color.toUpperCase();
+	if (color.length === 3)
+		color = Array.from(color)
+			.map(v => `${v}${v}`)
+			.join("");
+
+	return `#${color}`;
 }
 
 export interface IColorsConfig {
