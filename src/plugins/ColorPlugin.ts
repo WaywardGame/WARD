@@ -75,10 +75,16 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 	}
 
 	private async getColorRole (color: string) {
-		if (this.config.anyColor && colorRegex.test(color)) {
+		const colorParsed = parseColorInput(color);
+
+		if (this.config.anyColor && colorRegex.test(colorParsed)) {
+			color = colorParsed;
 
 		} else if (this.config.colors) {
-			const match = Object.entries(this.config.colors).find(([, aliases]) => aliases.some(alias => alias.toLowerCase() === color.toLowerCase()));
+			const match = Object.entries(this.config.colors)
+				.find(([, aliases]) => aliases
+					.some(alias => alias.toLowerCase() === color.toLowerCase()));
+
 			if (!match) return undefined;
 			color = match[0];
 		}
@@ -130,8 +136,6 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		}
 
 		const isRemoving = /none|reset|remove/.test(color);
-
-		color = parseColorInput(color);
 
 		let colorRole: Role | undefined;
 		if (!isRemoving) {
