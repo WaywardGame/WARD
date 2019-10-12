@@ -84,7 +84,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	}
 
 	private removeRegularFromMember (member: GuildMember) {
-		if (member && !member.roles.has(this.roleMod.id)) {
+		if (member && !member.roles.has(this.roleMod.id) && !member.permissions.has("ADMINISTRATOR")) {
 			member.removeRole(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.log(`Removed regular from member '${this.getMemberName(member)}'`);
@@ -137,7 +137,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 	public isUserRegular (member: GuildMember) {
 		return member.roles.has(this.roleRegular.id) ||
-			member.highestRole.position >= this.roleMod.position;
+			member.highestRole.position >= this.roleMod.position ||
+			member.permissions.has("ADMINISTRATOR");
 	}
 
 	public onRemoveMember (handler: (member: GuildMember) => any) {
@@ -205,7 +206,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 		if (
 			trackedMember.talent > this.config.regularMilestoneTalent &&
-			!member.roles.has(this.roleRegular.id) && !member.roles.has(this.roleMod.id)
+			!member.roles.has(this.roleRegular.id) &&
+			!member.roles.has(this.roleMod.id) &&
+			!member.permissions.has("ADMINISTRATOR")
 		) {
 			member.addRole(this.roleRegular);
 			this.log(`${this.getMemberName(member)} has become a regular!`);
@@ -308,7 +311,7 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 	}
 
 	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {
-		if (!message.member.roles.has(this.roleMod.id)) {
+		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR")) {
 			this.reply(message, "only mods may manually modify talent of members.");
 			return;
 		}
