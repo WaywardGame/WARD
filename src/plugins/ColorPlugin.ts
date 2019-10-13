@@ -2,7 +2,7 @@ import { Collection, GuildMember, Message, Role, Permissions, RichEmbed } from "
 
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import { ImportPlugin } from "../core/Api";
+import { ImportPlugin, Command } from "../core/Api";
 import { RegularsPlugin } from "./RegularsPlugin";
 
 const colorRegex = /#[A-F0-9]{6}/;
@@ -42,12 +42,6 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		this.regularsPlugin.onRemoveMember(this.removeColor.bind(this));
 		this.aboveRole = !this.config.aboveRole ? undefined : this.guild.roles.find(role => role.name === this.config.aboveRole);
 		this.removeUnusedColorRoles();
-	}
-
-	public onCommand (message: Message, command: string, ...args: string[]) {
-		switch (command) {
-			case "color": return this.commandColor(message, args[0], args[1]);
-		}
 	}
 
 	private async removeColor (member: GuildMember) {
@@ -101,7 +95,9 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		return colorRole;
 	}
 
-	private async commandColor (message: Message, color?: string, queryMember?: string) {
+	@Command("color")
+	@Command("colour")
+	protected async commandColor (message: Message, color?: string, queryMember?: string) {
 		if (!color) {
 			this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
 			return;

@@ -1,6 +1,7 @@
 import { GuildMember, Message, Role } from "discord.js";
 import { Plugin } from "../core/Plugin";
 import { days, getTime, hours, minutes } from "../util/Time";
+import { Command } from "../core/Api";
 
 export interface ITrackedMember {
 	id: string;
@@ -88,17 +89,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 			member.removeRole(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.log(`Removed regular from member '${this.getMemberName(member)}'`);
-		}
-	}
-
-	public onCommand (message: Message, command: string, ...args: string[]) {
-		if (this.config.commands === false) return;
-
-		switch (command) {
-			case "talent": return this.commandTalent(message, args[0]);
-			case "top": return this.commandTop(message, +args[0], +args[1]);
-			case "talent-add": return this.commandTalentAdd(message, args[0], +args[1]);
-			case "days": return this.commandDaysChatted(message, args[0]);
 		}
 	}
 
@@ -249,7 +239,8 @@ I will not send any other notification messages, apologies for the interruption.
 	}
 
 	// tslint:disable cyclomatic-complexity
-	private async commandTalent (message: Message, queryMember?: string) {
+	@Command<RegularsPlugin>("talent", p => p.config.commands !== false)
+	protected async commandTalent (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
@@ -290,9 +281,10 @@ I will not send any other notification messages, apologies for the interruption.
 		);
 	}
 
-	private commandTop (message: Message, quantity: number, offset: number) {
-		quantity = isNaN(+quantity) ? 3 : Math.max(1, Math.min(20, quantity));
-		offset = isNaN(+offset) ? 1 : Math.max(1, Math.min(20, offset));
+	@Command<RegularsPlugin>("top", p => p.config.commands !== false)
+	protected commandTop (message: Message, quantityStr: string, offsetStr: string) {
+		const quantity = isNaN(+quantityStr) ? 3 : Math.max(1, Math.min(20, +quantityStr));
+		const offset = isNaN(+offsetStr) ? 1 : Math.max(1, Math.min(20, +offsetStr));
 
 		let response = `
 ${offset == 1 ? `Top ${quantity}` : `Users with the most talent (quantity: ${quantity}, starting at: ${offset})`}:`;
@@ -310,13 +302,14 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.reply(message, response);
 	}
 
-	private async commandTalentAdd (message: Message, queryMember?: string, amt?: number) {
+	@Command<RegularsPlugin>("talent-add", p => p.config.commands !== false)
+	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
 		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR")) {
 			this.reply(message, "only mods may manually modify talent of members.");
 			return;
 		}
 
-		if (queryMember === undefined || !amt) {
+		if (queryMember === undefined || !amtStr) {
 			this.reply(message, "you must provide a member to update the talent on and the amount to change the talent by.");
 			return;
 		}
@@ -327,6 +320,7 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		}
 
 		const trackedMember = this.getTrackedMember(member.id);
+		const amt = isNaN(+amtStr) ? 0 : +amtStr;
 		trackedMember.talent += amt;
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
@@ -339,7 +333,8 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.updateTopMember(trackedMember);
 	}
 
-	private async commandDaysChatted (message: Message, queryMember?: string) {
+	@Command<RegularsPlugin>("days", p => p.config.commands !== false)
+	protected async commandDaysChatted (message: Message, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {

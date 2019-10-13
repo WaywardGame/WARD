@@ -49,7 +49,6 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	public onStart?(): any;
 	public onStop?(): any;
 	public onMessage?(message: Message): any;
-	public onCommand?(message: Message, command: string, ...args: string[]): any;
 
 	public async save () {
 		if (Object.keys(this.pluginData).length === 0) {

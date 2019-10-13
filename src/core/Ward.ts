@@ -9,12 +9,13 @@ import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import { sleep } from "../util/Async";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, metadataKeyImportApi, metadataKeyImportPlugin } from "./Api";
+import { Api, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY, SYMBOL_COMMAND, CommandMethod, CommandMetadata } from "./Api";
 import { IConfig } from "./Config";
 import { Importable } from "./Importable";
 import { Plugin, IPluginConfig } from "./Plugin";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Logger } from "../util/Log";
+import chalk from "chalk";
 
 
 export class Ward {
@@ -26,8 +27,9 @@ export class Ward {
 	private apis: { [key: string]: Api } = {};
 	private stopped = true;
 	private onStop: () => any;
+	private readonly commands = new Map<string, CommandMethod>();
 
-	constructor (cfg: IConfig) {
+	public constructor (cfg: IConfig) {
 		this.config = cfg;
 		this.addApi(new Trello());
 		this.addApi(new Twitch());
@@ -183,13 +185,9 @@ export class Ward {
 			args.shift();
 		}
 
-		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false) continue;
-
-			const plugin = this.plugins[pluginName];
-			if (plugin.onCommand) {
-				this.plugins[pluginName].onCommand(message, command, ...args);
-			}
+		const commandHandler = this.commands.get(command);
+		if (commandHandler) {
+			commandHandler(message, ...args);
 		}
 	}
 
@@ -233,20 +231,34 @@ export class Ward {
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
-			const plugin = this.plugins[pluginName];
+			const plugin = this.plugins[pluginName] as any;
 			plugin.user = this.discord.user;
 			plugin.guild = this.guild;
+
 			for (const property in plugin) {
 				// import apis
-				let metadata = Reflect.getMetadata(metadataKeyImportApi, plugin, property);
+				let metadata = Reflect.getMetadata(SYMBOL_IMPORT_API_KEY, plugin, property);
 				if (metadata) {
-					(plugin as any)[property] = this.getApi(metadata);
+					plugin[property] = this.getApi(metadata);
 				}
 
 				// import other plugins
-				metadata = Reflect.getMetadata(metadataKeyImportPlugin, plugin, property);
+				metadata = Reflect.getMetadata(SYMBOL_IMPORT_PLUGIN_KEY, plugin, property);
 				if (metadata) {
-					(plugin as any)[property] = this.plugins[metadata];
+					plugin[property] = this.plugins[metadata];
+				}
+			}
+		}
+
+		for (const pluginName in this.plugins) {
+			if (this.isDisabledPlugin(pluginName)) continue;
+
+			const plugin = this.plugins[pluginName] as any;
+			for (const property of Object.getOwnPropertyNames(plugin.constructor.prototype)) {
+				const [command, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
+				if (command && (!condition || condition(plugin))) {
+					this.log(`${this.commands.has(command) ? "WARN: Re-registering" : "Registering"} command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`);
+					this.commands.set(command, plugin[property].bind(plugin));
 				}
 			}
 		}
@@ -287,5 +299,11 @@ export class Ward {
 	private isDisabledPlugin (id: string) {
 		const plugin = this.plugins[id];
 		return !(plugin instanceof ExternalPlugin) && this.config.plugins[id] === false;
+	}
+
+	private log (...args: any[]) {
+		const scope = [];
+		if (this.guild) scope.unshift(this.guild.name);
+		Logger.log(scope, ...args);
 	}
 }

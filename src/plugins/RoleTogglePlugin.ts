@@ -1,5 +1,6 @@
 import { Collection, Message, Permissions } from "discord.js";
 import { Plugin } from "../core/Plugin";
+import { Command } from "../core/Api";
 
 
 export interface IRoleTogglePluginConfig {
@@ -12,14 +13,9 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 		return "roleToggle";
 	}
 
-	public onCommand (message: Message, command: string, ...args: string[]) {
-		switch (command) {
-			case "role": return this.commandRole(message, args[0], args[1]);
-		}
-	}
-
 	// tslint:disable cyclomatic-complexity
-	private async commandRole (message: Message, roleName?: string, queryMember?: string) {
+	@Command("role")
+	protected async commandRole (message: Message, roleName?: string, queryMember?: string) {
 		if (!roleName) {
 			this.reply(message, "you must provide a role to toggle.");
 			return;

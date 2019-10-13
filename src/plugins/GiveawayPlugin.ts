@@ -2,7 +2,7 @@ import { Message, Role, TextChannel, GuildMember } from "discord.js";
 
 import { Plugin } from "../core/Plugin";
 import { RegularsPlugin } from "./RegularsPlugin";
-import { ImportPlugin } from "../core/Api";
+import { ImportPlugin, Command } from "../core/Api";
 
 export type IGiveawayPluginConfig = {
 	channel: string;
@@ -39,12 +39,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 		this.giveaway = await this.data(GiveawayData.Giveaway, undefined);
 	}
 
-	public onCommand (message: Message, command: string, ...args: string[]) {
-		switch (command) {
-			case "giveaway": return this.commandGiveaway(message, args[0], args[1]);
-		}
-	}
-
+	@Command("giveaway")
 	public commandGiveaway (message: Message, winnerCountOrEnd: string, giveawayText?: string) {
 		if (winnerCountOrEnd === "end") {
 			return this.commandEndGiveaway(message);
