@@ -302,10 +302,10 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		this.reply(message, response);
 	}
 
-	@Command<RegularsPlugin>("talent-add", p => p.config.commands !== false)
+	@Command<RegularsPlugin>("talent add")
 	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
 		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR")) {
-			this.reply(message, "only mods may manually modify talent of members.");
+			// this.reply(message, "only mods may manually modify talent of members.");
 			return;
 		}
 

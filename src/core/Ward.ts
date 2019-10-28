@@ -9,7 +9,7 @@ import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import { sleep } from "../util/Async";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY, SYMBOL_COMMAND, CommandMethod, CommandMetadata } from "./Api";
+import { Api, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY, SYMBOL_COMMAND, CommandFunction, CommandMetadata } from "./Api";
 import { IConfig } from "./Config";
 import { Importable } from "./Importable";
 import { Plugin, IPluginConfig } from "./Plugin";
@@ -17,6 +17,8 @@ import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Logger } from "../util/Log";
 import chalk from "chalk";
 
+type Command = { function?: CommandFunction, subcommands: CommandMap };
+type CommandMap = Map<string, Command>;
 
 export class Ward {
 	private config: IConfig;
@@ -27,7 +29,7 @@ export class Ward {
 	private apis: { [key: string]: Api } = {};
 	private stopped = true;
 	private onStop: () => any;
-	private readonly commands = new Map<string, CommandMethod>();
+	private readonly commands: CommandMap = new Map();
 
 	public constructor (cfg: IConfig) {
 		this.config = cfg;
@@ -173,22 +175,26 @@ export class Ward {
 	}
 
 	private onCommand (message: Message) {
-		const text = `${message.content.slice(this.commandPrefix.length)} `;
-		const argsIndex = / |\n/.exec(text).index;
-		const command = text.slice(0, argsIndex);
-		const args = text.slice(argsIndex)
+		const args = message.content.slice(this.commandPrefix.length)
 			.trim()
 			.replace(/\n/g, " \n")
-			.split(" ");
+			.replace(/[ \t]+/g, " ")
+			.split(" ")
+			.filter(v => v);
 
-		if (args[0] === "") {
+		let commandMap = this.commands;
+		let command: Command | undefined;
+		while (true) {
+			const word = args[0];
+			if (!commandMap.has(word)) break;
 			args.shift();
+
+			command = commandMap.get(word);
+			commandMap = command.subcommands;
 		}
 
-		const commandHandler = this.commands.get(command);
-		if (commandHandler) {
-			commandHandler(message, ...args);
-		}
+		if (command)
+			command.function(message, ...args);
 	}
 
 	private async login () {
@@ -255,12 +261,29 @@ export class Ward {
 
 			const plugin = this.plugins[pluginName] as any;
 			for (const property of Object.getOwnPropertyNames(plugin.constructor.prototype)) {
-				const [command, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
-				if (command && (!condition || condition(plugin))) {
-					this.log(`${this.commands.has(command) ? "WARN: Re-registering" : "Registering"} command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`);
-					this.commands.set(command, plugin[property].bind(plugin));
+				const [commands, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
+				for (const command of Array.isArray(commands) ? commands : [commands]) {
+					if (command && (!condition || condition(plugin))) {
+						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin))
+						this.log(`${alreadyExisted ? "WARN: Re-registered" : "Registered"} command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`);
+					}
 				}
 			}
+		}
+	}
+
+	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
+		while (true) {
+			const word = words.shift();
+			const command = commandMap.getOrDefault(word, () => ({ subcommands: new Map() }), true);
+
+			if (!words.length) {
+				const alreadyExisted = !!command.function;
+				command.function = commandFunction;
+				return alreadyExisted;
+			}
+
+			commandMap = command.subcommands;
 		}
 	}
 

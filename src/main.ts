@@ -1,5 +1,6 @@
 // tslint:disable-next-line
 import "reflect-metadata";
+import "@wayward/goodstream/apply";
 
 import { Config } from "./core/Config";
 import { Ward } from "./core/Ward";
@@ -24,8 +25,8 @@ async function stop () {
 process.stdin.resume();
 start();
 
-async function exitHandler (err?: Error) {
-	if (err) {
+async function exitHandler (err?: NodeJS.Signals | Error) {
+	if (err && typeof err === "object" && "stack" in err) {
 		// tslint:disable-next-line no-console
 		Logger.log("main", err.stack);
 	}

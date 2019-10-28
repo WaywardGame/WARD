@@ -95,8 +95,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		return colorRole;
 	}
 
-	@Command("color")
-	@Command("colour")
+	@Command(["color", "colour"])
 	protected async commandColor (message: Message, color?: string, queryMember?: string) {
 		if (!color) {
 			this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
