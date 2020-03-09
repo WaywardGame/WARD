@@ -73,9 +73,13 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	public async initData () {
 		if (!this.loaded) {
 			this.loaded = true;
-			if (await fs.exists(this.getDataPath())) {
-				this.pluginData = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
-				if (this.pluginData._lastUpdate) this.lastUpdate = this.pluginData._lastUpdate;
+			try {
+				if (await fs.exists(this.getDataPath())) {
+					this.pluginData = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
+					if (this.pluginData._lastUpdate) this.lastUpdate = this.pluginData._lastUpdate;
+				}
+			} catch (err) {
+				console.error(err);
 			}
 		}
 	}
