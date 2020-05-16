@@ -1,9 +1,9 @@
-import { Collection, GuildMember, Message, Role, Permissions, RichEmbed } from "discord.js";
-
+import { Collection, GuildMember, Message, Permissions, RichEmbed, Role } from "discord.js";
+import { Command, ImportPlugin } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
-import { ImportPlugin, Command } from "../core/Api";
 import { RegularsPlugin } from "./RegularsPlugin";
+
 
 const colorRegex = /#[A-F0-9]{6}/;
 function parseColorInput (color: string) {
@@ -97,21 +97,34 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	@Command(["color", "colour"])
 	protected async commandColor (message: Message, color?: string, queryMember?: string) {
+		let member = message.member;
+		let currentColorRole = member.roles.filter(r => this.isColorRole(r.name)).first();
+
+		let isGetting = color === "get";
 		if (!color) {
-			this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
-			return;
+			if (!currentColorRole) {
+				this.reply(message, new RichEmbed()
+					.setColor("RANDOM")
+					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`));
+				return;
+			}
+
+			color = "get";
+			isGetting = true;
 		}
 
 		if (/list|all/.test(color)) {
-			this.reply(message, `${this.getValidColorExamples()}`);
+			this.reply(message, new RichEmbed()
+				.setColor(currentColorRole?.color ?? "RANDOM")
+				.setDescription(`<@${message.member.id}>, some examples include: ${this.getValidColorExamples()}`));
 			return;
 		}
 
-		let member = message.member;
-
 		if (queryMember) {
-			if (!message.member.hasPermission(Permissions.FLAGS.MANAGE_ROLES)) {
-				this.reply(message, "you must have the 'Manage Roles' permission to change someone else's color.");
+			if (!isGetting && !message.member.hasPermission(Permissions.FLAGS.MANAGE_ROLES)) {
+				this.reply(message, new RichEmbed()
+					.setColor("RANDOM")
+					.setDescription(`<@${message.member.id}>, you must have the 'Manage Roles' permission to change someone else's color.`));
 				return;
 			}
 
@@ -122,12 +135,28 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 			}
 
 			member = resultingQueryMember;
+			currentColorRole = member.roles.filter(r => this.isColorRole(r.name)).first();
+		}
 
-		} else {
-			if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(message.member)) {
-				this.reply(message, "sorry, but you must be a regular of the server to change your color.");
-				return;
-			}
+		if (isGetting) {
+			if (currentColorRole)
+				this.reply(message, new RichEmbed()
+					.setColor(currentColorRole.color)
+					.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} current color is **${currentColorRole.name}**.\nWant a change? Examples: ${this.getValidColorExamples()}`));
+
+			else
+				this.reply(message, new RichEmbed()
+					.setColor("RANDOM")
+					.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
+
+			return;
+		}
+
+		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(message.member)) {
+			this.reply(message, new RichEmbed()
+				.setColor(currentColorRole?.color ?? "RANDOM")
+				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
+			return;
 		}
 
 		const isRemoving = /none|reset|remove/.test(color);
@@ -136,7 +165,9 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		if (!isRemoving) {
 			colorRole = await this.getColorRole(color);
 			if (!colorRole) {
-				this.reply(message, `you must provide a valid color. Examples: ${this.getValidColorExamples()}`);
+				this.reply(message, new RichEmbed()
+					.setColor(currentColorRole?.color ?? "RANDOM")
+					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`));
 				return;
 			}
 		}
@@ -144,6 +175,9 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		await this.removeColor(member);
 
 		if (isRemoving) {
+			this.reply(message, new RichEmbed()
+				.setColor("RANDOM")
+				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. (Previously: **${currentColorRole.name}**)`));
 			return;
 		}
 
@@ -151,14 +185,14 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 		this.reply(message, new RichEmbed()
 			.setColor(colorRole.color)
-			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole.name}**.`));
+			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
 	}
 
 	private getValidColorExamples () {
 		let examples = [];
 
 		if (this.config.anyColor)
-			examples.push("`f00` is red", "`123456` is dark blue");
+			examples.push("`f00` is red", "`123456` is dark blue", "you can use Google's colour picker for more: https://www.google.com/search?q=color+picker");
 
 		if (this.config.colors)
 			examples.push(...Object.values(this.config.colors).map(value => value[0]));
