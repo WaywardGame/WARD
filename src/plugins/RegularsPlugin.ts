@@ -1,7 +1,7 @@
 import { GuildMember, Message, Role } from "discord.js";
+import { Command } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { days, getTime, hours, minutes } from "../util/Time";
-import { Command } from "../core/Api";
 
 export interface ITrackedMember {
 	id: string;
@@ -14,8 +14,8 @@ export interface ITrackedMember {
 	talentLossForMessageBlockMessagesSent: number;
 }
 
-export enum RegularsData {
-	TrackedMembers,
+export interface IRegularsData {
+	trackedMembers: Record<string, ITrackedMember>;
 }
 
 export interface IRegularsConfig {
@@ -33,7 +33,7 @@ export interface IRegularsConfig {
 	commands?: boolean;
 }
 
-export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
+export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public updateInterval = hours(12);
 	public autosaveInterval = minutes(30);
 
@@ -48,7 +48,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 	}
 
 	public async onStart () {
-		this.members = await this.data(RegularsData.TrackedMembers, {});
+		this.members = this.getData("trackedMembers", {});
 		this.updateTopMembers();
 
 		this.roleRegular = this.guild.roles.find(role => role.name === "regular");
@@ -71,7 +71,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 
 		for (const [, member] of this.guild.members.filter(member => member.roles.has(this.roleRegular.id))) {
 			if (!this.getTrackedMember(member.id, false)) {
-				this.removeRegularFromMember(member);
+				this.logger.warning(`Member '${this.getMemberName(member)}' is regular but not tracked`);
+				// this.removeRegularFromMember(member);
 			}
 		}
 	}
@@ -81,24 +82,25 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		this.removeRegularFromMember(member);
 
 		delete this.members[trackedMember.id];
-		this.log(`Dropped tracked member '${this.getMemberName(member)}'`);
+		this.logger.info(`Dropped tracked member '${this.getMemberName(member)}'`);
 	}
 
 	private removeRegularFromMember (member: GuildMember) {
 		if (member && !member.roles.has(this.roleMod.id) && !member.permissions.has("ADMINISTRATOR")) {
 			member.removeRole(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
-			this.log(`Removed regular from member '${this.getMemberName(member)}'`);
+			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
 		}
 	}
 
 	public onMessage (message: Message) {
-		if (
-			!message.guild ||
-			(this.config.excludedChannels && this.config.excludedChannels.includes(message.channel.id))
-		) {
+		// DMs are not counted towards talent
+		if (!message.guild)
 			return;
-		}
+
+		// excluded channels are not counted towards talent
+		if (this.config.excludedChannels && this.config.excludedChannels.includes(message.channel.id))
+			return;
 
 		this.onMemberMessage(message.member);
 	}
@@ -143,11 +145,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxTalentForMessage[1]) < Date.now()) {
 			trackedMember.maxTalentForMessageBlockStartTime = Date.now();
 			trackedMember.maxTalentForMessageBlockMessagesSent = 0;
-			this.log(`${member.displayName} has sent their first message for the hour.`);
+			this.logger.verbose(`${member.displayName} has sent their first message for the hour.`);
 
 		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxTalentForMessage[0]) {
 			talentChange = 0;
-			this.log(`${member.displayName} has earned the maximum talent for the hour.`);
+			this.logger.info(`${member.displayName} has earned the maximum talent for the hour.`);
 		}
 
 		trackedMember.maxTalentForMessageBlockMessagesSent++;
@@ -155,11 +157,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.talentLossForMessage[1]) < Date.now()) {
 			trackedMember.talentLossForMessageBlockStartTime = Date.now();
 			trackedMember.talentLossForMessageBlockMessagesSent = 0;
-			this.log(`${member.displayName} has sent their first message for the ${this.config.talentLossForMessage[1]}.`);
+			this.logger.verbose(`${member.displayName} has sent their first message for the ${this.config.talentLossForMessage[1]}.`);
 
 		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.talentLossForMessage[0]) {
 			talentChange = -this.config.talentLossForMessage[2];
-			this.log(`${member.displayName} is sending too many messages!`);
+			this.logger.info(`${member.displayName} is sending too many messages!`);
 		}
 
 		trackedMember.talentLossForMessageBlockMessagesSent++;
@@ -201,7 +203,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, RegularsData> {
 			!member.permissions.has("ADMINISTRATOR")
 		) {
 			member.addRole(this.roleRegular);
-			this.log(`${this.getMemberName(member)} has become a regular!`);
+			this.logger.info(`${this.getMemberName(member)} has become a regular!`);
 			member.user.send(`
 Hey ${this.getMemberName(member)}! You have become a regular on ${this.guild.name}.
 
@@ -324,11 +326,9 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		trackedMember.talent += amt;
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
-		this.reply(message, `I ${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`);
-		this.log(
-			message.member.displayName,
-			`${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`,
-		);
+		const reply = `${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`;
+		this.reply(message, `I ${reply}`);
+		this.logger.info(message.member.displayName, reply);
 
 		this.updateTopMember(trackedMember);
 	}

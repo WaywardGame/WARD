@@ -1,10 +1,10 @@
 import { TextChannel } from "discord.js";
-
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
 import { hours, seconds } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
+
 
 /**
  * Set this variable to true and allow the plugin to update once to save that the bot has reported all possible changes.
@@ -13,15 +13,16 @@ import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
 const skipLog = false;
 
 const emotes: { [key: string]: string } = {
-	[ChangeType.New]: "_new",
-	[ChangeType.Improvement]: "_improvement",
-	[ChangeType.Bug]: "_bug",
-	[ChangeType.Balance]: "_balance",
-	[ChangeType.Modding]: "_modding",
-	[ChangeType.Mod]: "_mod",
-	[ChangeType.Technical]: "_technical",
-	[ChangeType.Internal]: "_internal",
-	[ChangeType.Regression]: "_regression",
+	[ChangeType.New]: "new",
+	[ChangeType.Improvement]: "improvement",
+	[ChangeType.Bug]: "bug",
+	[ChangeType.Balance]: "balance",
+	[ChangeType.Modding]: "modding",
+	[ChangeType.Mod]: "mod",
+	[ChangeType.Technical]: "technical",
+	[ChangeType.Internal]: "internal",
+	[ChangeType.Regression]: "regression",
+	[ChangeType.Refactor]: "refactor",
 };
 
 const changeOrder = [
@@ -34,10 +35,11 @@ const changeOrder = [
 	ChangeType.Technical,
 	ChangeType.Internal,
 	ChangeType.Regression,
+	ChangeType.Refactor,
 ];
 
-export enum ChangelogData {
-	ReportedChanges,
+export interface IChangelogData {
+	reportedChanges: string[];
 }
 
 export interface IChangelogConfig {
@@ -45,9 +47,10 @@ export interface IChangelogConfig {
 	reportedLists?: string[];
 }
 
-export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
+export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	public updateInterval = hours(1);
 
+	// @ts-expect-error
 	private channel: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
@@ -60,7 +63,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 	}
 
 	public async onStart () {
-		this.reportedChanges = await this.data(ChangelogData.ReportedChanges, []) as string[];
+		this.reportedChanges = this.getData("reportedChanges", []);
 	}
 
 	public async onUpdate () {
@@ -110,8 +113,8 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, ChangelogData> {
 			let change = this.generateChangeTypeEmojiPrefix(card);
 
 			change += ` ${card.name} ${card.shortUrl}`;
-			this.log(`Reporting new change: ${change}`);
-			this.channel.send(change);
+			this.logger.info(`Reporting new change: ${change}`);
+			// this.channel.send(change);
 
 			await sleep(seconds(5));
 		}

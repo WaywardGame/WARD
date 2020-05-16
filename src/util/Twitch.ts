@@ -1,9 +1,9 @@
 import * as request from "request-promise-native";
-
 import { Api } from "../core/Api";
 import { sleep } from "./Async";
-import { Logger } from "./Log";
+import Logger from "./Log";
 import { minutes } from "./Time";
+
 
 const endpoint = "https://api.twitch.tv/helix/";
 
@@ -37,6 +37,7 @@ export interface IPaginatedResult {
 
 export interface ITwitchConfig {
 	client: string;
+	token: string;
 }
 
 let sleepTime = 10000;
@@ -89,6 +90,7 @@ export class Twitch extends Api<ITwitchConfig> {
 				const r = request(`${rq.startsWith(endpoint) ? "" : endpoint}${rq}`, {
 					headers: {
 						"Client-ID": this.config.client,
+						"Authorization": `Bearer ${this.config.token}`
 					},
 					json: true,
 				});
@@ -103,7 +105,7 @@ export class Twitch extends Api<ITwitchConfig> {
 					throw err;
 				}
 
-				Logger.log(err);
+				Logger.error(err);
 			}
 
 		} while (!result);

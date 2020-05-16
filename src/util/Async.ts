@@ -53,3 +53,28 @@ export class CancellablePromise<T> extends Promise<T | undefined> {
 	}
 }
 
+type Handler = (...args: any[]) => Promise<any>;
+
+const SET_EMPTY = new Set<Handler>();
+
+export class EventEmitterAsync {
+	private readonly handlers = new Map<string, Set<Handler>>();
+
+	public subscribe (event: string, handler: Handler) {
+		this.handlers.getOrDefault(event, () => new Set(), true)
+			.add(handler);
+	}
+
+	public unsubscribe (event: string, handler: Handler) {
+		(this.handlers.get(event) ?? SET_EMPTY)
+			.delete(handler);
+	}
+
+	public async emit (event: string, ...args: any[]) {
+		const promises = [];
+		for (const handler of this.handlers.get(event) ?? SET_EMPTY)
+			promises.push(handler(...args));
+
+		return Promise.all(promises);
+	}
+}

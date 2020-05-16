@@ -1,8 +1,8 @@
-import { Message, Role, TextChannel, GuildMember } from "discord.js";
-
+import { GuildMember, Message, Role, TextChannel } from "discord.js";
+import { Command, ImportPlugin } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { RegularsPlugin } from "./RegularsPlugin";
-import { ImportPlugin, Command } from "../core/Api";
+
 
 export type IGiveawayPluginConfig = {
 	channel: string;
@@ -12,8 +12,8 @@ export type IGiveawayPluginConfig = {
 	};
 }
 
-export enum GiveawayData {
-	Giveaway
+export interface IGiveawayData {
+	giveaway: IGiveawayInfo;
 }
 
 interface IGiveawayInfo {
@@ -21,7 +21,7 @@ interface IGiveawayInfo {
 	message: string;
 }
 
-export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> {
+export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData> {
 	private channel: TextChannel;
 	private roleDev: Role;
 	private giveaway: IGiveawayInfo;
@@ -36,7 +36,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 	public async onStart () {
 		this.roleDev = this.guild.roles.find(role => role.name === "wayward-dev");
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
-		this.giveaway = await this.data(GiveawayData.Giveaway, undefined);
+		this.giveaway = this.getData("giveaway", undefined);
 	}
 
 	@Command("giveaway")
@@ -69,7 +69,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 
 		const giveawayMessage = await this.channel.send(`@everyone **A giveaway is starting for ${winnerCount} winner(s)!** ${giveawayText}\n\n*To enter, leave a reaction on this message. Reacting multiple times does not change your chances of winning. ${lockInfoText}*`) as Message;
 
-		this.setData(GiveawayData.Giveaway, this.giveaway = {
+		this.setData("giveaway", this.giveaway = {
 			message: giveawayMessage.id,
 			winnerCount
 		});
@@ -90,7 +90,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, GiveawayData> 
 		const giveawayMessage = await this.channel.fetchMessage(this.giveaway.message);
 		const winnerCount = this.giveaway.winnerCount;
 
-		this.setData(GiveawayData.Giveaway, this.giveaway = undefined);
+		this.setData("giveaway", this.giveaway = undefined);
 		this.save();
 
 		const users: string[] = [];

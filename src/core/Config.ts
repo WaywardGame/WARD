@@ -1,13 +1,17 @@
 import * as fs from "mz/fs";
-import { Logger } from "../util/Log";
-import { IPluginConfig, IExternalPluginConfig } from "./Plugin";
+import Logger, { ILoggerConfig } from "../util/Log";
+import { IExternalPluginConfig, IPluginConfig } from "./Plugin";
+import json5 = require("json5");
 
 export interface IConfig {
+	logging: ILoggerConfig;
+	instances: IGuildConfig[];
+}
+
+export interface IGuildConfig {
 	commandPrefix: string;
 	externalPlugins?: IExternalPluginConfig[];
-	plugins: {
-		[key: string]: false | IPluginConfig;
-	};
+	plugins: Record<string, false | IPluginConfig>;
 	apis: {
 		[key: string]: false | object;
 		discord: {
@@ -19,19 +23,19 @@ export interface IConfig {
 }
 
 export class Config {
-	private onGetHandlers: Array<[(cfgs: IConfig[]) => any, (err: Error) => any]> = [];
-	private result: IConfig[];
+	private onGetHandlers: Array<[(cfgs: IConfig) => any, (err: Error) => any]> = [];
+	private result: IConfig;
 	private isGetting = false;
 
-	public async get (): Promise<IConfig[]> {
+	public async get (): Promise<IConfig> {
 		if (this.result) {
 			return this.result;
 
 		} else {
 			if (!this.isGetting) {
 				this.isGetting = true;
-				fs.readFile("config.json", "utf8").then(text => {
-					const result = JSON.parse(text) as IConfig[];
+				fs.readFile("config.json5", "utf8").then(text => {
+					const result = json5.parse(text) as IConfig;
 					this.result = result;
 					for (const [handler] of this.onGetHandlers) {
 						handler(this.result);
@@ -41,7 +45,7 @@ export class Config {
 					this.isGetting = false;
 				}).catch(err => {
 					// tslint:disable-next-line no-console
-					Logger.log("config", "Can't load config file");
+					Logger.error("config", "Can't load config file");
 					for (const [, errorHandler] of this.onGetHandlers) {
 						errorHandler(err);
 					}
@@ -50,7 +54,7 @@ export class Config {
 				});
 			}
 
-			return new Promise<IConfig[]>((resolve, reject) => {
+			return new Promise<IConfig>((resolve, reject) => {
 				this.onGetHandlers.push([resolve, reject]);
 			});
 		}

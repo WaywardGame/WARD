@@ -1,9 +1,9 @@
+import { TextChannel } from "discord.js";
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
+import { sleep } from "../util/Async";
 import { minutes, seconds } from "../util/Time";
 import { IStream, Twitch } from "../util/Twitch";
-import { TextChannel } from "discord.js";
-import { sleep } from "../util/Async";
 
 export interface IStreamDetector {
 	game?: string;
@@ -16,24 +16,24 @@ export interface ITwitchStreamPluginConfig {
 	streamDetectors: IStreamDetector[];
 }
 
-export enum TwitchStreamPluginData {
-	TrackedStreams,
+export interface ITwitchStreamPluginData {
+	trackedStreams: Record<string, number>,
 }
 
-export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, TwitchStreamPluginData> {
+export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitchStreamPluginData> {
 	public updateInterval = minutes(5);
 
 	@ImportApi("twitch")
 	private twitch: Twitch = undefined;
 
-	private trackedStreams: { [key: string]: number };
+	private trackedStreams: Record<string, number>;
 
 	public getDefaultId () {
 		return "twitchStream";
 	}
 
 	public async onStart () {
-		this.trackedStreams = await this.data(TwitchStreamPluginData.TrackedStreams, {});
+		this.trackedStreams = this.getData("trackedStreams", {});
 	}
 
 	public async onUpdate () {
@@ -73,7 +73,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, Twitch
 
 	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {
 		if (!this.trackedStreams[stream.user_name]) {
-			this.log(`Channel ${stream.user_name} went live: ${stream.title}`);
+			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
 			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
 				.send(streamDetector.message

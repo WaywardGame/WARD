@@ -1,8 +1,8 @@
 import * as request from "request-promise-native";
-
 import { Api } from "../core/Api";
-import { Logger } from "./Log";
+import Logger from "./Log";
 import { minutes } from "./Time";
+
 
 const endpoint = "https://api.trello.com/1";
 
@@ -91,6 +91,7 @@ export enum ChangeType {
 	Internal = "Internal",
 	Misc = "Misc",
 	Regression = "Regression",
+	Refactor = "Refactor",
 }
 
 // tslint:disable-next-line max-line-length
@@ -326,7 +327,7 @@ export class Trello extends Api<ITrelloConfig> {
 
 			if (sectionId === undefined) {
 				// tslint:disable-next-line no-console
-				Logger.log("trello", `Missing section id for ${card.name}`, card);
+				Logger.warning("trello", `Missing section id for ${card.name}`, card);
 				continue;
 			}
 

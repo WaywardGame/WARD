@@ -1,6 +1,6 @@
 import { Collection, Message, Permissions } from "discord.js";
-import { Plugin } from "../core/Plugin";
 import { Command } from "../core/Api";
+import { Plugin } from "../core/Plugin";
 
 
 export interface IRoleTogglePluginConfig {
@@ -58,12 +58,12 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		if (toggleMember.roles.has(role.id)) {
 			toggleMember.removeRole(role);
-			this.log(`Removed role ${role.name} from ${toggleMember.displayName}`);
+			this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
 			this.reply(message, toggleMember === message.member ? `you no longer have the role "${role.name}".` : `Removed role "${role.name}" from ${toggleMember.displayName}.`);
 
 		} else {
 			toggleMember.addRole(role);
-			this.log(`Added role ${role.name} to ${toggleMember.displayName}`);
+			this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
 			this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
 		}
 	}

@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { Client, Guild, Message } from "discord.js";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
@@ -7,21 +8,20 @@ import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
 import { SpamPlugin } from "../plugins/SpamPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import { sleep } from "../util/Async";
+import Data from "../util/Data";
+import Logger from "../util/Log";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY, SYMBOL_COMMAND, CommandFunction, CommandMetadata } from "./Api";
-import { IConfig } from "./Config";
-import { Importable } from "./Importable";
-import { Plugin, IPluginConfig } from "./Plugin";
+import { Api, CommandFunction, CommandMetadata, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
+import { IConfig, IGuildConfig } from "./Config";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
-import { Logger } from "../util/Log";
-import chalk from "chalk";
+import { Importable } from "./Importable";
+import { IPluginConfig, Plugin } from "./Plugin";
 
 type Command = { function?: CommandFunction, subcommands: CommandMap };
 type CommandMap = Map<string, Command>;
 
 export class Ward {
-	private config: IConfig;
 	private guild: Guild;
 	private discord: Client;
 	private commandPrefix: string;
@@ -30,11 +30,12 @@ export class Ward {
 	private stopped = true;
 	private onStop: () => any;
 	private readonly commands: CommandMap = new Map();
+	private readonly logger = new Logger(this.config.apis.discord.guild);
 
-	public constructor (cfg: IConfig) {
-		this.config = cfg;
+	public constructor (private readonly config: IConfig & IGuildConfig) {
 		this.addApi(new Trello());
 		this.addApi(new Twitch());
+		this.addApi(new Data(this.config.apis.discord.guild));
 		this.addPlugin(new ChangelogPlugin());
 		this.addPlugin(new RegularsPlugin());
 		this.addPlugin(new RoleTogglePlugin());
@@ -43,14 +44,14 @@ export class Ward {
 		this.addPlugin(new SpamPlugin());
 		this.addPlugin(new ColorsPlugin());
 
-		if (cfg.externalPlugins) {
-			for (const pluginCfg of cfg.externalPlugins) {
+		if (this.config.externalPlugins) {
+			for (const pluginCfg of this.config.externalPlugins) {
 				const externalPluginEntryPointModule = require(pluginCfg.classFile);
 				const externalPluginEntryPoint: ExternalPluginEntryPoint = externalPluginEntryPointModule.default;
 				const externalPlugin = externalPluginEntryPoint && externalPluginEntryPoint.initialize &&
 					externalPluginEntryPoint.initialize(ExternalPlugin);
 				if (externalPlugin) this.addPlugin(externalPlugin, pluginCfg);
-				else Logger.log("External Plugins", `Unable to load plugin ${pluginCfg.classFile}`);
+				else Logger.error("External Plugins", `Unable to load plugin ${pluginCfg.classFile}`);
 			}
 		}
 	}
@@ -61,25 +62,39 @@ export class Ward {
 
 			this.commandPrefix = this.config.commandPrefix;
 
+			this.logger.verbose("Login");
 			await this.login();
 			this.guild = this.discord.guilds.find(guild => guild.id === this.config.apis.discord.guild);
+			this.logger.popScope();
+			this.logger.pushScope(this.guild.name);
 
+			this.logger.verbose("Data init & backup");
+			await this.getApi<Data>("data").init();
+
+			this.logger.verbose("Plugins init");
 			this.pluginHookInit();
 
 			this.discord.addListener("message", m => this.onMessage(m));
 
+			this.logger.verbose("Plugins start");
 			await this.pluginHookStart();
 
+			this.logger.verbose("Entering main process");
 			while (!this.stopped) {
 				await this.update();
 				await sleep(100);
 			}
 
+			this.logger.verbose("Plugins stop");
 			await this.pluginHookStop();
+
+			this.logger.verbose("Plugins final save");
 			await this.pluginHookSave();
 
+			this.logger.verbose("Logout");
 			await this.logout();
 
+			this.logger.verbose("Stop");
 			this.onStop();
 			delete this.onStop;
 		}
@@ -87,11 +102,10 @@ export class Ward {
 
 	public async stop () {
 		if (!this.stopped) {
+			this.logger.verbose(`"Stopped bot for guild: '${this.guild.name}'`)
 			this.stopped = true;
 
-			return new Promise(resolve => {
-				this.onStop = resolve;
-			});
+			return new Promise(resolve => this.onStop = resolve);
 		}
 	}
 
@@ -99,18 +113,25 @@ export class Ward {
 		const promises: Array<Promise<any>> = [];
 
 		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false) continue;
+			if (this.config.plugins[pluginName] === false)
+				continue;
+
+			// this.logger.verbose("Loop plugin", pluginName);
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval) {
+				this.logger.verbose("Update plugin", pluginName);
 				promises.push(plugin.onUpdate());
 				plugin.lastUpdate = Date.now();
 			}
 
-			promises.push(plugin.save());
-			// if (Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
-			// 	plugin.lastAutosave = Date.now();
-			// }
+			// if (!Object.keys(plugin["pluginData"]).length)
+			// 	console.log("could not save", pluginName, this.guild.name);
+			if (plugin.isDirty || Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
+				this.logger.verbose("Save plugin", pluginName);
+				plugin.lastAutosave = Date.now();
+				promises.push(plugin.save());
+			}
 		}
 
 		await Promise.all(promises);
@@ -211,14 +232,25 @@ export class Ward {
 			const plugin = this.plugins[pluginName];
 			const config = this.config.plugins[pluginName];
 
-			if (config === false) continue;
-			else if (config) plugin.config = config;
+			if (config === false)
+				continue;
 
-			await plugin.initData();
+			plugin.config = config ?? plugin.config ?? plugin.getDefaultConfig();
 
-			if (plugin.onStart) {
-				await this.plugins[pluginName].onStart();
+			// initial load of plugin data
+			if (!plugin["loaded"]) {
+				plugin["loaded"] = true;
+				this.logger.verbose("Load data for plugin", pluginName);
+				plugin["pluginData"] = await this.getApi<Data>("data").load(plugin)
+					.catch(err => this.logger.warning(`Unable to load ${pluginName} data`, err))
+					?? {};
+
+				if (plugin["pluginData"]._lastUpdate)
+					plugin.lastUpdate = plugin["pluginData"]._lastUpdate;
 			}
+
+			if (plugin.onStart)
+				await this.plugins[pluginName].onStart();
 		}
 	}
 
@@ -227,9 +259,8 @@ export class Ward {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName];
-			if (plugin.onStop) {
+			if (plugin.onStop)
 				await this.plugins[pluginName].onStop();
-			}
 		}
 	}
 
@@ -237,21 +268,22 @@ export class Ward {
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
-			const plugin = this.plugins[pluginName] as any;
+			const plugin = this.plugins[pluginName] as Plugin;
 			plugin.user = this.discord.user;
 			plugin.guild = this.guild;
+			plugin.logger = new Logger(this.guild.name, plugin.getId());
 
 			for (const property in plugin) {
 				// import apis
 				let metadata = Reflect.getMetadata(SYMBOL_IMPORT_API_KEY, plugin, property);
 				if (metadata) {
-					plugin[property] = this.getApi(metadata);
+					(plugin as any)[property] = this.getApi(metadata);
 				}
 
 				// import other plugins
 				metadata = Reflect.getMetadata(SYMBOL_IMPORT_PLUGIN_KEY, plugin, property);
 				if (metadata) {
-					plugin[property] = this.plugins[metadata];
+					(plugin as any)[property] = this.plugins[metadata];
 				}
 			}
 		}
@@ -264,8 +296,12 @@ export class Ward {
 				const [commands, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
 				for (const command of Array.isArray(commands) ? commands : [commands]) {
 					if (command && (!condition || condition(plugin))) {
-						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin))
-						this.log(`${alreadyExisted ? "WARN: Re-registered" : "Registered"} command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`);
+						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin));
+						const logText = `command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`;
+						if (alreadyExisted)
+							this.logger.warning(`Re-registered ${logText}`);
+						else
+							this.logger.verbose(`Registered ${logText}`);
 					}
 				}
 			}
@@ -287,10 +323,10 @@ export class Ward {
 		}
 	}
 
-	private getApi (name: string) {
+	private getApi<A extends Api = Api> (name: string): A {
 		for (const apiName in this.apis) {
 			if (apiName.startsWith(name) && !isNaN(+apiName.slice(name.length))) {
-				return this.apis[apiName];
+				return this.apis[apiName] as A;
 			}
 		}
 
@@ -324,9 +360,11 @@ export class Ward {
 		return !(plugin instanceof ExternalPlugin) && this.config.plugins[id] === false;
 	}
 
-	private log (...args: any[]) {
-		const scope = [];
-		if (this.guild) scope.unshift(this.guild.name);
-		Logger.log(scope, ...args);
-	}
+	// private async catastrophicCrash (...args: any[]) {
+	// 	this.log(...args);
+	// 	await this.logout();
+	// 	await this.stop();
+	// 	while (true)
+	// 		await sleep(99999999);
+	// }
 }

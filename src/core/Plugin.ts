@@ -1,9 +1,9 @@
-import { Collection, Guild, GuildMember, Message, User, RichEmbed } from "discord.js";
-import * as fs from "mz/fs";
-
-import { Logger } from "../util/Log";
+import { Collection, Guild, GuildMember, Message, RichEmbed, User } from "discord.js";
+import { EventEmitterAsync } from "../util/Async";
+import Logger from "../util/Log";
 import { getTime, hours, never, TimeUnit } from "../util/Time";
 import { Importable } from "./Importable";
+
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
@@ -18,8 +18,10 @@ export interface IGetApi<T> {
 	(name: string): T;
 }
 
-export abstract class Plugin<Config extends {} = {}, DataIndex extends string | number = string | number>
-	extends Importable<Config & IPluginConfig> {
+export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
+	extends Importable<CONFIG & IPluginConfig> {
+
+	public event = new EventEmitterAsync();
 
 	public updateInterval = never();
 	public lastUpdate = 0;
@@ -28,11 +30,16 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 
 	public guild: Guild;
 	public user: User;
+	public logger: Logger;
 
-	private pluginData: any = {};
+	private pluginData: Partial<DATA> & { _lastUpdate?: number } = {};
+	// @ts-ignore
 	private loaded = false;
+	private dirty = false;
+	public get isDirty () { return this.dirty; }
 
-	public set config (cfg: Config & IPluginConfig) {
+
+	public set config (cfg: CONFIG & IPluginConfig) {
 		super.config = cfg;
 
 		if (cfg && cfg.updateInterval) {
@@ -44,6 +51,11 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		// }
 	}
 
+	public getDefaultConfig (): CONFIG & IPluginConfig {
+		this.logger.warning("No default config");
+		return {} as any;
+	}
+
 	/* hooks */
 	public onUpdate?(): any;
 	public onStart?(): any;
@@ -51,52 +63,21 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 	public onMessage?(message: Message): any;
 
 	public async save () {
-		if (Object.keys(this.pluginData).length === 0) {
-			return;
-		}
-
-		await fs.mkdir("data").catch(err => { });
-		await fs.mkdir(`data/${this.guild.id}`).catch(err => { });
-		await fs.mkdir(`data/${this.guild.id}/external`).catch(err => { });
-
-		const data = {
-			...this.pluginData,
-			_lastUpdate: this.lastUpdate,
-		};
-
-		await fs.writeFile(this.getDataPath(), JSON.stringify(data));
+		await this.event.emit("save");
+		this.dirty = false;
 	}
 
-	public setData (key: DataIndex, data: any) {
+	public setData<K extends keyof DATA> (key: K, data: DATA[K]) {
 		this.pluginData[key] = data;
+		this.dirty = true;
 	}
-	public async initData () {
-		if (!this.loaded) {
-			this.loaded = true;
-			try {
-				if (await fs.exists(this.getDataPath())) {
-					this.pluginData = JSON.parse(await fs.readFile(this.getDataPath(), "utf8"));
-					if (this.pluginData._lastUpdate) this.lastUpdate = this.pluginData._lastUpdate;
-				}
-			} catch (err) {
-				console.error(err);
-			}
-		}
-	}
-	public async data (key: DataIndex, defaultValue: any) {
-		this.initData();
-
+	public getData<K extends keyof DATA> (key: K, defaultValue: DATA[K]) {
 		if (this.pluginData[key] === undefined) {
 			this.pluginData[key] = defaultValue;
+			this.dirty = true;
 		}
 
 		return this.pluginData[key];
-	}
-
-	public log (...args: any[]) {
-		const scope = [this.getId()];
-		if (this.guild) scope.unshift(this.guild.name);
-		Logger.log(scope, ...args);
 	}
 
 	public reply (message: Message, reply: string | RichEmbed) {
@@ -146,9 +127,5 @@ export abstract class Plugin<Config extends {} = {}, DataIndex extends string | 
 		}
 
 		return true;
-	}
-
-	protected getDataPath () {
-		return `data/${this.guild.id}/${this.getId()}.json`;
 	}
 }
