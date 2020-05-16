@@ -99,12 +99,22 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	 */
 	protected async findMember (member: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
 		member = member.toLowerCase();
+		let tag: string;
+
+		const splitMatch = member.match(/^(.*)(#\d{4})$/);
+		if (splitMatch)
+			[, member, tag] = splitMatch;
+
 		const guild = await this.guild.fetchMembers();
-		const results = guild.members.filter(m =>
-			m.displayName.toLowerCase().includes(member) ||
-			m.id == member ||
-			m.user.tag == member,
-		);
+		let results = guild.members.filter(m => m.id === member);
+		if (!results.size)
+			results = guild.members.filter(m => m.user.username.toLowerCase().includes(member));
+
+		if (!results.size)
+			results = guild.members.filter(m => m.displayName.toLowerCase().includes(member));
+
+		if (tag)
+			results = results.filter(m => m.user.tag.endsWith(tag));
 
 		switch (results.size) {
 			case 0: return undefined;
