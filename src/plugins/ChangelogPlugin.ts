@@ -50,7 +50,6 @@ export interface IChangelogConfig {
 export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	public updateInterval = hours(1);
 
-	// @ts-expect-error
 	private channel: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
@@ -114,7 +113,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 			change += ` ${card.name} ${card.shortUrl}`;
 			this.logger.info(`Reporting new change: ${change}`);
-			// this.channel.send(change);
+			this.channel.send(change);
 
 			await sleep(seconds(5));
 		}
