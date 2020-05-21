@@ -1,5 +1,5 @@
-import { TextChannel } from "discord.js";
-import { ImportApi } from "../core/Api";
+import { Message, TextChannel } from "discord.js";
+import { Command, ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
 import { hours, seconds } from "../util/Time";
@@ -53,6 +53,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private channel: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
+	private confirmReport?: () => any;
 
 	@ImportApi("trello")
 	private trello: Trello = undefined;
@@ -74,49 +75,69 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
 
 		const version = await this.trello.getNewestVersion();
+
 		this.isReporting = true;
 		await this.changelog(version);
-		if (this.config.reportedLists) {
-			for (const list of this.config.reportedLists) {
+
+		if (this.config.reportedLists)
+			for (const list of this.config.reportedLists)
 				await this.changelog(list);
-			}
-		}
 
 		this.isReporting = false;
+
 		// this.log("Update complete.");
 		this.save();
 	}
 
+	@Command<ChangelogPlugin>("changelog confirm")
+	protected confirmChangelog (message: Message) {
+		if (!message.member.permissions.has("ADMINISTRATOR"))
+			return;
+
+		if (!this.confirmReport) {
+			this.reply(message, "No changelog to confirm report of.");
+			return;
+		}
+
+		this.reply(message, "Reporting changelog confirmed.");
+		this.logger.info(`Reporting changelog confirmed by ${message.member.displayName}.`);
+
+		this.confirmReport?.();
+		delete this.confirmReport;
+	}
+
 	private async changelog (version: IVersionInfo | string) {
 		const changelog = await this.trello.getChangelog(version);
-		const changes = changelog.unsorted;
-		if (!changes) {
+		const changes = changelog.unsorted
+			?.filter(card => !this.reportedChanges.includes(card.id));
+
+		if (!changes?.length)
 			return;
+
+		if (changes.length > 10 && !this.confirmReport) {
+			this.logger.warning(`Trying to report ${changes.length} changes. To proceed send command !changelog confirm`);
+			await new Promise(resolve => this.confirmReport = resolve);
 		}
 
 		changes.sort((a, b) => new Date(a.dateLastActivity).getTime() - new Date(b.dateLastActivity).getTime());
 
-		for (const card of changes) {
+		for (const card of changes)
 			await this.reportChange(card);
-		}
 	}
 
 	private async reportChange (card: ITrelloCard) {
+		this.reportedChanges.push(card.id);
 
-		if (!this.reportedChanges.includes(card.id)) {
-			this.reportedChanges.push(card.id);
-			if (skipLog) {
-				return;
-			}
+		if (skipLog)
+			return;
 
-			let change = this.generateChangeTypeEmojiPrefix(card);
+		let change = this.generateChangeTypeEmojiPrefix(card);
 
-			change += ` ${card.name} ${card.shortUrl}`;
-			this.logger.info(`Reporting new change: ${change}`);
-			this.channel.send(change);
+		change += ` ${card.name} ${card.shortUrl}`;
+		this.logger.info(`Reporting new change: ${change}`);
+		this.channel.send(change);
 
-			await sleep(seconds(5));
-		}
+		await sleep(seconds(5));
 	}
 
 	private generateChangeTypeEmojiPrefix (card: ITrelloCard) {
