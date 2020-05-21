@@ -220,6 +220,7 @@ export class Ward {
 
 	private async login () {
 		this.discord = new Client();
+		this.discord.on("error", console.error);
 		await this.discord.login(this.config.apis.discord.token);
 	}
 	private async logout () {
