@@ -102,7 +102,7 @@ export class Ward {
 
 	public async stop () {
 		if (!this.stopped) {
-			this.logger.verbose(`"Stopped bot for guild: '${this.guild.name}'`)
+			this.logger.verbose(`"Stopped bot for guild: '${this.guild?.name}'`)
 			this.stopped = true;
 
 			return new Promise(resolve => this.onStop = resolve);
