@@ -53,7 +53,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private channel: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
-	private confirmReport?: () => any;
+	private continueReport?: (report: boolean) => any;
 
 	@ImportApi("trello")
 	private trello: Trello = undefined;
@@ -91,19 +91,28 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 	@Command<ChangelogPlugin>("changelog confirm")
 	protected confirmChangelog (message: Message) {
+		this.continueLogging(message, true);
+	}
+
+	@Command<ChangelogPlugin>("changelog skip")
+	protected skipChangelog (message: Message) {
+		this.continueLogging(message, false);
+	}
+
+	private continueLogging (message: Message, report: boolean) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return;
 
-		if (!this.confirmReport) {
-			this.reply(message, "No changelog to confirm report of.");
+		if (!this.continueReport) {
+			this.reply(message, `No changelog to ${report ? "confirm" : "skip"} report of.`);
 			return;
 		}
 
-		this.reply(message, "Reporting changelog confirmed.");
-		this.logger.info(`Reporting changelog confirmed by ${message.member.displayName}.`);
+		this.reply(message, `Reporting changelog ${report ? "confirmed" : "skipped"}.`);
+		this.logger.info(`Reporting changelog ${report ? "confirmed" : "skipped"} by ${message.member.displayName}.`);
 
-		this.confirmReport?.();
-		delete this.confirmReport;
+		this.continueReport?.(report);
+		delete this.continueReport;
 	}
 
 	private async changelog (version: IVersionInfo | string) {
@@ -114,30 +123,35 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		if (!changes?.length)
 			return;
 
-		if (changes.length > 10 && !this.confirmReport) {
-			this.logger.warning(`Trying to report ${changes.length} changes. To proceed send command !changelog confirm`);
-			await new Promise(resolve => this.confirmReport = resolve);
+		let report = true;
+		if (changes.length > 10 && !this.continueReport) {
+			this.logger.warning(`Trying to report ${changes.length} changes. To proceed send command !changelog confirm, to skip send !changelog skip`);
+			report = await new Promise<boolean>(resolve => this.continueReport = resolve);
 		}
 
 		changes.sort((a, b) => new Date(a.dateLastActivity).getTime() - new Date(b.dateLastActivity).getTime());
 
 		for (const card of changes)
-			await this.reportChange(card);
+			await this.handleChange(card, report);
 	}
 
-	private async reportChange (card: ITrelloCard) {
+	private async handleChange (card: ITrelloCard, report: boolean) {
 		this.reportedChanges.push(card.id);
+		await this.save();
 
 		if (skipLog)
 			return;
 
 		let change = this.generateChangeTypeEmojiPrefix(card);
-
 		change += ` ${card.name} ${card.shortUrl}`;
-		this.logger.info(`Reporting new change: ${change}`);
-		this.channel.send(change);
 
-		await sleep(seconds(5));
+		this.logger.info(`${report ? "Reporting" : "Skipping"} change: ${change}`);
+
+		if (report) {
+			this.channel.send(change);
+			await sleep(seconds(5));
+		}
+
 	}
 
 	private generateChangeTypeEmojiPrefix (card: ITrelloCard) {
