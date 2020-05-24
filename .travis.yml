@@ -9,8 +9,8 @@ notifications:
   email:
     on_success: never
     on_failure: always
-before_install:
-- echo $password | gpg --passphrase-fd 0 config.json.gpg
+# before_install:
+# - echo $password | gpg --passphrase-fd 0 config.json.gpg
 env:
   global:
     secure: Mv7/YyYMk/U+q1PZhGx4AAPlitqsVXWHL7Pe8MXYahdKFuNEvE7DCdPUW69tvuCMYgiptJmfYCxWB40sWRc5Z+6hn3rgaBQ0KCUKYiXDZHE9xREXqwtT56uP8I8+NAF8tFdtUoSl8rPbZ96gimMTtshVUIr46Rg044jj3c16bPGo9qxqe8OILCf2U3Mrgan5gqVRQV4+D3+NtDJiPc6/bAOQvb7grrcqzx8GCtQffCBS+pVx88PpX9AbwqsKq0GPoHbuKVqW5o48QDahCDrbXuwmIjBgyvSCTvYcJhHaFSf+SCdsv3szyf8YG87X+Ye1LN7LXaSAPmSYHqM56uIfEeQxzVjB3dlJA9RKreVXsl5OMtH4SazDeNIBJvb850r/KoHPx4ezW3yoJtwrdvA1AC1ayRVrpeJmdsyZMuxC9JoXdFlIoUEXTEf/p4p2AwO/QuuWk+T7sI0xvsm71j+hpNoIK0HtqUu6fb6gUjlAZjHaONeu+tCzEb8NJpapcQzEluYnq/fJnywHHwdkT/H0E25cpja40Yah+5UE1+3ySXQOP+J/WtsH48RzpiFqLXO/kkeraznpOBNnLT8DjyQL7qi83fUPf76VBGUbpB023Z3ZScdzWP9TL7wrY+2sDxOXNUB/5VHKoJ2IfdQnht+t0Bss+KihKQ7CinyHcNp4q4k=
