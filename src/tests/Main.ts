@@ -89,6 +89,14 @@ describe("[Time]", () => {
 		expect(getTime("1 minutes")).eq(60000);
 		expect(getTime("1 hours")).eq(3600000);
 		expect(getTime("1 days")).eq(86400000);
+		expect(getTime("1ms")).eq(1);
+		expect(getTime("1s")).eq(1000);
+		expect(getTime("1sec")).eq(1000);
+		expect(getTime("1m")).eq(60000);
+		expect(getTime("1min")).eq(60000);
+		expect(getTime("1h")).eq(3600000);
+		expect(getTime("1hr")).eq(3600000);
+		expect(getTime("1d")).eq(86400000);
 	});
 });
 // });

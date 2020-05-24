@@ -47,8 +47,16 @@ export enum TimeUnit {
 	Days = "days",
 }
 
+const timeAbbreviations: Record<string, TimeUnit> = Object.fromEntries(Object.entries({
+	[TimeUnit.Milliseconds]: ["ms"],
+	[TimeUnit.Seconds]: ["s", "sec"],
+	[TimeUnit.Minutes]: ["m", "min"],
+	[TimeUnit.Hours]: ["hr", "h"],
+	[TimeUnit.Days]: ["d"],
+}).flatMap(([unit, abbrs]) => abbrs.map(abbr => [abbr, unit as TimeUnit])));
+
 // tslint:disable cyclomatic-complexity
-const valRegex = /([0-9\.]+) ?([a-z]+)/;
+const valRegex = /^([0-9\.]+) ?([a-z]+)$/;
 export function getTime (unit: TimeUnit, amt: number): number;
 export function getTime (time: string | [TimeUnit, number]): number;
 export function getTime (unit: TimeUnit | string | [TimeUnit, number], amt?: number) {
@@ -65,6 +73,9 @@ export function getTime (unit: TimeUnit | string | [TimeUnit, number], amt?: num
 		amt = unit[1];
 		unit = unit[0];
 	}
+
+	if (unit in timeAbbreviations)
+		unit = timeAbbreviations[unit];
 
 	switch (unit) {
 		case TimeUnit.Seconds: return seconds(amt);
