@@ -1,4 +1,4 @@
-import { Collection, Guild, GuildMember, Message, RichEmbed, User } from "discord.js";
+import { Collection, Guild, GuildMember, Message, RichEmbed, Role, User } from "discord.js";
 import { EventEmitterAsync } from "../util/Async";
 import Logger from "../util/Log";
 import { getTime, hours, never, TimeUnit } from "../util/Time";
@@ -121,6 +121,19 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			case 1: return results.first();
 			default: return results;
 		}
+	}
+
+	/**
+	 * @param role A role ID or name
+	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
+	 * and the matching member if one member matches
+	 */
+	protected async findRole (role: string): Promise<Role | undefined> {
+		const guild = await this.guild.fetchMembers();
+
+		return guild.roles.find(r => r.id === role)
+			?? guild.roles.find(r => r.name === role)
+			?? guild.roles.find(r => r.name.toLowerCase() === role.toLowerCase());
 	}
 
 	protected validateFindResult (
