@@ -120,9 +120,7 @@ export class Ward {
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval) {
-				this.logger.verbose("Update plugin", pluginName);
-				promises.push(plugin.onUpdate());
-				plugin.lastUpdate = Date.now();
+				this.updatePlugin(plugin);
 			}
 
 			// if (!Object.keys(plugin["pluginData"]).length)
@@ -135,6 +133,13 @@ export class Ward {
 		}
 
 		await Promise.all(promises);
+	}
+
+	private async updatePlugin (plugin: Plugin) {
+		this.logger.verbose("Update plugin", plugin.getId());
+		plugin.lastUpdate = Date.now();
+		await plugin.onUpdate();
+		plugin.lastUpdate = Date.now();
 	}
 
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
@@ -289,6 +294,8 @@ export class Ward {
 			}
 		}
 
+		this.registerCommand(["plugin", "update"], (message: Message, plugin: string) => this.commandUpdatePlugin(message, plugin));
+
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
@@ -307,6 +314,20 @@ export class Ward {
 				}
 			}
 		}
+	}
+
+	private commandUpdatePlugin (message: Message, pluginName: string) {
+		if (!message.member.permissions.has("ADMINISTRATOR"))
+			return;
+
+		const plugin = this.plugins[pluginName];
+		if (!plugin) {
+			message.reply(`can't update plugin ${pluginName}, not found.`);
+			return;
+		}
+
+		this.logger.info(`Updating plugin "${pluginName}" due to request from ${message.member.displayName}`);
+		this.updatePlugin(plugin);
 	}
 
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
