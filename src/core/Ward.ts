@@ -7,6 +7,7 @@ import { RegularsPlugin } from "../plugins/RegularsPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
 import { SpamPlugin } from "../plugins/SpamPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
+import WelcomePlugin from "../plugins/WelcomePlugin";
 import { sleep } from "../util/Async";
 import Data from "../util/Data";
 import Logger from "../util/Log";
@@ -37,6 +38,7 @@ export class Ward {
 		this.addApi(new Twitch());
 		this.addApi(new Data(this.config.apis.discord.guild));
 		this.addPlugin(new ChangelogPlugin());
+		this.addPlugin(new WelcomePlugin());
 		this.addPlugin(new RegularsPlugin());
 		this.addPlugin(new RoleTogglePlugin());
 		this.addPlugin(new TwitchStreamPlugin());
