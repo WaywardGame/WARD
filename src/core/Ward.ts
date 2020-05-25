@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import { Client, Guild, Message } from "discord.js";
+import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
@@ -39,6 +40,7 @@ export class Ward {
 		this.addApi(new Data(this.config.apis.discord.guild));
 		this.addPlugin(new ChangelogPlugin());
 		this.addPlugin(new WelcomePlugin());
+		this.addPlugin(new AutoRolePlugin());
 		this.addPlugin(new RegularsPlugin());
 		this.addPlugin(new RoleTogglePlugin());
 		this.addPlugin(new TwitchStreamPlugin());
@@ -77,6 +79,7 @@ export class Ward {
 			this.pluginHookInit();
 
 			this.discord.addListener("message", m => this.onMessage(m));
+			// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
 
 			this.logger.verbose("Plugins start");
 			await this.pluginHookStart();
@@ -330,6 +333,7 @@ export class Ward {
 
 		this.logger.info(`Updating plugin "${pluginName}" due to request from ${message.member.displayName}`);
 		this.updatePlugin(plugin);
+		message.reply(`updated plugin ${pluginName}.`);
 	}
 
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
