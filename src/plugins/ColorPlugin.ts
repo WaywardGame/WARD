@@ -152,10 +152,10 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 			return;
 		}
 
-		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(message.member)) {
+		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(member)) {
 			this.reply(message, new RichEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
-				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
+				.setDescription(`Sorry, <@${message.member.id}>, ${queryMember ? `${member.displayName} is` : "you are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? "they" : "you"}'ll be able to have one soon!`));
 			return;
 		}
 
