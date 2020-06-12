@@ -14,6 +14,7 @@ export enum StreamType {
 }
 
 export interface IStream {
+	user_id: string;
 	user_name: string;
 	title: string;
 }
@@ -55,6 +56,10 @@ export class Twitch extends Api<ITwitchConfig> {
 
 	public async getStream (streamer: string): Promise<IStream | undefined> {
 		return this.twitchRequest(`streams?user_login=${streamer}`).then(result => result.data[0]);
+	}
+
+	public async getUser (id: string): Promise<IUser | undefined> {
+		return this.twitchRequest(`users?id=${id}`).then(result => result.data[0]);
 	}
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
