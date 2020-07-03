@@ -104,7 +104,9 @@ export class Twitch extends Api<ITwitchConfig> {
 
 				const ratelimit = r.response.headers["Ratelimit-Limit"];
 				sleepTime = minutes(1) / +ratelimit;
+
 			} catch (err) {
+				lastRequestTime = Date.now();
 				tries++;
 				if (tries > 100) {
 					throw err;
