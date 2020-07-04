@@ -11,9 +11,16 @@
 		"removeComments": true,
 		"declaration": true,
 		"experimentalDecorators": true,
+        "noImplicitReturns": true,
+        "noUnusedParameters": false,
+        "strict": true,
+        "strictPropertyInitialization": false,
+        "types": [
+            "node"
+        ],
         "plugins": [
             {
-                "name": "tslint-language-service"
+                "name": "typescript-tslint-plugin"
             }
         ]
 	}

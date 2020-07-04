@@ -77,7 +77,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			this.dirty = true;
 		}
 
-		return this.pluginData[key];
+		return this.pluginData[key]!;
 	}
 
 	public reply (message: Message, reply: string | RichEmbed) {
@@ -99,7 +99,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	 */
 	protected async findMember (member: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
 		member = member.toLowerCase();
-		let tag: string;
+		let tag: string | undefined;
 
 		const splitMatch = member.match(/^(.*)(#\d{4})$/);
 		if (splitMatch)
@@ -114,7 +114,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			results = guild.members.filter(m => m.displayName.toLowerCase().includes(member));
 
 		if (tag)
-			results = results.filter(m => m.user.tag.endsWith(tag));
+			results = results.filter(m => m.user.tag.endsWith(tag!));
 
 		switch (results.size) {
 			case 0: return undefined;

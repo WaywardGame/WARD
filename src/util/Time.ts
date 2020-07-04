@@ -58,16 +58,21 @@ const timeAbbreviations: Record<string, TimeUnit> = Object.fromEntries(Object.en
 // tslint:disable cyclomatic-complexity
 const valRegex = /^([0-9\.]+) ?([a-z]+)$/;
 export function getTime (unit: TimeUnit, amt: number): number;
-export function getTime (time: string | [TimeUnit, number]): number;
-export function getTime (unit: TimeUnit | string | [TimeUnit, number], amt?: number) {
+export function getTime (time?: string | [TimeUnit, number]): number;
+export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: number) {
 	if (typeof unit == "string" && amt === undefined) {
 		const match = unit.match(valRegex);
+		if (!match)
+			return 0;
+
 		amt = +match[1];
 		unit = match[2] as TimeUnit;
-
-	} else {
-		unit = unit;
 	}
+
+	else if (unit === undefined)
+		return 0;
+	else
+		unit = unit;
 
 	if (Array.isArray(unit)) {
 		amt = unit[1];
@@ -76,6 +81,9 @@ export function getTime (unit: TimeUnit | string | [TimeUnit, number], amt?: num
 
 	if (unit in timeAbbreviations)
 		unit = timeAbbreviations[unit];
+
+	if (amt === undefined)
+		return amt;
 
 	switch (unit) {
 		case TimeUnit.Seconds: return seconds(amt);

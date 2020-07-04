@@ -54,8 +54,8 @@ export class Twitch extends Api<ITwitchConfig> {
 		return this.paginationTwitchRequest(`streams?game_id=${game}&first=100`);
 	}
 
-	public async getStream (streamer: string): Promise<IStream | undefined> {
-		return this.twitchRequest(`streams?user_login=${streamer}`).then(result => result.data[0]);
+	public async getStream (streamer?: string): Promise<IStream | undefined> {
+		return streamer && this.twitchRequest(`streams?user_login=${streamer}`).then(result => result.data[0]);
 	}
 
 	public async getUser (id: string): Promise<IUser | undefined> {
@@ -64,12 +64,11 @@ export class Twitch extends Api<ITwitchConfig> {
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
 		const results = [];
-		let rqResult: IPaginatedResult;
+		let rqResult: IPaginatedResult | undefined;
 		do {
 			rqResult = await this.twitchRequest(rqResult ? `${rq}&after=${rqResult.pagination.cursor}` : rq);
-			if (!rqResult) {
+			if (!rqResult)
 				break;
-			}
 
 			results.push(...rqResult.data || []);
 		} while (rqResult.data && rqResult.data.length >= 100);
@@ -103,7 +102,7 @@ export class Twitch extends Api<ITwitchConfig> {
 				result = await r;
 
 				const ratelimit = r.response.headers["Ratelimit-Limit"];
-				sleepTime = minutes(1) / +ratelimit;
+				sleepTime = minutes(1) / +ratelimit!;
 
 			} catch (err) {
 				lastRequestTime = Date.now();

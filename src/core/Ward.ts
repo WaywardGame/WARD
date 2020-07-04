@@ -61,48 +61,49 @@ export class Ward {
 	}
 
 	public async start () {
-		if (this.stopped && !this.onStop) {
-			this.stopped = false;
+		if (!this.stopped || (this as any).onStop)
+			return;
 
-			this.commandPrefix = this.config.commandPrefix;
+		this.stopped = false;
 
-			this.logger.verbose("Login");
-			await this.login();
-			this.guild = this.discord.guilds.find(guild => guild.id === this.config.apis.discord.guild);
-			this.logger.popScope();
-			this.logger.pushScope(this.guild.name);
+		this.commandPrefix = this.config.commandPrefix;
 
-			this.logger.verbose("Data init & backup");
-			await this.getApi<Data>("data").init();
+		this.logger.verbose("Login");
+		await this.login();
+		this.guild = this.discord.guilds.find(guild => guild.id === this.config.apis.discord.guild);
+		this.logger.popScope();
+		this.logger.pushScope(this.guild.name);
 
-			this.logger.verbose("Plugins init");
-			this.pluginHookInit();
+		this.logger.verbose("Data init & backup");
+		await this.getApi<Data>("data")?.init();
 
-			this.discord.addListener("message", m => this.onMessage(m));
-			// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
+		this.logger.verbose("Plugins init");
+		this.pluginHookInit();
 
-			this.logger.verbose("Plugins start");
-			await this.pluginHookStart();
+		this.discord.addListener("message", m => this.onMessage(m));
+		// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
 
-			this.logger.verbose("Entering main process");
-			while (!this.stopped) {
-				await this.update();
-				await sleep(100);
-			}
+		this.logger.verbose("Plugins start");
+		await this.pluginHookStart();
 
-			this.logger.verbose("Plugins stop");
-			await this.pluginHookStop();
-
-			this.logger.verbose("Plugins final save");
-			await this.pluginHookSave();
-
-			this.logger.verbose("Logout");
-			await this.logout();
-
-			this.logger.verbose("Stop");
-			this.onStop();
-			delete this.onStop;
+		this.logger.verbose("Entering main process");
+		while (!this.stopped) {
+			await this.update();
+			await sleep(100);
 		}
+
+		this.logger.verbose("Plugins stop");
+		await this.pluginHookStop();
+
+		this.logger.verbose("Plugins final save");
+		await this.pluginHookSave();
+
+		this.logger.verbose("Logout");
+		await this.logout();
+
+		this.logger.verbose("Stop");
+		this.onStop();
+		delete this.onStop;
 	}
 
 	public async stop () {
@@ -143,7 +144,7 @@ export class Ward {
 	private async updatePlugin (plugin: Plugin) {
 		this.logger.verbose("Update plugin", plugin.getId());
 		plugin.lastUpdate = Date.now();
-		await plugin.onUpdate();
+		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
 	}
 
@@ -213,19 +214,21 @@ export class Ward {
 			.split(" ")
 			.filter(v => v);
 
-		let commandMap = this.commands;
+		let commandMap: CommandMap | undefined = this.commands;
 		let command: Command | undefined;
 		while (true) {
 			const word = args[0];
-			if (!commandMap.has(word)) break;
+			if (!commandMap?.has(word))
+				break;
+
 			args.shift();
 
 			command = commandMap.get(word);
-			commandMap = command.subcommands;
+			commandMap = command?.subcommands;
 		}
 
 		if (command)
-			command.function(message, ...args);
+			command.function?.(message, ...args);
 	}
 
 	private async login () {
@@ -252,7 +255,7 @@ export class Ward {
 			if (!plugin["loaded"]) {
 				plugin["loaded"] = true;
 				this.logger.verbose("Load data for plugin", pluginName);
-				plugin["pluginData"] = await this.getApi<Data>("data").load(plugin)
+				plugin["pluginData"] = await this.getApi<Data>("data")?.load(plugin)
 					.catch(err => this.logger.warning(`Unable to load ${pluginName} data`, err))
 					?? {};
 
@@ -261,7 +264,7 @@ export class Ward {
 			}
 
 			if (plugin.onStart)
-				await this.plugins[pluginName].onStart();
+				await this.plugins[pluginName].onStart?.();
 		}
 	}
 
@@ -271,7 +274,7 @@ export class Ward {
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onStop)
-				await this.plugins[pluginName].onStop();
+				await this.plugins[pluginName].onStop?.();
 		}
 	}
 
@@ -339,7 +342,7 @@ export class Ward {
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
 		while (true) {
 			const word = words.shift();
-			const command = commandMap.getOrDefault(word, () => ({ subcommands: new Map() }), true);
+			const command = commandMap.getOrDefault(word!, () => ({ subcommands: new Map() }), true);
 
 			if (!words.length) {
 				const alreadyExisted = !!command.function;
@@ -351,7 +354,7 @@ export class Ward {
 		}
 	}
 
-	private getApi<A extends Api = Api> (name: string): A {
+	private getApi<A extends Api = Api> (name: string): A | undefined {
 		for (const apiName in this.apis) {
 			if (apiName.startsWith(name) && !isNaN(+apiName.slice(name.length))) {
 				return this.apis[apiName] as A;

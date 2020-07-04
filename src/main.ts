@@ -46,4 +46,4 @@ process.on("SIGINT", exitHandler);
 process.on("SIGUSR1", exitHandler);
 process.on("SIGUSR2", exitHandler);
 process.on("uncaughtException", exitHandler);
-process.on("unhandledRejection", exitHandler);
+process.on("unhandledRejection" as any, exitHandler); // ts ur dum

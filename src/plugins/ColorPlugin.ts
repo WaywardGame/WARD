@@ -30,7 +30,7 @@ export interface IColorsConfig {
 export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	@ImportPlugin("regulars")
-	private regularsPlugin: RegularsPlugin = undefined;
+	private regularsPlugin: RegularsPlugin = undefined!;
 
 	private aboveRole?: Role;
 
@@ -121,7 +121,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		}
 
 		if (queryMember) {
-			if (!isGetting && !message.member.hasPermission(Permissions.FLAGS.MANAGE_ROLES)) {
+			if (!isGetting && !message.member.hasPermission(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, new RichEmbed()
 					.setColor("RANDOM")
 					.setDescription(`<@${message.member.id}>, you must have the 'Manage Roles' permission to change someone else's color.`));
@@ -184,8 +184,8 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		await member.addRole(colorRole!);
 
 		this.reply(message, new RichEmbed()
-			.setColor(colorRole.color)
-			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
+			.setColor(colorRole!.color)
+			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole!.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
 	}
 
 	private getValidColorExamples () {

@@ -30,7 +30,8 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 	public async onStart () {
 		this.welcomedUsers = this.getData("welcomedUsers", []);
-		this.welcomeRoles = await Promise.all(this.config.welcomeRoles.map(role => this.findRole(role)));
+		this.welcomeRoles = (await Promise.all(this.config.welcomeRoles.map(role => this.findRole(role))))
+			.filter((role): role is Role => !!role);
 	}
 
 	public async onUpdate () {

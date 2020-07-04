@@ -56,7 +56,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private continueReport?: (report: boolean) => any;
 
 	@ImportApi("trello")
-	private trello: Trello = undefined;
+	private trello: Trello = undefined!;
 
 	public getDefaultId () {
 		return "changelog";
@@ -117,7 +117,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 	private async changelog (version: IVersionInfo | string) {
 		const changelog = await this.trello.getChangelog(version);
-		const changes = changelog.unsorted
+		const changes = changelog?.unsorted
 			?.filter(card => !this.reportedChanges.includes(card.id));
 
 		if (!changes?.length)

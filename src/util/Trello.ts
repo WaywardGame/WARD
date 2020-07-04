@@ -69,7 +69,7 @@ export interface ITrelloCardLabel {
 }
 
 export interface ITrelloChangelog {
-	version: IVersionInfo;
+	version?: IVersionInfo;
 	list: ITrelloList;
 }
 
@@ -132,7 +132,7 @@ export class Trello extends Api<ITrelloConfig> {
 	}
 
 	public async getChangelog (versionInfo: IVersionInfo | string): Promise<IChangelog | undefined> {
-		let changelog: ITrelloChangelog;
+		let changelog: ITrelloChangelog | undefined;
 		if (typeof versionInfo === "string") {
 			changelog = {
 				version: undefined,
@@ -271,6 +271,8 @@ export class Trello extends Api<ITrelloConfig> {
 					}
 				}
 			}
+
+			return undefined;
 		});
 
 		return result;
@@ -294,8 +296,8 @@ export class Trello extends Api<ITrelloConfig> {
 		return false;
 	}
 
-	private parseChangelog (changelogData: ITrelloChangelog): IChangelog {
-		let changelog: IChangelog;
+	private parseChangelog (changelogData: ITrelloChangelog): IChangelog | undefined {
+		let changelog: IChangelog | undefined;
 		const list = changelogData.list;
 		if (list.cards) {
 			changelog = {
@@ -306,9 +308,9 @@ export class Trello extends Api<ITrelloConfig> {
 
 		const sectionKeys = Object.keys(ChangeType);
 		for (let i = 0; i < sectionKeys.length / 2; i++) {
-			const section = changelog.sections[i];
+			const section = changelog?.sections[i];
 			if (section) {
-				changelog.sections[i] = section.sort((a: ITrelloCard, b: ITrelloCard) => b.pos - a.pos);
+				changelog!.sections[i] = section.sort((a: ITrelloCard, b: ITrelloCard) => b.pos - a.pos);
 			}
 		}
 
@@ -332,6 +334,10 @@ export class Trello extends Api<ITrelloConfig> {
 			}
 
 			card.important = card.labels.some(v => v.name === "Important");
+
+			if (!changelog.sections) {
+				changelog.sections = {};
+			}
 
 			let section = changelog.sections[sectionId];
 			if (!section) {

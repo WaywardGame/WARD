@@ -25,9 +25,8 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		const role = this.guild.roles.find(r => {
 			const pingRole = r.name.toLowerCase();
-			if (Object.entries(this.config.toggleableRoles).some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName))) {
-				return true;
-			}
+			return Object.entries(this.config.toggleableRoles)
+				.some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName));
 		});
 
 		if (!role) {
@@ -37,7 +36,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		let toggleMember = message.member;
 		if (queryMember) {
-			if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES)) {
+			if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, "only mods can toggle the roles of other members.");
 				return;
 			}

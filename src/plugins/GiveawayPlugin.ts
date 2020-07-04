@@ -13,7 +13,7 @@ export type IGiveawayPluginConfig = {
 }
 
 export interface IGiveawayData {
-	giveaway: IGiveawayInfo;
+	giveaway?: IGiveawayInfo;
 }
 
 interface IGiveawayInfo {
@@ -24,10 +24,10 @@ interface IGiveawayInfo {
 export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData> {
 	private channel: TextChannel;
 	private roleDev: Role;
-	private giveaway: IGiveawayInfo;
+	private giveaway?: IGiveawayInfo;
 
 	@ImportPlugin("regulars")
-	private regularsPlugin: RegularsPlugin = undefined;
+	private regularsPlugin: RegularsPlugin = undefined!;
 
 	public getDefaultId () {
 		return "giveaway";
@@ -105,8 +105,8 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (this.config.userLock) users.filter(user => {
 			const trackedMember = this.regularsPlugin.getTrackedMember(user);
 
-			if (trackedMember.talent < this.config.userLock.talent) return false;
-			if (trackedMember.daysVisited < this.config.userLock.days) return false;
+			if (trackedMember.talent < (this.config.userLock?.talent || 0)) return false;
+			if (trackedMember.daysVisited < (this.config.userLock?.days || 0)) return false;
 
 			return true;
 		});

@@ -24,7 +24,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	public updateInterval = minutes(5);
 
 	@ImportApi("twitch")
-	private twitch: Twitch = undefined;
+	private twitch: Twitch = undefined!;
 
 	private trackedStreams: Record<string, number>;
 
@@ -81,7 +81,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 				.send(streamDetector.message
 					.replace("{name}", escape(stream.user_name))
 					.replace("{title}", escape(stream.title))
-					.replace("{link}", `https://twitch.tv/${user.login}`));
+					.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
 		}
 
 		sleep(seconds(1)).then(() => {
