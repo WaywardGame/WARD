@@ -5,6 +5,8 @@ import { Config } from "./core/Config";
 import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
 import Logger from "./util/Log";
+// @ts-ignore
+import Functions = require("./util/Functions");
 
 let wards: Ward[] = [];
 

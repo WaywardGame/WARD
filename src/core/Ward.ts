@@ -32,6 +32,7 @@ export class Ward {
 	private stopped = true;
 	private onStop: () => any;
 	private readonly commands: CommandMap = new Map();
+	private readonly anythingCommands = new Set<CommandFunction>();
 	private readonly logger = new Logger(this.config.apis.discord.guild);
 
 	public constructor (private readonly config: IConfig & IGuildConfig) {
@@ -229,6 +230,10 @@ export class Ward {
 
 		if (command)
 			command.function?.(message, ...args);
+
+		else
+			for (const command of this.anythingCommands)
+				command(message, ...args);
 	}
 
 	private async login () {
@@ -309,7 +314,10 @@ export class Ward {
 
 			const plugin = this.plugins[pluginName] as any;
 			for (const property of Object.getOwnPropertyNames(plugin.constructor.prototype)) {
-				const [commands, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
+				let [commands, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
+				if (typeof commands === "function")
+					commands = commands(plugin);
+
 				for (const command of Array.isArray(commands) ? commands : [commands]) {
 					if (command && (!condition || condition(plugin))) {
 						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin));
@@ -340,6 +348,11 @@ export class Ward {
 	}
 
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
+		if (words.length === 1 && words[0] === "*") {
+			this.anythingCommands.add(commandFunction);
+			return;
+		}
+
 		while (true) {
 			const word = words.shift();
 			const command = commandMap.getOrDefault(word!, () => ({ subcommands: new Map() }), true);

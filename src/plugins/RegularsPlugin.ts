@@ -1,4 +1,4 @@
-import { GuildMember, Message, Role } from "discord.js";
+import { GuildMember, Message, RichEmbed, Role } from "discord.js";
 import { Command } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { days, getTime, hours, minutes } from "../util/Time";
@@ -19,6 +19,7 @@ export interface IRegularsData {
 }
 
 export interface IRegularsConfig {
+	scoreName?: string;
 	excludedChannels?: string[];
 	daysBeforeTalentLoss: number;
 	talentForNewDay: number;
@@ -30,7 +31,13 @@ export interface IRegularsConfig {
 	daysVisitedMultiplier: number;
 	daysVisitedMultiplierReduction: number;
 	regularMilestoneTalent: number;
-	commands?: boolean;
+	commands?: false | {
+		check?: string;
+		checkMultiplier?: string;
+		top?: string;
+		days?: string;
+		add?: string;
+	};
 }
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
@@ -42,6 +49,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private roleRegular: Role;
 	private roleMod: Role;
 	private readonly onRemoveMemberHandlers: ((member: GuildMember) => any)[] = [];
+	private readonly talentMultiplierIncreaseDays = new Map<number, number>();
 
 	public getDefaultId () {
 		return "regulars";
@@ -53,6 +61,13 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		this.roleRegular = this.guild.roles.find(role => role.name === "regular");
 		this.roleMod = this.guild.roles.find(role => role.name === "mod");
+
+		this.talentMultiplierIncreaseDays.clear();
+		const calculateDaysUpTill = 10000;
+		new Array(calculateDaysUpTill)
+			.fill(0)
+			.map((_, i) => [Math.floor(this.getMultiplier(calculateDaysUpTill - i)), (calculateDaysUpTill - i)])
+			.forEach(([multiplier, day]) => this.talentMultiplierIncreaseDays.set(multiplier, day));
 	}
 
 	public onUpdate () {
@@ -137,6 +152,15 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.onRemoveMemberHandlers.push(handler);
 	}
 
+	public getMemberName (memberOrId: string | GuildMember) {
+		const member = typeof memberOrId == "string" ? this.guild.members.find(member => member.id === memberOrId) : memberOrId;
+		if (!member) {
+			return "Unknown";
+		}
+
+		return member.displayName;
+	}
+
 	private onMemberMessage (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
 
@@ -149,7 +173,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxTalentForMessage[0]) {
 			talentChange = 0;
-			this.logger.info(`${member.displayName} has earned the maximum talent for the hour.`);
+			this.logger.info(`${member.displayName} has earned the maximum ${this.getScoreName()} for the hour.`);
 		}
 
 		trackedMember.maxTalentForMessageBlockMessagesSent++;
@@ -169,16 +193,23 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.updateMember(member, talentChange);
 	}
 
+	private getScoreName () {
+		return this.config.scoreName || "talent";
+	}
+
 	private getToday () {
 		return Math.floor(Date.now() / days(1));
+	}
+
+	private getMultiplier (days: number) {
+		return 1 + (days * this.config.daysVisitedMultiplier) ** this.config.daysVisitedMultiplierReduction;
 	}
 
 	private updateMember (member: GuildMember, score: number) {
 		const today = this.getToday();
 		const trackedMember = this.getTrackedMember(member.id);
 
-		const multiplier = 1 +
-			(trackedMember.daysVisited * this.config.daysVisitedMultiplier) ** this.config.daysVisitedMultiplierReduction;
+		const multiplier = this.getMultiplier(trackedMember.daysVisited);
 
 		if (trackedMember.lastDay < today) {
 			trackedMember.daysVisited++;
@@ -204,44 +235,24 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		) {
 			member.addRole(this.roleRegular);
 			this.logger.info(`${this.getMemberName(member)} has become a regular!`);
-			member.user.send(`
-Hey ${this.getMemberName(member)}! You have become a regular on ${this.guild.name}.
-
-As a regular, you may now change your username color whenever you please, using the \`!color\` command.
-Examples: \`!color f00\` would make your username bright red, \`!color 123456\` would make you a dark blue.
-Like any other of my commands, you may use it in the ${this.guild.name} server or in a PM with me.
-
-I will not send any other notification messages, apologies for the interruption.
-			`);
+			this.event.emit("becomeRegular", member);
 		}
 	}
 
 	private updateTopMember (trackedMember: ITrackedMember) {
-		if (!this.topMembers.some(a => a.id == trackedMember.id)) {
+		if (!this.topMembers.some(a => a.id == trackedMember.id))
 			this.topMembers.push(trackedMember);
-		}
 
 		this.topMembers.sort((a, b) => b.talent - a.talent);
-		this.topMembers.splice(20, Infinity);
 	}
 
 	private updateTopMembers () {
 		this.topMembers = Object.values(this.members);
 		this.topMembers.sort((a, b) => b.talent - a.talent);
-		this.topMembers.splice(20, Infinity);
-	}
-
-	private getMemberName (memberOrId: string | GuildMember) {
-		const member = typeof memberOrId == "string" ? this.guild.members.find(member => member.id === memberOrId) : memberOrId;
-		if (!member) {
-			return "Unknown";
-		}
-
-		return member.displayName;
 	}
 
 	// tslint:disable cyclomatic-complexity
-	@Command<RegularsPlugin>("talent", p => p.config.commands !== false)
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
 	protected async commandTalent (message: Message, queryMember?: string) {
 		let member = message.member;
 
@@ -259,8 +270,8 @@ I will not send any other notification messages, apologies for the interruption.
 
 		if (member.user.bot) {
 			this.reply(message, member.id == this.user.id ?
-				"my talent is limitless." :
-				`the talent of ${memberName} is limitless.`,
+				`my ${this.getScoreName()} is limitless.` :
+				`the ${this.getScoreName()} of ${memberName} is limitless.`,
 			);
 
 			return;
@@ -269,8 +280,8 @@ I will not send any other notification messages, apologies for the interruption.
 		const trackedMember = this.members[member.id];
 		if (!trackedMember) {
 			this.reply(message, queryMember ?
-				`${memberName} has not gained talent yet.` :
-				"you have not gained talent yet.",
+				`${memberName} has not gained ${this.getScoreName()} yet.` :
+				`you have not gained ${this.getScoreName()} yet.`,
 			);
 
 			return;
@@ -278,41 +289,98 @@ I will not send any other notification messages, apologies for the interruption.
 
 		const talent = this.members[member.id].talent;
 		this.reply(message, queryMember ?
-			`the talent of ${memberName} is ${talent}.` :
-			`your talent is ${talent}.`,
+			`the ${this.getScoreName()} of ${memberName} is ${Intl.NumberFormat().format(talent)}.` :
+			`your ${this.getScoreName()} is ${Intl.NumberFormat().format(talent)}.`,
 		);
 	}
 
-	@Command<RegularsPlugin>("top", p => p.config.commands !== false)
-	protected commandTop (message: Message, quantityStr: string, offsetStr: string) {
-		const quantity = isNaN(+quantityStr) ? 3 : Math.max(1, Math.min(20, +quantityStr));
-		const offset = isNaN(+offsetStr) ? 1 : Math.max(1, Math.min(20, +offsetStr));
+	// tslint:disable cyclomatic-complexity
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.checkMultiplier || "talent multiplier", p => p.config.commands !== false)
+	protected async commandTalentMultiplier (message: Message, queryMember?: string) {
+		let member = message.member;
 
-		let response = `
-${offset == 1 ? `Top ${quantity}` : `Users with the most talent (quantity: ${quantity}, starting at: ${offset})`}:`;
+		if (queryMember) {
+			const resultingQueryMember = await this.findMember(queryMember);
 
-		for (let i = 0; i < quantity; i++) {
-			const member = this.topMembers[offset + i - 1];
-			if (member === undefined) {
-				break;
+			if (!this.validateFindResult(message, resultingQueryMember)) {
+				return;
 			}
 
-			response += `
-${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
+			member = resultingQueryMember;
 		}
 
-		this.reply(message, response);
-	}
+		const memberName = member.displayName;
 
-	@Command<RegularsPlugin>("talent add")
-	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
-		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR")) {
-			// this.reply(message, "only mods may manually modify talent of members.");
+		if (member.user.bot) {
+			this.reply(message, member.id == this.user.id ?
+				`my ${this.getScoreName()} multiplier is infinite.` :
+				`the ${this.getScoreName()} multiplier of ${memberName} is infinite.`,
+			);
+
 			return;
 		}
 
+		const trackedMember = this.members[member.id];
+		if (!trackedMember) {
+			this.reply(message, queryMember ?
+				`${memberName} has not gained ${this.getScoreName()} yet.` :
+				`you have not gained ${this.getScoreName()} yet.`,
+			);
+
+			return;
+		}
+
+		const days = this.members[member.id].daysVisited;
+		const multiplier = Math.floor(this.getMultiplier(days));
+		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplier + 1)! - days;
+		const resultIs = `is ${Intl.NumberFormat().format(multiplier)}x. (${daysUntilMultiplierUp} days till increase)`;
+		this.reply(message, queryMember ?
+			`the ${this.getScoreName()} multiplier of ${memberName} ${resultIs}` :
+			`your ${this.getScoreName()} multiplier ${resultIs}`,
+		);
+	}
+
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.top || "top", p => p.config.commands !== false)
+	protected commandTop (message: Message, quantityStr: string, offsetStr: string) {
+		const quantity = isNaN(+quantityStr) ? 3 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
+		const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
+
+		const max = offset + quantity;
+
+		let response = "";
+
+		const members = this.topMembers.slice(offset, offset + quantity)
+			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.talent)] as const);
+
+
+		const maxLengthName = members.map(([name]) => name.length).splat(Math.max);
+		const maxLengthTalent = members.map(([, talent]) => talent.length).splat(Math.max);
+
+		response += members.map(([name, talent], i) =>
+			`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${talent.padStart(maxLengthTalent, " ")}`)
+			.join("\n");
+
+		const scoreName = this.getScoreName();
+		if (members.length < quantity)
+			response += `\n...no more members with ${scoreName}`;
+
+		this.reply(message, new RichEmbed()
+			.setDescription(`<@${message.member.id}>
+__**${scoreName[0].toUpperCase() + scoreName.slice(1)} Rankings!**__ (starting at ${offset + 1}):
+\`\`\`
+${response}
+\`\`\`
+`));
+	}
+
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.add || "talent add")
+	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
+		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR"))
+			// this.reply(message, "only mods may manually modify talent of members.");
+			return;
+
 		if (queryMember === undefined || !amtStr) {
-			this.reply(message, "you must provide a member to update the talent on and the amount to change the talent by.");
+			this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to change the ${this.getScoreName()} by.`);
 			return;
 		}
 
@@ -325,15 +393,15 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
 		trackedMember.talent += amt;
 
-		const operation = `${amt > 0 ? "added" : "subtracted"} ${Math.abs(amt)} talent ${amt > 0 ? "to" : "from"}`;
-		const reply = `${operation} ${member.displayName}. Their new talent is ${trackedMember.talent}.`;
+		const operation = `${amt > 0 ? "added" : "subtracted"} ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} ${amt > 0 ? "to" : "from"}`;
+		const reply = `${operation} ${member.displayName}. Their new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}.`;
 		this.reply(message, `I ${reply}`);
 		this.logger.info(message.member.displayName, reply);
 
 		this.updateTopMember(trackedMember);
 	}
 
-	@Command<RegularsPlugin>("days", p => p.config.commands !== false)
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
 	protected async commandDaysChatted (message: Message, queryMember?: string) {
 		let member = message.member;
 
@@ -361,8 +429,8 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 		const trackedMember = this.members[member.id];
 		if (!trackedMember) {
 			this.reply(message, queryMember ?
-				`${memberName} has not gained talent yet.` :
-				"you have not gained talent yet.",
+				`${memberName} has not gained ${this.getScoreName()} yet.` :
+				`you have not gained ${this.getScoreName()} yet.`,
 			);
 
 			return;
@@ -370,8 +438,8 @@ ${offset + i}. ${this.getMemberName(member.id)}: ${member.talent}`;
 
 		const daysVisited = this.members[member.id].daysVisited;
 		this.reply(message, queryMember ?
-			`${memberName} has chatted on ${daysVisited} days.` :
-			`you have chatted on ${daysVisited} days.`,
+			`${memberName} has chatted on ${Intl.NumberFormat().format(daysVisited)} days.` :
+			`you have chatted on ${Intl.NumberFormat().format(daysVisited)} days.`,
 		);
 	}
 }

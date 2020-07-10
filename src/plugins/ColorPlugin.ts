@@ -39,33 +39,54 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 	}
 
 	public async onStart () {
-		this.regularsPlugin.onRemoveMember(this.removeColor.bind(this));
+		this.regularsPlugin.onRemoveMember(member => {
+			if (!this.config.mustBeRegular)
+				return;
+
+			this.removeColor(member);
+		});
+
 		this.aboveRole = !this.config.aboveRole ? undefined : this.guild.roles.find(role => role.name === this.config.aboveRole);
 		this.removeUnusedColorRoles();
+		if (this.config.mustBeRegular)
+			this.regularsPlugin.event.subscribe("becomeRegular", async (member: GuildMember) => {
+				member.user.send(`
+Hey ${this.regularsPlugin.getMemberName(member)}! You have become a regular on ${this.guild.name}.
+
+As a regular, you may now change your username color whenever you please, using the \`!color\` command.
+Examples: \`!color f00\` would make your username bright red, \`!color 123456\` would make you a dark blue.
+Like any other of my commands, you may use it in the ${this.guild.name} server or in a DM with me.
+
+I will not send any other notification messages, apologies for the interruption.
+				`);
+			})
 	}
 
 	private async removeColor (member: GuildMember) {
 		const colorRoles = member.roles.filter(r => this.isColorRole(r.name));
+		if (!colorRoles.size)
+			return;
+
+		this.logger.info("Removing color roles", colorRoles.map(role => role.name).join(", "), "from", member.displayName);
 		await member.removeRoles(colorRoles);
 		this.removeUnusedColorRoles(colorRoles);
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
-		if (colorRoles) {
+		if (colorRoles)
 			await sleep(10000);
 
-		} else {
+		else
 			colorRoles = this.guild.roles;
-		}
 
-		// we only want to remove the auto-created color roles, the ones in the #COLOR format
-		colorRoles = colorRoles.filter(r => colorRegex.test(r.name));
+		// we only want to remove the auto-created color roles, the ones in the #COLOR format, and only if they have no members
+		colorRoles = colorRoles.filter(r => r.members.size === 0 && colorRegex.test(r.name));
+		if (!colorRoles.size)
+			return;
 
-		for (const role of colorRoles.values()) {
-			if (role.members.size === 0) {
-				await role.delete();
-			}
-		}
+		this.logger.info("Removing unused color roles", colorRoles.map(role => role.name).join(", "));
+		for (const role of colorRoles.values())
+			await role.delete();
 	}
 
 	private async getColorRole (color: string) {
@@ -85,6 +106,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 		let colorRole = this.guild.roles.find(role => role.name.toLowerCase() === color.toLowerCase());
 		if (!colorRole && colorRegex.test(color)) {
+			this.logger.info("Created color role", color);
 			colorRole = await this.guild.createRole({
 				name: color,
 				color,
@@ -177,7 +199,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 		if (isRemoving) {
 			this.reply(message, new RichEmbed()
 				.setColor("RANDOM")
-				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. (Previously: **${currentColorRole.name}**)`));
+				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
 			return;
 		}
 
