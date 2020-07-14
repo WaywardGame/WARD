@@ -34,7 +34,7 @@ export interface IRegularsConfig {
 	commands?: false | {
 		check?: string;
 		checkMultiplier?: string;
-		top?: string;
+		rankings?: string;
 		days?: string;
 		add?: string;
 		donate?: string;
@@ -251,6 +251,54 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.topMembers.sort((a, b) => b.talent - a.talent);
 	}
 
+	private isMod (member: GuildMember) {
+		return member.roles.has(this.roleMod.id)
+			|| member.permissions.has("ADMINISTRATOR");
+	}
+
+	// tslint:disable cyclomatic-complexity
+	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
+	// protected async commandTalent (message: Message, queryMember?: string) {
+	// 	let member = message.member;
+
+	// 	if (queryMember) {
+	// 		const resultingQueryMember = await this.findMember(queryMember);
+
+	// 		if (!this.validateFindResult(message, resultingQueryMember)) {
+	// 			return;
+	// 		}
+
+	// 		member = resultingQueryMember;
+	// 	}
+
+	// 	const memberName = member.displayName;
+
+	// 	if (member.user.bot) {
+	// 		this.reply(message, member.id == this.user.id ?
+	// 			`my ${this.getScoreName()} is limitless.` :
+	// 			`the ${this.getScoreName()} of ${memberName} is limitless.`,
+	// 		);
+
+	// 		return;
+	// 	}
+
+	// 	const trackedMember = this.members[member.id];
+	// 	if (!trackedMember) {
+	// 		this.reply(message, queryMember ?
+	// 			`${memberName} has not gained ${this.getScoreName()} yet.` :
+	// 			`you have not gained ${this.getScoreName()} yet.`,
+	// 		);
+
+	// 		return;
+	// 	}
+
+	// 	const talent = this.members[member.id].talent;
+	// 	this.reply(message, queryMember ?
+	// 		`the ${this.getScoreName()} of ${memberName} is ${Intl.NumberFormat().format(talent)}.` :
+	// 		`your ${this.getScoreName()} is ${Intl.NumberFormat().format(talent)}.`,
+	// 	);
+	// }
+
 	// tslint:disable cyclomatic-complexity
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
 	protected async commandTalent (message: Message, queryMember?: string) {
@@ -269,54 +317,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const memberName = member.displayName;
 
 		if (member.user.bot) {
-			this.reply(message, member.id == this.user.id ?
-				`my ${this.getScoreName()} is limitless.` :
-				`the ${this.getScoreName()} of ${memberName} is limitless.`,
-			);
-
-			return;
-		}
-
-		const trackedMember = this.members[member.id];
-		if (!trackedMember) {
-			this.reply(message, queryMember ?
-				`${memberName} has not gained ${this.getScoreName()} yet.` :
-				`you have not gained ${this.getScoreName()} yet.`,
-			);
-
-			return;
-		}
-
-		const talent = this.members[member.id].talent;
-		this.reply(message, queryMember ?
-			`the ${this.getScoreName()} of ${memberName} is ${Intl.NumberFormat().format(talent)}.` :
-			`your ${this.getScoreName()} is ${Intl.NumberFormat().format(talent)}.`,
-		);
-	}
-
-	// tslint:disable cyclomatic-complexity
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.checkMultiplier || "talent multiplier", p => p.config.commands !== false)
-	protected async commandTalentMultiplier (message: Message, queryMember?: string) {
-		let member = message.member;
-
-		if (queryMember) {
-			const resultingQueryMember = await this.findMember(queryMember);
-
-			if (!this.validateFindResult(message, resultingQueryMember)) {
-				return;
-			}
-
-			member = resultingQueryMember;
-		}
-
-		const memberName = member.displayName;
-
-		if (member.user.bot) {
-			this.reply(message, member.id == this.user.id ?
-				`my ${this.getScoreName()} multiplier is infinite.` :
-				`the ${this.getScoreName()} multiplier of ${memberName} is infinite.`,
-			);
-
+			const who = member.id == this.user.id ? `my ${this.getScoreName()}` : `the ${this.getScoreName()} of ${memberName}`;
+			this.reply(message, `having existed since before the beginning of time itself, ${who} cannot be represented in a number system of mortals.`);
 			return;
 		}
 
@@ -335,14 +337,14 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const multiplierFloored = Math.floor(multiplier);
 		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
 		const resultAtDays = `at **${days}** days chatted,`;
-		const resultIs = `is **${Intl.NumberFormat().format(multiplier)}x**. (${daysUntilMultiplierUp} days till ${multiplierFloored + 1}x)`;
+		const resultIs = `is **${trackedMember.talent}**. (Multiplier: ${Intl.NumberFormat().format(multiplier)}x, ${daysUntilMultiplierUp} days till ${multiplierFloored + 1}x)`;
 		this.reply(message, queryMember ?
-			`${resultAtDays} the ${this.getScoreName()} multiplier of ${memberName} ${resultIs}` :
-			`${resultAtDays} your ${this.getScoreName()} multiplier ${resultIs}`,
+			`${resultAtDays} the ${this.getScoreName()} of ${memberName} ${resultIs}` :
+			`${resultAtDays} your ${this.getScoreName()} ${resultIs}`,
 		);
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.top || "top", p => p.config.commands !== false)
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.rankings || "talent rankings", p => p.config.commands !== false)
 	protected commandTop (message: Message, quantityStr: string, offsetStr: string) {
 		const quantity = isNaN(+quantityStr) ? 3 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 		const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
@@ -367,7 +369,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			response += `\n...no more members with ${scoreName}`;
 
 		this.reply(message, new RichEmbed()
-			.setDescription(`<@${message.member.id}>
+			.setDescription(`
 __**${scoreName[0].toUpperCase() + scoreName.slice(1)} Rankings!**__ (starting at ${offset + 1}):
 \`\`\`
 ${response}
@@ -377,7 +379,7 @@ ${response}
 
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.add || "talent add")
 	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
-		if (!message.member.roles.has(this.roleMod.id) && !message.member.permissions.has("ADMINISTRATOR"))
+		if (!this.isMod(message.member))
 			// this.reply(message, "only mods may manually modify talent of members.");
 			return;
 
@@ -417,7 +419,12 @@ ${response}
 		}
 
 		const trackedMember = this.members[message.member.id];
-		if (trackedMember.talent - this.config.regularMilestoneTalent < amt) {
+		if (trackedMember.talent < this.config.regularMilestoneTalent) {
+			this.reply(message, `only regulars can donate ${this.getScoreName()}.`);
+			return;
+		}
+
+		if (trackedMember.talent < amt) {
 			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
 			return;
 		}
@@ -426,9 +433,13 @@ ${response}
 		if (!this.validateFindResult(message, member))
 			return;
 
-		trackedMember.talent -= amt;
-
 		const updatingMember = this.getTrackedMember(member.id);
+		if (updatingMember.talent < this.config.regularMilestoneTalent && !this.isMod(message.member)) {
+			this.reply(message, `only mods can donate to non-regular users.`);
+			return;
+		}
+
+		trackedMember.talent -= amt;
 		updatingMember.talent += amt;
 
 		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${member.displayName}`;
@@ -440,45 +451,45 @@ ${response}
 		this.updateTopMember(trackedMember, updatingMember);
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
-	protected async commandDaysChatted (message: Message, queryMember?: string) {
-		let member = message.member;
+	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
+	// protected async commandDaysChatted (message: Message, queryMember?: string) {
+	// 	let member = message.member;
 
-		if (queryMember) {
-			const resultingQueryMember = await this.findMember(queryMember);
+	// 	if (queryMember) {
+	// 		const resultingQueryMember = await this.findMember(queryMember);
 
-			if (!this.validateFindResult(message, resultingQueryMember)) {
-				return;
-			}
+	// 		if (!this.validateFindResult(message, resultingQueryMember)) {
+	// 			return;
+	// 		}
 
-			member = resultingQueryMember;
-		}
+	// 		member = resultingQueryMember;
+	// 	}
 
-		const memberName = member.displayName;
+	// 	const memberName = member.displayName;
 
-		if (member.user.bot) {
-			this.reply(message, member.id == this.user.id ?
-				"I have existed longer than time itself." :
-				`${memberName} has existed longer than time itself.`,
-			);
+	// 	if (member.user.bot) {
+	// 		this.reply(message, member.id == this.user.id ?
+	// 			"I have existed longer than time itself." :
+	// 			`${memberName} has existed longer than time itself.`,
+	// 		);
 
-			return;
-		}
+	// 		return;
+	// 	}
 
-		const trackedMember = this.members[member.id];
-		if (!trackedMember) {
-			this.reply(message, queryMember ?
-				`${memberName} has not gained ${this.getScoreName()} yet.` :
-				`you have not gained ${this.getScoreName()} yet.`,
-			);
+	// 	const trackedMember = this.members[member.id];
+	// 	if (!trackedMember) {
+	// 		this.reply(message, queryMember ?
+	// 			`${memberName} has not gained ${this.getScoreName()} yet.` :
+	// 			`you have not gained ${this.getScoreName()} yet.`,
+	// 		);
 
-			return;
-		}
+	// 		return;
+	// 	}
 
-		const daysVisited = this.members[member.id].daysVisited;
-		this.reply(message, queryMember ?
-			`${memberName} has chatted on ${Intl.NumberFormat().format(daysVisited)} days.` :
-			`you have chatted on ${Intl.NumberFormat().format(daysVisited)} days.`,
-		);
-	}
+	// 	const daysVisited = this.members[member.id].daysVisited;
+	// 	this.reply(message, queryMember ?
+	// 		`${memberName} has chatted on ${Intl.NumberFormat().format(daysVisited)} days.` :
+	// 		`you have chatted on ${Intl.NumberFormat().format(daysVisited)} days.`,
+	// 	);
+	// }
 }
