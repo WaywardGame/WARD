@@ -37,6 +37,7 @@ export interface IRegularsConfig {
 		top?: string;
 		days?: string;
 		add?: string;
+		donate?: string;
 	};
 }
 
@@ -237,9 +238,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		}
 	}
 
-	private updateTopMember (trackedMember: ITrackedMember) {
-		if (!this.topMembers.some(a => a.id == trackedMember.id))
-			this.topMembers.push(trackedMember);
+	private updateTopMember (...trackedMembers: ITrackedMember[]) {
+		for (const trackedMember of trackedMembers)
+			if (!this.topMembers.some(a => a.id == trackedMember.id))
+				this.topMembers.push(trackedMember);
 
 		this.topMembers.sort((a, b) => b.talent - a.talent);
 	}
@@ -399,6 +401,43 @@ ${response}
 		this.logger.info(message.member.displayName, reply);
 
 		this.updateTopMember(trackedMember);
+	}
+
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.donate || "talent donate")
+	protected async commandTalentDonate (message: Message, amtStr?: string, queryMember?: string) {
+		if (queryMember === undefined || !amtStr) {
+			this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`);
+			return;
+		}
+
+		const amt = Math.floor(+amtStr);
+		if (isNaN(amt) || amt < 1) {
+			this.reply(message, `you must donate a positive amount of ${this.getScoreName()}. No stealing allowed 😡`);
+			return;
+		}
+
+		const trackedMember = this.members[message.member.id];
+		if (trackedMember.talent - this.config.regularMilestoneTalent < amt) {
+			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
+			return;
+		}
+
+		const member = await this.findMember(queryMember);
+		if (!this.validateFindResult(message, member))
+			return;
+
+		trackedMember.talent -= amt;
+
+		const updatingMember = this.getTrackedMember(member.id);
+		updatingMember.talent += amt;
+
+		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${member.displayName}`;
+		const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
+		const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
+		this.reply(message, `you ${operation}. Their ${theirNew}. Your ${yourNew}.`);
+		this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
+
+		this.updateTopMember(trackedMember, updatingMember);
 	}
 
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
