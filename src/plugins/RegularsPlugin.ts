@@ -226,13 +226,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private checkMemberRegular (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
+		const shouldBeRegular = trackedMember.talent > this.config.regularMilestoneTalent
+			|| member.roles.has(this.roleMod.id)
+			|| member.permissions.has("ADMINISTRATOR");
 
-		if (
-			trackedMember.talent > this.config.regularMilestoneTalent &&
-			!member.roles.has(this.roleRegular.id) &&
-			!member.roles.has(this.roleMod.id) &&
-			!member.permissions.has("ADMINISTRATOR")
-		) {
+		if (shouldBeRegular && !member.roles.has(this.roleRegular.id)) {
 			member.addRole(this.roleRegular);
 			this.logger.info(`${this.getMemberName(member)} has become a regular!`);
 			this.event.emit("becomeRegular", member);
