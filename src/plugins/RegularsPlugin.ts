@@ -130,7 +130,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			trackedMember = this.members[id] = {
 				id,
 				talent: 0,
-				daysVisited: 0,
+				daysVisited: 1,
 				lastDay: today,
 				maxTalentForMessageBlockStartTime: Date.now(),
 				maxTalentForMessageBlockMessagesSent: 0,
