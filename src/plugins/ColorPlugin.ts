@@ -111,6 +111,7 @@ I will not send any other notification messages, apologies for the interruption.
 				name: color,
 				color,
 				position: this.aboveRole && this.aboveRole.position + 1,
+				permissions: [],
 			});
 		}
 
