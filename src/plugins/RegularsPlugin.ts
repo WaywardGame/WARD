@@ -202,7 +202,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private getMultiplier (days: number) {
-		return 1 + (days * this.config.daysVisitedMultiplier) ** this.config.daysVisitedMultiplierReduction;
+		return +(1 + (days * this.config.daysVisitedMultiplier) ** this.config.daysVisitedMultiplierReduction).toFixed(2);
 	}
 
 	private updateMember (member: GuildMember, score: number) {
@@ -329,12 +329,14 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		}
 
 		const days = this.members[member.id].daysVisited;
-		const multiplier = Math.floor(this.getMultiplier(days));
-		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplier + 1)! - days;
-		const resultIs = `is ${Intl.NumberFormat().format(multiplier)}x. (${daysUntilMultiplierUp} days till increase)`;
+		const multiplier = this.getMultiplier(days);
+		const multiplierFloored = Math.floor(multiplier);
+		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
+		const resultAtDays = `at **${days}** days chatted,`;
+		const resultIs = `is **${Intl.NumberFormat().format(multiplier)}x**. (${daysUntilMultiplierUp} days till ${multiplierFloored + 1}x)`;
 		this.reply(message, queryMember ?
-			`the ${this.getScoreName()} multiplier of ${memberName} ${resultIs}` :
-			`your ${this.getScoreName()} multiplier ${resultIs}`,
+			`${resultAtDays} the ${this.getScoreName()} multiplier of ${memberName} ${resultIs}` :
+			`${resultAtDays} your ${this.getScoreName()} multiplier ${resultIs}`,
 		);
 	}
 
