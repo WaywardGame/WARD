@@ -412,7 +412,12 @@ ${response}
 		}
 
 		const amt = Math.floor(+amtStr);
-		if (isNaN(amt) || amt < 1) {
+		if (isNaN(amt)) {
+			this.reply(message, `you must provide an amount of ${this.getScoreName()} to donate.`);
+			return;
+		}
+
+		if (amt < 1) {
 			this.reply(message, `you must donate a positive amount of ${this.getScoreName()}. No stealing allowed 😡`);
 			return;
 		}
