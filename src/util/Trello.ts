@@ -8,10 +8,12 @@ const endpoint = "https://api.trello.com/1";
 
 export interface IVersionInfo {
 	str: string;
+	strPretty: string;
 	stage: "beta" | "release";
 	major: number;
 	minor: number;
 	patch: number;
+	active?: boolean;
 	name?: string;
 	date?: Date;
 }
@@ -23,13 +25,18 @@ export function getVersionInfo (version: string): IVersionInfo {
 		throw new Error("Version string must be in the format '(beta|release)#.#(.#)?'");
 	}
 
-	return {
+	const result = {
 		str: version,
 		stage: versionInfo[1] ? versionInfo[1] as "beta" | "release" : "beta",
 		major: parseInt(versionInfo[2], 10),
 		minor: parseInt(versionInfo[3], 10),
 		patch: versionInfo[4] ? parseInt(versionInfo[4], 10) : 0,
 	};
+
+	return {
+		...result,
+		strPretty: `${result.stage[0].toUpperCase()}${result.stage.slice(1)} ${result.major}.${result.minor}.${result.patch}`,
+	}
 }
 
 export function isSameVersion (version: IVersionInfo, compareVersion: IVersionInfo) {
@@ -43,6 +50,7 @@ export interface ITrelloBoard {
 	id: string;
 	name: string;
 	desc: string;
+	closed: boolean;
 	lists?: ITrelloList[];
 }
 
@@ -158,9 +166,15 @@ export class Trello extends Api<ITrelloConfig> {
 		// Check both open and unopened lists on the default board
 		let board = await this.getBoard(this.config.board);
 		if (board) {
-			result.push(...this.getCardsFromBoard(board));
+			result.push(...this.getCardsFromBoard(board).map(v => {
+				v.active = true;
+				return v;
+			}));
 			board = await this.getBoard(this.config.board, true);
-			result.push(...this.getCardsFromBoard(board));
+			result.push(...this.getCardsFromBoard(board).map(v => {
+				v.active = false;
+				return v;
+			}));
 		}
 
 		result.sort((infoA, infoB) => sortVersionInfo(infoA, infoB, true));
@@ -177,10 +191,9 @@ export class Trello extends Api<ITrelloConfig> {
 		return result;
 	}
 
-	public async getNewestVersion () {
+	public async getActiveVersions () {
 		const versions = await this.getVersions();
-
-		return versions[0];
+		return versions.some(v => v.active) ? versions.filter(v => v.active) : [versions[0]];
 	}
 
 	private getCardsFromBoard (board: ITrelloBoard) {
@@ -211,7 +224,9 @@ export class Trello extends Api<ITrelloConfig> {
 	private async getBoard (boardId: string, checkClosed: boolean = false): Promise<ITrelloBoard> {
 		const closed = checkClosed ? "closed" : "open";
 
-		return this.trelloRequest(`/boards/${boardId}?lists=${closed}&list_fields=name&fields=name,desc`);
+		const result = await this.trelloRequest(`/boards/${boardId}?lists=${closed}&list_fields=name&fields=name,desc`);
+		result.closed = checkClosed;
+		return result;
 	}
 
 	private async trelloRequest (rq: string) {
@@ -229,14 +244,12 @@ export class Trello extends Api<ITrelloConfig> {
 
 		const listVersionInfo: IVersionInfo = {
 			str: "",
+			strPretty: "",
 			stage: match[1].toLowerCase() as "beta" | "release",
 			major: parseInt(match[2], 10),
 			minor: parseInt(match[3], 10),
 			patch: match[4] ? parseInt(match[4], 10) : 0,
 		};
-
-		listVersionInfo.str =
-			`${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
 
 		if (match[5]) {
 			listVersionInfo.name = match[5];
@@ -245,6 +258,12 @@ export class Trello extends Api<ITrelloConfig> {
 		if (match[6]) {
 			listVersionInfo.date = new Date(`${match[7]} ${parseInt(match[8], 10)}, ${match[9]}`);
 		}
+
+		listVersionInfo.str =
+			`${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
+
+		listVersionInfo.strPretty =
+			`${listVersionInfo.stage[0].toUpperCase()}${listVersionInfo.stage.slice(1)} ${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}${listVersionInfo.name ? ` "${listVersionInfo.name}"` : ""}`;
 
 		return listVersionInfo;
 	}

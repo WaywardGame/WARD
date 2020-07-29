@@ -74,10 +74,12 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		// this.log("Updating changelog...");
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
 
-		const version = await this.trello.getNewestVersion();
+		const versions = await this.trello.getActiveVersions();
 
 		this.isReporting = true;
-		await this.changelog(version);
+
+		for (const version of versions)
+			await this.changelog(version);
 
 		if (this.config.reportedLists)
 			for (const list of this.config.reportedLists)
@@ -132,10 +134,10 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		changes.sort((a, b) => new Date(a.dateLastActivity).getTime() - new Date(b.dateLastActivity).getTime());
 
 		for (const card of changes)
-			await this.handleChange(card, report);
+			await this.handleChange(version, card, report);
 	}
 
-	private async handleChange (card: ITrelloCard, report: boolean) {
+	private async handleChange (version: IVersionInfo | string, card: ITrelloCard, report: boolean) {
 		this.reportedChanges.push(card.id);
 		await this.save();
 
@@ -143,6 +145,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 			return;
 
 		let change = this.generateChangeTypeEmojiPrefix(card);
+		change += typeof version === "string" ? "" : ` [${version.strPretty}]`;
 		change += ` ${card.name} ${card.shortUrl}`;
 
 		this.logger.info(`${report ? "Reporting" : "Skipping"} change: ${change}`);
