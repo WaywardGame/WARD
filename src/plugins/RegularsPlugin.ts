@@ -348,9 +348,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.rankings || "talent rankings", p => p.config.commands !== false)
-	protected commandTop (message: Message, quantityStr: string, offsetStr: string) {
-		const quantity = isNaN(+quantityStr) ? 3 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
+	protected commandTop (message: Message, offsetStr: string, quantityStr: string) {
 		const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
+		const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 
 		const max = offset + quantity;
 
