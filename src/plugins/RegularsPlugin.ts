@@ -472,7 +472,7 @@ ${response}
 			return;
 
 		const updatingMember = this.getTrackedMember(member.id);
-		if (updatingMember.talent < this.config.regularMilestoneTalent && !this.isMod(message.member)) {
+		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
 			return;
 		}
