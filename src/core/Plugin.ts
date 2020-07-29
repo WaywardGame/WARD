@@ -4,6 +4,20 @@ import Logger from "../util/Log";
 import { getTime, hours, never, TimeUnit } from "../util/Time";
 import { Importable } from "./Importable";
 
+enum Pronouns {
+	"she/her",
+	"he/him",
+	"they/them",
+	"it/its",
+}
+
+const pronounLanguage: Record<keyof typeof Pronouns, { they: string, are: string, them: string, their: string, theirs: string }> = {
+	"she/her": { they: "she", are: "is", them: "her", their: "her", theirs: "her" },
+	"he/him": { they: "he", are: "is", them: "him", their: "his", theirs: "his" },
+	"it/its": { they: "it", are: "is", them: "it", their: "its", theirs: "its" },
+	"they/them": { they: "they", are: "are", them: "them", their: "their", theirs: "theirs" },
+};
+
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
@@ -36,6 +50,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	// @ts-ignore
 	private loaded = false;
 	private dirty = false;
+	private pronounRoles?: Record<keyof typeof Pronouns, Role | undefined>;
 	public get isDirty () { return this.dirty; }
 
 
@@ -123,13 +138,47 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
+	protected async getPronouns (member: GuildMember): Promise<(typeof pronounLanguage)[keyof typeof Pronouns]> {
+		if (!this.pronounRoles) {
+			this.pronounRoles = {
+				"she/her": await this.findRole("she/her"),
+				"he/him": await this.findRole("he/him", false),
+				"they/them": await this.findRole("they/them", false),
+				"it/its": await this.findRole("it/its", false),
+			};
+		}
+
+		// const pronouns: (keyof typeof Pronouns)[] = [
+		// 	this.pronounRoles["she/her"]?.id && member.roles.has(this.pronounRoles["she/her"]?.id) && "she/her" as const,
+		// 	this.pronounRoles["he/him"]?.id && member.roles.has(this.pronounRoles["he/him"]?.id) && "he/him" as const,
+		// 	this.pronounRoles["it/its"]?.id && member.roles.has(this.pronounRoles["it/its"]?.id) && "it/its" as const,
+		// 	this.pronounRoles["they/them"]?.id && member.roles.has(this.pronounRoles["they/them"]?.id) && "they/them" as const,
+		// ].filterFalsey(true);
+
+		const pronouns: Record<keyof typeof Pronouns, boolean | "" | undefined> = {
+			"she/her": this.pronounRoles["she/her"]?.id && member.roles.has(this.pronounRoles["she/her"]?.id),
+			"he/him": this.pronounRoles["he/him"]?.id && member.roles.has(this.pronounRoles["he/him"]?.id),
+			"they/them": this.pronounRoles["they/them"]?.id && member.roles.has(this.pronounRoles["they/them"]?.id),
+			"it/its": this.pronounRoles["it/its"]?.id && member.roles.has(this.pronounRoles["it/its"]?.id),
+		};
+
+		const count = +Boolean(pronouns["she/her"]) + +Boolean(pronouns["he/him"]) + +Boolean(pronouns["it/its"]);
+		if (!count || (count > 1 && pronouns["they/them"]))
+			return pronounLanguage["they/them"];
+
+		return pronounLanguage[pronouns["she/her"] ? "she/her"
+			: pronouns["he/him"] ? "he/him"
+				: pronouns["it/its"] ? "it/its"
+					: "they/them"];
+	}
+
 	/**
 	 * @param role A role ID or name
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected async findRole (role: string): Promise<Role | undefined> {
-		const guild = await this.guild.fetchMembers();
+	protected async findRole (role: string, fetch = true): Promise<Role | undefined> {
+		const guild = fetch ? await this.guild.fetchMembers() : this.guild;
 
 		return guild.roles.find(r => r.id === role)
 			?? guild.roles.find(r => r.name === role)

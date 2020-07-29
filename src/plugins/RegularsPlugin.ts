@@ -1,6 +1,7 @@
 import { GuildMember, Message, RichEmbed, Role } from "discord.js";
 import { Command } from "../core/Api";
 import { Plugin } from "../core/Plugin";
+import Strings from "../util/Strings";
 import { days, getTime, hours, minutes } from "../util/Time";
 
 export interface ITrackedMember {
@@ -163,7 +164,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return member.displayName;
 	}
 
-	private onMemberMessage (member: GuildMember) {
+	private async onMemberMessage (member: GuildMember) {
+		const pronouns = await this.getPronouns(member);
+
 		const trackedMember = this.getTrackedMember(member.id);
 
 		let talentChange = this.config.talentForMessage;
@@ -171,7 +174,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxTalentForMessage[1]) < Date.now()) {
 			trackedMember.maxTalentForMessageBlockStartTime = Date.now();
 			trackedMember.maxTalentForMessageBlockMessagesSent = 0;
-			this.logger.verbose(`${member.displayName} has sent their first message for the hour.`);
+			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the hour.`);
 
 		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxTalentForMessage[0]) {
 			talentChange = 0;
@@ -183,7 +186,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.talentLossForMessage[1]) < Date.now()) {
 			trackedMember.talentLossForMessageBlockStartTime = Date.now();
 			trackedMember.talentLossForMessageBlockMessagesSent = 0;
-			this.logger.verbose(`${member.displayName} has sent their first message for the ${this.config.talentLossForMessage[1]}.`);
+			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the ${this.config.talentLossForMessage[1]}.`);
 
 		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.talentLossForMessage[0]) {
 			talentChange = -this.config.talentLossForMessage[2];
@@ -393,12 +396,14 @@ ${response}
 			return;
 		}
 
+		const pronouns = await this.getPronouns(member);
+
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
 		trackedMember.talent += amt;
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} ${amt > 0 ? "to" : "from"}`;
-		const reply = `${operation} ${member.displayName}. Their new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}.`;
+		const reply = `${operation} ${member.displayName}. ${Strings.sentence(pronouns.their)} new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}.`;
 		this.reply(message, `I ${reply}`);
 		this.logger.info(message.member.displayName, reply);
 
@@ -472,13 +477,15 @@ ${response}
 			return;
 		}
 
+		const pronouns = await this.getPronouns(member);
+
 		trackedMember.talent -= amt;
 		updatingMember.talent += amt;
 
 		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${member.displayName}`;
 		const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
 		const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
-		this.reply(message, `you ${operation}. Their ${theirNew}. Your ${yourNew}.`);
+		this.reply(message, `you ${operation}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`);
 		this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
