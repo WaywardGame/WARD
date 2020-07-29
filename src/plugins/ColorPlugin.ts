@@ -1,7 +1,6 @@
 import { Collection, GuildMember, Message, Permissions, RichEmbed, Role } from "discord.js";
 import { Command, ImportPlugin } from "../core/Api";
 import { Plugin } from "../core/Plugin";
-import { sleep } from "../util/Async";
 import { RegularsPlugin } from "./RegularsPlugin";
 
 
@@ -62,6 +61,13 @@ I will not send any other notification messages, apologies for the interruption.
 			})
 	}
 
+	public async getColorRoles (fetch = true) {
+		if (fetch)
+			await this.guild.fetchMembers();
+
+		return this.guild.roles.filter(r => this.isColorRole(r.name));
+	}
+
 	private async removeColor (member: GuildMember) {
 		const colorRoles = member.roles.filter(r => this.isColorRole(r.name));
 		if (!colorRoles.size)
@@ -69,14 +75,12 @@ I will not send any other notification messages, apologies for the interruption.
 
 		this.logger.info("Removing color roles", colorRoles.map(role => role.name).join(", "), "from", member.displayName);
 		await member.removeRoles(colorRoles);
-		this.removeUnusedColorRoles(colorRoles);
+		this.removeUnusedColorRoles();
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
-		if (colorRoles)
-			await sleep(10000);
-
-		else
+		await this.guild.fetchMembers();
+		if (!colorRoles)
 			colorRoles = this.guild.roles;
 
 		// we only want to remove the auto-created color roles, the ones in the #COLOR format, and only if they have no members
@@ -120,6 +124,14 @@ I will not send any other notification messages, apologies for the interruption.
 
 	@Command(["color", "colour"])
 	protected async commandColor (message: Message, color?: string, queryMember?: string) {
+		if (color === "count") {
+			const colors = await this.getColorRoles(true);
+			this.reply(message, new RichEmbed()
+				.setColor("RANDOM")
+				.setDescription(`<@${message.member.id}>, there are currently **${colors.size} colors**, out of ${this.guild.roles.size} roles total.`));
+			return;
+		}
+
 		let member = message.member;
 		let currentColorRole = member.roles.filter(r => this.isColorRole(r.name)).first();
 
