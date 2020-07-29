@@ -482,11 +482,16 @@ ${response}
 		trackedMember.talent -= amt;
 		updatingMember.talent += amt;
 
-		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${member.displayName}`;
+		const self = message.member.id === member.id;
+
+		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${self ? "yourself" : member.displayName}`;
 		const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
 		const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
-		this.reply(message, `you ${operation}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`);
-		this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
+		const result = self ? "In other words, nothing happened." : `${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;
+		this.reply(message, `you ${operation}. ${result}`);
+
+		if (!self)
+			this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
 	}
