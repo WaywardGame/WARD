@@ -37,6 +37,7 @@ export interface IRegularsConfig {
 		rankings?: string;
 		days?: string;
 		add?: string;
+		set?: string;
 		donate?: string;
 	};
 }
@@ -404,6 +405,34 @@ ${response}
 		this.updateTopMember(trackedMember);
 	}
 
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.set || "talent set")
+	protected async commandTalentSet (message: Message, queryMember?: string, amtStr?: string) {
+		if (!this.isMod(message.member))
+			// this.reply(message, "only mods may manually modify talent of members.");
+			return;
+
+		if (queryMember === undefined || !amtStr) {
+			this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to set the ${this.getScoreName()} to.`);
+			return;
+		}
+
+		const member = await this.findMember(queryMember);
+		if (!this.validateFindResult(message, member)) {
+			return;
+		}
+
+		const trackedMember = this.getTrackedMember(member.id);
+		const amt = isNaN(+amtStr) ? 0 : +amtStr;
+		trackedMember.talent = amt;
+
+		const operation = `set the ${this.getScoreName()} of ${member.displayName} to ${Intl.NumberFormat().format(Math.abs(amt))}`;
+		const reply = `${operation}.`;
+		this.reply(message, `I ${reply}`);
+		this.logger.info(message.member.displayName, reply);
+
+		this.updateTopMember(trackedMember);
+	}
+
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.donate || "talent donate")
 	protected async commandTalentDonate (message: Message, amtStr?: string, queryMember?: string) {
 		if (queryMember === undefined || !amtStr) {
@@ -423,12 +452,12 @@ ${response}
 		}
 
 		const trackedMember = this.members[message.member.id];
-		if (trackedMember.talent < this.config.regularMilestoneTalent) {
+		if (!message.member.roles.has(this.roleRegular.id)) {
 			this.reply(message, `only regulars can donate ${this.getScoreName()}.`);
 			return;
 		}
 
-		if (trackedMember.talent < amt) {
+		if (trackedMember.talent - this.config.regularMilestoneTalent < amt) {
 			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
 			return;
 		}
