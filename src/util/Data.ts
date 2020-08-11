@@ -1,6 +1,8 @@
 import { Api } from "../core/Api";
 import type { Plugin } from "../core/Plugin";
 import FileSystem from "./FileSystem";
+import Logger from "./Log";
+import { minutes } from "./Time";
 import json5 = require("json5");
 
 export interface IDataConfig {
@@ -11,6 +13,7 @@ export default class Data extends Api<IDataConfig> {
 	private readonly dirData: string;
 	private readonly dirBackups = "data/backups";
 	private readonly dirExternalData: string;
+	private lastBackupTime = 0;
 
 	public constructor (private readonly guild: string) {
 		super();
@@ -27,13 +30,7 @@ export default class Data extends Api<IDataConfig> {
 		await FileSystem.mkdir(this.dirBackups);
 		await FileSystem.mkdir(this.dirExternalData);
 
-		const backups = await FileSystem.readDir(this.dirBackups);
-		const lastBackup = backups.sort().last();
-		const today = new Date().toISOString().slice(0, 10);
-		const dirBackup = `${this.dirBackups}/${today}/${this.guild}`;
-		if (lastBackup !== today || !await FileSystem.exists(dirBackup))
-			await this.makeBackup(dirBackup)
-				.catch(err => console.error("Unable to make backup", err));
+		await this.tryMakeBackup();
 	}
 
 	public async load (plugin: Plugin) {
@@ -65,11 +62,37 @@ export default class Data extends Api<IDataConfig> {
 		// console.log(this.getPluginDataFile(plugin), data);
 
 		await FileSystem.writeFile(this.getPluginDataFile(plugin), JSON.stringify(data));
+
+		await this.tryMakeBackup();
+	}
+
+	private async tryMakeBackup () {
+		const now = Date.now();
+		if (now - this.lastBackupTime < minutes(10))
+			return;
+
+		this.lastBackupTime = now;
+
+		const backups = await FileSystem.readDir(this.dirBackups);
+		const lastBackup = backups.sort().last();
+		const today = new Date().toISOString().slice(0, 10);
+		const dirBackup = `${this.dirBackups}/${today}/${this.guild}`;
+		// Logger.verbose("Data", "Last backup:", lastBackup, "Today:", today);
+		if (lastBackup === today)
+			return;
+
+		const backupAlreadyExists = await FileSystem.exists(dirBackup);
+		if (backupAlreadyExists)
+			Logger.verbose("Data", "Backup already exists, skipping creation");
+
+		else await this.makeBackup(dirBackup)
+			.catch(err => Logger.error("Data", "Unable to make backup", err));
 	}
 
 	private async makeBackup (dir: string) {
 		await FileSystem.mkdir(dir);
 		await FileSystem.copy(this.dirData, dir);
+		Logger.info("Data", "Backup made! Directory:", dir);
 	}
 
 	private getPluginDataFile (plugin: Plugin) {
