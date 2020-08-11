@@ -13,6 +13,7 @@ export interface ITrackedMember {
 	maxTalentForMessageBlockMessagesSent: number;
 	talentLossForMessageBlockStartTime: number;
 	talentLossForMessageBlockMessagesSent: number;
+	autodonate?: [string, number];
 }
 
 export interface IRegularsData {
@@ -40,6 +41,7 @@ export interface IRegularsConfig {
 		add?: string;
 		set?: string;
 		donate?: string;
+		autodonate?: string;
 	};
 }
 
@@ -223,6 +225,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		}
 
 		trackedMember.talent += Math.floor(score * multiplier);
+		this.autoDonate(trackedMember);
 
 		this.checkMemberRegular(member);
 
@@ -340,7 +343,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const multiplier = this.getMultiplier(days);
 		const multiplierFloored = Math.floor(multiplier);
 		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
-		const resultIs = `is **${trackedMember.talent}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
+		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.talent)}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
 		this.reply(message, queryMember ?
 			`the ${this.getScoreName()} of ${memberName} ${resultIs}` :
 			`your ${this.getScoreName()} ${resultIs}`,
@@ -440,12 +443,12 @@ ${response}
 
 	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.donate || "talent donate")
 	protected async commandTalentDonate (message: Message, amtStr?: string, queryMember?: string) {
-		if (queryMember === undefined || !amtStr) {
+		if (queryMember === undefined) {
 			this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`);
 			return;
 		}
 
-		const amt = Math.floor(+amtStr);
+		const amt = Math.floor(+amtStr!);
 		if (isNaN(amt)) {
 			this.reply(message, `you must provide an amount of ${this.getScoreName()} to donate.`);
 			return;
@@ -481,6 +484,7 @@ ${response}
 
 		trackedMember.talent -= amt;
 		updatingMember.talent += amt;
+		this.autoDonate(updatingMember);
 
 		const self = message.member.id === member.id;
 
@@ -494,6 +498,81 @@ ${response}
 			this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
+	}
+
+	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.autodonate || "talent autodonate")
+	protected async commandTalentAutoDonate (message: Message, queryMember?: string, amtStr?: string) {
+		const trackedMember = this.members[message.member.id];
+		if (queryMember === undefined) {
+			const [donateMemberId, donateMinAmt] = trackedMember.autodonate || [];
+			this.reply(message, `${donateMemberId ? `you are currently auto-donating to ${this.getMemberName(donateMemberId)} when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(donateMinAmt!)}` : `you must provide a member to donate ${this.getScoreName()} to`}. (Use "remove" or "off" to turn off auto-donation.)`);
+			return;
+		}
+
+		if (queryMember === "remove" || queryMember === "off") {
+			delete trackedMember.autodonate;
+			this.reply(message, "you have turned off auto-donation.");
+			return;
+		}
+
+		const member = await this.findMember(queryMember);
+		if (!this.validateFindResult(message, member))
+			return;
+
+		const updatingMember = this.getTrackedMember(member.id);
+		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
+			this.reply(message, `only mods can donate to non-regular users.`);
+			return;
+		}
+
+		if (trackedMember.id === updatingMember.id) {
+			this.reply(message, `You cannot set up auto-donation to yourself. That makes no sense, you big dumdum.`);
+			return;
+		}
+
+		const minTalent = Math.max(this.config.regularMilestoneTalent, Math.floor(+amtStr!) || trackedMember.talent);
+		trackedMember.autodonate = [updatingMember.id, minTalent];
+
+		const donatedResult = this.autoDonate(trackedMember);
+		let result: string | undefined;
+		if (donatedResult) {
+			const pronouns = await this.getPronouns(member);
+			const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
+			const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
+			result = `To start with, you ${donatedResult}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;
+		}
+
+		const operation = `enabled auto-donation to ${member.displayName}${minTalent > this.config.regularMilestoneTalent ? `, when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(minTalent)}` : ""}`;
+
+		this.reply(message, `you ${operation}. ${result || ""}`);
+		this.logger.info(message.member.displayName, `${operation}.`);
+
+		this.updateTopMember(trackedMember, updatingMember);
+	}
+
+	private autoDonate (trackedMember: ITrackedMember, donationChain = new Set<string>()) {
+		const autoDonate = trackedMember.autodonate;
+		if (!autoDonate)
+			return;
+
+		const [donateMemberId, donateDownTo] = autoDonate;
+		const donateMember = this.getTrackedMember(donateMemberId);
+
+		const donateAmount = trackedMember.talent - Math.max(this.config.regularMilestoneTalent, donateDownTo);
+		if (donateAmount <= 0)
+			return;
+
+		trackedMember.talent -= donateAmount;
+		donateMember.talent += donateAmount;
+
+		if (!donationChain.has(trackedMember.id)) {
+			donationChain.add(trackedMember.id);
+			this.autoDonate(donateMember, donationChain);
+		}
+
+		const donateTargetName = this.getMemberName(donateMemberId);
+		this.logger.verbose(this.getMemberName(trackedMember.id), `auto-donated ${donateAmount} ${this.getScoreName()} to`, donateTargetName);
+		return `donated ${Intl.NumberFormat().format(Math.abs(donateAmount))} ${this.getScoreName()} to ${donateTargetName}`;
 	}
 
 	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
