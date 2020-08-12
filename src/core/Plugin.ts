@@ -1,7 +1,7 @@
-import { Collection, Guild, GuildMember, Message, RichEmbed, Role, User } from "discord.js";
-import { EventEmitterAsync } from "../util/Async";
+import { Collection, Guild, GuildMember, Message, RichEmbed, Role, TextChannel, User } from "discord.js";
+import { EventEmitterAsync, sleep } from "../util/Async";
 import Logger from "../util/Log";
-import { getTime, hours, never, TimeUnit } from "../util/Time";
+import { getTime, hours, never, seconds, TimeUnit } from "../util/Time";
 import { Importable } from "./Importable";
 
 enum Pronouns {
@@ -199,5 +199,21 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 
 		return true;
+	}
+
+	protected async sendAll (channel: TextChannel, ...lines: string[]) {
+		const messages: string[] = [""];
+		for (let line of lines) {
+			line = `${line}\n`;
+			if (messages.last()!.length + line.length >= 2000)
+				messages.push("");
+
+			messages[messages.length - 1] += line;
+		}
+
+		for (const message of messages) {
+			channel.send(message);
+			await sleep(seconds(1));
+		}
 	}
 }

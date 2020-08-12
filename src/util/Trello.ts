@@ -100,6 +100,7 @@ export enum ChangeType {
 	Misc = "Misc",
 	Regression = "Regression",
 	Refactor = "Refactor",
+	Performance = "Performance",
 }
 
 // tslint:disable-next-line max-line-length
@@ -347,7 +348,6 @@ export class Trello extends Api<ITrelloConfig> {
 			const sectionId = this.getChangeType(card);
 
 			if (sectionId === undefined) {
-				// tslint:disable-next-line no-console
 				Logger.warning("trello", `Missing section id for ${card.name}`, card);
 				continue;
 			}

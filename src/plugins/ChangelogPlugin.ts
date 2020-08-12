@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { Message, TextChannel } from "discord.js";
 import { Command, ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
@@ -23,6 +24,7 @@ const emotes: { [key: string]: string } = {
 	[ChangeType.Internal]: "internal",
 	[ChangeType.Regression]: "regression",
 	[ChangeType.Refactor]: "refactor",
+	[ChangeType.Performance]: "performance",
 };
 
 const changeOrder = [
@@ -32,6 +34,7 @@ const changeOrder = [
 	ChangeType.Balance,
 	ChangeType.Modding,
 	ChangeType.Mod,
+	ChangeType.Performance,
 	ChangeType.Technical,
 	ChangeType.Internal,
 	ChangeType.Regression,
@@ -45,12 +48,15 @@ export interface IChangelogData {
 export interface IChangelogConfig {
 	reportingChannel: string;
 	reportedLists?: string[];
+	warningChannel?: string;
+	warningChangeCount?: number;
 }
 
 export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	public updateInterval = hours(1);
 
 	private channel: TextChannel;
+	private warningChannel?: TextChannel;
 	private isReporting = false;
 	private reportedChanges: string[];
 	private continueReport?: (report: boolean) => any;
@@ -73,6 +79,8 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 		// this.log("Updating changelog...");
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
+		this.warningChannel = !this.config.warningChannel ? undefined
+			: this.guild.channels.find(channel => channel.id === this.config.warningChannel) as TextChannel;
 
 		const versions = await this.trello.getActiveVersions();
 
@@ -126,8 +134,20 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 			return;
 
 		let report = true;
-		if (changes.length > 10 && !this.continueReport) {
-			this.logger.warning(`Trying to report ${changes.length} changes. To proceed send command !changelog confirm, to skip send !changelog skip`);
+		if (changes.length > (this.config.warningChangeCount || Infinity) && !this.continueReport) {
+			const warning = [
+				`Trying to report ${chalk.yellowBright(`${changes.length} changes`)}. A changelog exceeding ${chalk.yellowBright(`${this.config.warningChangeCount} changes`)} must be manually confirmed.\nTo proceed send command ${chalk.cyan("!changelog confirm")}, to skip send ${chalk.cyan("!changelog skip")}`,
+				...changes.map(change => `${chalk.grey(`ID ${change.id}`)} ${change.name}`),
+			];
+			this.logger.warning(warning.join("\n\t"));
+
+			if (this.warningChannel) {
+				this.sendAll(this.warningChannel,
+					`Trying to report **${changes.length} changes**. A changelog exceeding **${this.config.warningChangeCount} changes** must be manually confirmed.`,
+					"To proceed send command `!changelog confirm`, to skip send `!changelog skip`",
+					...changes.map(change => `> \`ID ${change.id}\` ${this.generateChangeTypeEmojiPrefix(change)} ${change.name}`));
+			}
+
 			report = await new Promise<boolean>(resolve => this.continueReport = resolve);
 		}
 
