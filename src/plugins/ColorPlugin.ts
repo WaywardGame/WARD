@@ -68,14 +68,15 @@ I will not send any other notification messages, apologies for the interruption.
 		return this.guild.roles.filter(r => this.isColorRole(r.name));
 	}
 
-	private async removeColor (member: GuildMember) {
+	private async removeColor (member: GuildMember, removeUnused = true) {
 		const colorRoles = member.roles.filter(r => this.isColorRole(r.name));
 		if (!colorRoles.size)
 			return;
 
 		this.logger.info("Removing color roles", colorRoles.map(role => role.name).join(", "), "from", member.displayName);
 		await member.removeRoles(colorRoles);
-		this.removeUnusedColorRoles();
+		if (removeUnused)
+			await this.removeUnusedColorRoles();
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
@@ -207,7 +208,7 @@ I will not send any other notification messages, apologies for the interruption.
 			}
 		}
 
-		await this.removeColor(member);
+		await this.removeColor(member, false);
 
 		if (isRemoving) {
 			this.reply(message, new RichEmbed()
@@ -217,6 +218,7 @@ I will not send any other notification messages, apologies for the interruption.
 		}
 
 		await member.addRole(colorRole!);
+		await this.removeUnusedColorRoles();
 
 		this.reply(message, new RichEmbed()
 			.setColor(colorRole!.color)
