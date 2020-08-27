@@ -130,7 +130,7 @@ I will not send any other notification messages, apologies for the interruption.
 			this.reply(message, new RichEmbed()
 				.setColor("RANDOM")
 				.setDescription(`<@${message.member.id}>, there are currently **${colors.size} colors**, out of ${this.guild.roles.size} roles total.`));
-			return;
+			return true;
 		}
 
 		let member = message.member;
@@ -142,7 +142,7 @@ I will not send any other notification messages, apologies for the interruption.
 				this.reply(message, new RichEmbed()
 					.setColor("RANDOM")
 					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`));
-				return;
+				return false;
 			}
 
 			color = "get";
@@ -153,7 +153,7 @@ I will not send any other notification messages, apologies for the interruption.
 			this.reply(message, new RichEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
 				.setDescription(`<@${message.member.id}>, some examples include: ${this.getValidColorExamples()}`));
-			return;
+			return true;
 		}
 
 		if (queryMember) {
@@ -161,13 +161,13 @@ I will not send any other notification messages, apologies for the interruption.
 				this.reply(message, new RichEmbed()
 					.setColor("RANDOM")
 					.setDescription(`<@${message.member.id}>, you must have the 'Manage Roles' permission to change someone else's color.`));
-				return;
+				return false;
 			}
 
 			const resultingQueryMember = await this.findMember(queryMember);
 
 			if (!this.validateFindResult(message, resultingQueryMember)) {
-				return;
+				return false;
 			}
 
 			member = resultingQueryMember;
@@ -185,14 +185,14 @@ I will not send any other notification messages, apologies for the interruption.
 					.setColor("RANDOM")
 					.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
 
-			return;
+			return true;
 		}
 
 		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(member)) {
 			this.reply(message, new RichEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
 				.setDescription(`Sorry, <@${message.member.id}>, ${queryMember ? `${member.displayName} is` : "you are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? "they" : "you"}'ll be able to have one soon!`));
-			return;
+			return true;
 		}
 
 		const isRemoving = /none|reset|remove/.test(color);
@@ -204,7 +204,7 @@ I will not send any other notification messages, apologies for the interruption.
 				this.reply(message, new RichEmbed()
 					.setColor(currentColorRole?.color ?? "RANDOM")
 					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`));
-				return;
+				return false;
 			}
 		}
 
@@ -214,7 +214,7 @@ I will not send any other notification messages, apologies for the interruption.
 			this.reply(message, new RichEmbed()
 				.setColor("RANDOM")
 				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
-			return;
+			return true;
 		}
 
 		await member.addRole(colorRole!);
@@ -223,6 +223,7 @@ I will not send any other notification messages, apologies for the interruption.
 		this.reply(message, new RichEmbed()
 			.setColor(colorRole!.color)
 			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole!.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
+		return true;
 	}
 
 	private getValidColorExamples () {

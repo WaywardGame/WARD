@@ -104,11 +104,13 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	@Command<ChangelogPlugin>("changelog confirm")
 	protected confirmChangelog (message: Message) {
 		this.continueLogging(message, true);
+		return true;
 	}
 
 	@Command<ChangelogPlugin>("changelog skip")
 	protected skipChangelog (message: Message) {
 		this.continueLogging(message, false);
+		return true;
 	}
 
 	private continueLogging (message: Message, report: boolean) {

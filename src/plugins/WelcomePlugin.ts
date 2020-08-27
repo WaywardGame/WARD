@@ -52,11 +52,13 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	@Command<WelcomePlugin>("welcome confirm")
 	protected confirmWelcome (message: Message) {
 		this.continueLogging(message, true);
+		return true;
 	}
 
 	@Command<WelcomePlugin>("welcome skip")
 	protected skipWelcome (message: Message) {
 		this.continueLogging(message, false);
+		return true;
 	}
 
 	private continueLogging (message: Message, report: boolean) {

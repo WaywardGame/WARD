@@ -201,7 +201,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return true;
 	}
 
-	protected async sendAll (channel: TextChannel, ...lines: string[]) {
+	protected async sendAll (channelOrReplyMessage: TextChannel | Message, ...lines: string[]) {
+		// lines = lines.map(line => line.split("\n")).flat();
 		const messages: string[] = [""];
 		for (let line of lines) {
 			line = `${line}\n`;
@@ -211,6 +212,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			messages[messages.length - 1] += line;
 		}
 
+		const channel = channelOrReplyMessage instanceof Message ? channelOrReplyMessage.channel : channelOrReplyMessage;
 		for (const message of messages) {
 			channel.send(message);
 			await sleep(seconds(1));

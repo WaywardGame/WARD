@@ -334,17 +334,18 @@ export class Ward {
 
 	private commandUpdatePlugin (message: Message, pluginName: string) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return;
+			return true;
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
 			message.reply(`can't update plugin ${pluginName}, not found.`);
-			return;
+			return false;
 		}
 
 		this.logger.info(`Updating plugin "${pluginName}" due to request from ${message.member.displayName}`);
 		this.updatePlugin(plugin);
 		message.reply(`updated plugin ${pluginName}.`);
+		return true;
 	}
 
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {

@@ -1,4 +1,4 @@
-import { Collection, Message, Permissions } from "discord.js";
+import { Message, Permissions } from "discord.js";
 import { Command } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 
@@ -18,7 +18,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 	protected async commandRole (message: Message, roleName?: string, queryMember?: string) {
 		if (!roleName) {
 			this.reply(message, "you must provide a role to toggle.");
-			return;
+			return false;
 		}
 
 		roleName = roleName.toLowerCase();
@@ -31,26 +31,19 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		if (!role) {
 			this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`);
-			return;
+			return false;
 		}
 
 		let toggleMember = message.member;
 		if (queryMember) {
 			if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, "only mods can toggle the roles of other members.");
-				return;
+				return true;
 			}
 
 			const resultingQueryMember = await this.findMember(queryMember);
-
-			if (resultingQueryMember instanceof Collection) {
-				this.reply(message, "I found multiple members with that name. Can you be more specific?");
-				return;
-
-			} else if (!resultingQueryMember) {
-				this.reply(message, "I couldn't find a member by that name.");
-				return;
-			}
+			if (!this.validateFindResult(message, resultingQueryMember))
+				return false;
 
 			toggleMember = resultingQueryMember;
 		}
@@ -65,5 +58,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
 			this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
 		}
+
+		return true;
 	}
 }
