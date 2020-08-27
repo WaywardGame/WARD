@@ -101,6 +101,7 @@ export enum ChangeType {
 	Regression = "Regression",
 	Refactor = "Refactor",
 	Performance = "Performance",
+	Guide = "Guide",
 }
 
 // tslint:disable-next-line max-line-length

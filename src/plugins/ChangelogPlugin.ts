@@ -25,6 +25,7 @@ const emotes: { [key: string]: string } = {
 	[ChangeType.Regression]: "regression",
 	[ChangeType.Refactor]: "refactor",
 	[ChangeType.Performance]: "performance",
+	[ChangeType.Guide]: "guide",
 };
 
 const changeOrder = [
@@ -33,6 +34,7 @@ const changeOrder = [
 	ChangeType.Bug,
 	ChangeType.Balance,
 	ChangeType.Modding,
+	ChangeType.Guide,
 	ChangeType.Mod,
 	ChangeType.Performance,
 	ChangeType.Technical,
