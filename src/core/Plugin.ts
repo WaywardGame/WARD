@@ -218,4 +218,17 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			await sleep(seconds(1));
 		}
 	}
+
+	protected async getReactors (message: Message): Promise<Set<User>>;
+	protected async getReactors (message: string, channel: TextChannel): Promise<Set<User>>;
+	protected async getReactors (message: Message | string, channel?: TextChannel) {
+		message = message instanceof Message ? message : await channel!.fetchMessage(message);
+
+		const users = new Set<User>();
+		for (const reaction of message.reactions.values())
+			for (const user of (await reaction.fetchUsers()).values())
+				users.add(user);
+
+		return users;
+	}
 }
