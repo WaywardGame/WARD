@@ -1,5 +1,6 @@
-import { GuildMember, Message, RichEmbed, TextChannel, User } from "discord.js";
-import { Command, ImportPlugin } from "../core/Api";
+import { GuildMember, Message, TextChannel, User } from "discord.js";
+import { Command, CommandMessage, ImportPlugin } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import Bound from "../util/Bound";
 import { RegularsPlugin } from "./RegularsPlugin";
@@ -20,7 +21,27 @@ export interface IGiveawayData {
 interface IGiveawayInfo {
 	winnerCount: number;
 	message: string;
+	prize?: number;
 	consolation?: number;
+}
+
+enum CommandLanguage {
+	GiveawayStartDescription = "Starts a new giveaway. The giveaway will persist until it is ended or cancelled. Users can enter the giveaway by reacting to the announcement message.",
+	GiveawayStartArgumentWinnerCount = "The number of entrants that should win the giveaway. Must be a positive integer.",
+	GiveawayStartArgumentText = "Text that will be printed as part of the giveaway announcement message. **Note:** By default, the message does not ping any users. If you'd like users to be pinged, include an `@everyone` in this, and send the giveaway command via DMs so it doesn't ping anyone.",
+	GiveawayEndDescription = "Ends the giveaway, pinging all of the winners in an announcement message.",
+	GiveawayCancelDescription = "Cancels the current giveaway. The announcement message will *not* be deleted automatically.",
+	GiveawayRedrawDescription = "Redraws winners for the giveaway announced with the given message.",
+	GiveawayRedrawArgumentAnnouncementMessageId = "The ID of the message used to announce the giveaway. (The one that people add reactions to.) You can get the ID by right clicking the message and choosing \"Copy ID\".",
+	GiveawayRedrawArgumentWinnerCount = "The number of entrants that should win the giveaway. Must be a positive integer.",
+	GiveawayRedrawArgumentPrize = "The prize to give to the winner(s).",
+	GiveawayRedrawArgumentConsolation = "The consolation prize to give anyone that doesn't win.",
+	GiveawayInfoDescription = "Lists the current entrants for the currently-running giveaway.",
+	GiveawayInfoAnnouncementMessageId = "The announcement message of the giveaway to return the entrants of. If not provided, lists the entrants of the currently running giveaway.",
+	GiveawayPrizeDescription = "Sets the grand/consolation prize for anyone that doesn't win the currently-running giveaway.",
+	GiveawayPrizeArgumentAmount = "The grand/consolation prize given to all winners/losers. If not provided, removes the prize.",
+	GiveawayPrizeArgumentPrize = "Modifies the grand prize (for winners)",
+	GiveawayPrizeArgumentConsolation = "Modifies the consolation prize (for losers)",
 }
 
 export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData> {
@@ -34,56 +55,53 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		return "giveaway";
 	}
 
-	public async onStart () {
-		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
-		this.giveaway = this.getData("giveaway", undefined);
+	public getDescription () {
+		return "A plugin for creating & managing giveaways.";
 	}
 
+	public isHelpVisible (author: User) {
+		return this.guild.members.get(author.id)
+			?.permissions.has("ADMINISTRATOR")
+			?? false;
+	}
+
+	private readonly help = new HelpContainerPlugin()
+		.addCommand("giveaway", CommandLanguage.GiveawayStartDescription, command => command
+			.addArgument("winnerCount", CommandLanguage.GiveawayStartArgumentWinnerCount, argument => argument
+				.setDefaultValue(1))
+			.addArgument("text", CommandLanguage.GiveawayStartArgumentText, argument => argument
+				.setOptional()))
+		.addCommand("giveaway end", CommandLanguage.GiveawayEndDescription)
+		.addCommand("giveaway cancel", CommandLanguage.GiveawayCancelDescription)
+		.addCommand("giveaway redraw", CommandLanguage.GiveawayRedrawDescription, command => command
+			.addArgument("announcementMessageId", CommandLanguage.GiveawayRedrawArgumentAnnouncementMessageId)
+			.addArgument("winnerCount", CommandLanguage.GiveawayRedrawArgumentWinnerCount, argument => argument
+				.setDefaultValue(1))
+			.addArgument("prize", CommandLanguage.GiveawayRedrawArgumentPrize, argument => argument
+				.setOptional())
+			.addArgument("consolation", CommandLanguage.GiveawayRedrawArgumentConsolation, argument => argument
+				.setOptional()))
+		.addCommand("giveaway info", CommandLanguage.GiveawayInfoDescription, command => command
+			.addArgument("announcementMessageId", CommandLanguage.GiveawayInfoAnnouncementMessageId, argument => argument
+				.setOptional()))
+		.addCommand("giveaway", CommandLanguage.GiveawayPrizeDescription, command => command
+			.addRawTextArgument("prize", CommandLanguage.GiveawayPrizeArgumentPrize, argument => argument
+				.addOption("consolation", CommandLanguage.GiveawayPrizeArgumentConsolation))
+			.addArgument("amount", CommandLanguage.GiveawayPrizeArgumentAmount, argument => argument
+				.setOptional()));
+
 	@Command(["help giveaway", "giveaway help"])
-	protected async commandGiveawayHelp (message: Message) {
+	protected async commandHelp (message: Message) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return true;
 
-		// TODO, add support later: You can use a decimal number between 0 and 1 to set a fraction of entrants to win. (The minimum number of users that will win is 1.)
-		this.reply(message, new RichEmbed().setDescription(`
-\`!giveaway <winnerCount=1> <text?>\`
-Starts a new giveaway. The giveaway will persist until it is ended or cancelled. Users can enter the giveaway by reacting to the announcement message.
-
-\u200b \u200b \u200b \u200b ◇ \`winnerCount\` — The number of entrants that should win the giveaway. Must be a positive integer.
-
-\u200b \u200b \u200b \u200b ◇ \`text\` — Text that will be printed as part of the giveaway announcement message. **Note:** By default, the message does not ping any users. If you'd like users to be pinged, include an \`@everyone\` in this, and send the giveaway command via DMs so it doesn't ping anyone.
-
-
-\`!giveaway end\`
-Ends the giveaway, pinging all of the winners in an announcement message.
-
-
-\`!giveaway cancel\`
-Cancels the current giveaway. The announcement message will *not* be deleted automatically.
-
-
-\`!giveaway redraw <announcementMessageId> <winnerCount=1> <consolation${this.regularsPlugin.getScoreName()}?>\`
-Redraws winners for the giveaway announced with the given message.
-
-\u200b \u200b \u200b \u200b ◇ \`announcementMessageId\` — The ID of the message used to announce the giveaway. (The one that people add reactions to.) You can get the ID by right clicking the message and choosing "Copy ID".
-
-\u200b \u200b \u200b \u200b ◇ \`winnerCount\` — The number of entrants that should win the giveaway. Must be a positive integer.
-
-\u200b \u200b \u200b \u200b ◇ \`consolation${this.regularsPlugin.getScoreName()}\` — _Optional_. The consolation prize to give anyone that doesn't win.
-
-
-\`!giveaway entrants <announcementMessageId?>\`
-Lists the current entrants for the currently-running giveaway.
-
-\u200b \u200b \u200b \u200b ◇ \`announcementMessageId\` — _Optional_. The announcement message of the giveaway to return the entrants of. If not provided, lists the entrants of the currently running giveaway.
-
-
-\`!giveaway consolation <consolation${this.regularsPlugin.getScoreName()}?>\`
-Sets the consolation prize for anyone that doesn't win the currently-running giveaway.
-
-\u200b \u200b \u200b \u200b ◇ \`consolation${this.regularsPlugin.getScoreName()}\` — _Optional_. The consolation prize to give anyone that doesn't win. If not provided, removes the consolation prize.
-`));
+		this.reply(message, this.help);
 		return true;
+	}
+
+	public async onStart () {
+		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
+		this.giveaway = this.getData("giveaway", undefined);
 	}
 
 	// tslint:disable cyclomatic-complexity
@@ -134,8 +152,8 @@ Sets the consolation prize for anyone that doesn't win the currently-running giv
 		return true;
 	}
 
-	@Command("giveaway consolation")
-	protected async commandSetGiveawayConsolation (message: Message, consolation?: string | number) {
+	@Command(["giveaway prize", "giveaway consolation"])
+	protected async commandSetGiveawayConsolation (message: CommandMessage, prize?: string | number) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return true;
 
@@ -144,17 +162,18 @@ Sets the consolation prize for anyone that doesn't win the currently-running giv
 			return true;
 		}
 
-		consolation = +consolation! || 0;
+		prize = +prize! || 0;
 
-		this.giveaway.consolation = consolation;
+		const prizeType = message.command.endsWith("prize") ? "prize" : "consolation";
+		this.giveaway[prizeType] = prize;
 		this.save();
 
-		if (consolation)
-			this.reply(message, `set the consolation ${this.regularsPlugin.getScoreName()} for the giveaway to ${consolation}.`);
+		if (prize)
+			this.reply(message, `set the ${prizeType} ${this.regularsPlugin.getScoreName()} for the giveaway to ${prize}.`);
 		else
-			this.reply(message, `removed the consolation ${this.regularsPlugin.getScoreName()} for the giveaway.`);
+			this.reply(message, `removed the ${prizeType} ${this.regularsPlugin.getScoreName()} for the giveaway.`);
 
-		this.logger.info(`${message.member.displayName} set the giveaway consolation ${this.regularsPlugin.getScoreName()} to ${consolation}`);
+		this.logger.info(`${message.member.displayName} set the giveaway ${prizeType} ${this.regularsPlugin.getScoreName()} to ${prize}`);
 		return true;
 	}
 
@@ -169,44 +188,57 @@ Sets the consolation prize for anyone that doesn't win the currently-running giv
 		}
 
 		const winnerCount = this.giveaway.winnerCount;
+		const prize = this.giveaway.prize;
 		const consolation = this.giveaway.consolation;
-		const announcementMessage = await this.channel.fetchMessage(this.giveaway.message);
+
+		const announcementMessage = await this.getAnnouncementMessage(message, this.giveaway.message);
+		if (!announcementMessage)
+			return true;
 
 		this.setData("giveaway", this.giveaway = undefined);
 		this.save();
 
-		return this.drawWinners(announcementMessage, winnerCount, consolation || 0);
+		return this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
 	}
 
-	@Command("giveaway entrants")
-	protected async commandGiveawayEntrants (message: Message, announcement: string) {
+	@Command("giveaway info")
+	protected async commandGiveawayInfo (message: Message, announcement?: string) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return true;
+
+		if (announcement === this.giveaway?.message)
+			announcement = undefined;
 
 		if (!announcement && !this.giveaway) {
 			this.reply(message, "there is no giveaway running.");
 			return true;
 		}
 
-		const announcementMessage = await this.channel.fetchMessage(announcement || this.giveaway!.message);
-		const entrants = await this.getEntrants(announcementMessage);
+		const announcementMessage = await this.getAnnouncementMessage(message, announcement || this.giveaway!.message);
+		if (!announcementMessage)
+			return true;
 
-		this.sendAll(this.channel, `<@${message.member.id}>, All **${entrants.length}** entrants:`, ...entrants
-			.map(user => this.regularsPlugin.getMemberName(user.id)));
+		const entrants = (await this.getEntrants(announcementMessage))
+			.filter(user => this.guild.members.has(user.id));
+
+		this.sendAll(message.channel, `<@${message.member.id}>, here's some info on ${announcement ? "that" : "the **currently-running**"} giveaway:`,
+			this.giveaway?.winnerCount && `Choosing **${this.giveaway.winnerCount} winners**`,
+			this.giveaway?.prize && `Grand prize: **${this.giveaway.prize} ${this.regularsPlugin.getScoreName()}**`,
+			this.giveaway?.consolation && `Consolation prize: **${this.giveaway.consolation} ${this.regularsPlugin.getScoreName()}**`,
+			`All **${entrants.length}** entrants:`, ...entrants
+				.map(user => `- ${this.regularsPlugin.getMemberName(user.id)}`));
 
 		return true;
 	}
 
 	@Command("giveaway redraw")
-	protected async commandRedrawGiveaway (message: Message, announcement: string, winnerCount: string | number, consolation: string | number) {
+	protected async commandRedrawGiveaway (message: Message, announcement: string, winnerCount: string | number, prize: string | number, consolation: string | number) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return true;
 
-		const announcementMessage = await this.channel.fetchMessage(announcement);
-		if (!announcementMessage) {
-			this.reply(message, "must pass a valid announcement message ID. (Right click on the announcement message and hit Copy ID)");
+		const announcementMessage = await this.getAnnouncementMessage(message, announcement);
+		if (!announcementMessage)
 			return true;
-		}
 
 		winnerCount = +winnerCount || 1;
 		if (!Number.isInteger(winnerCount) || winnerCount <= 0) {
@@ -214,10 +246,27 @@ Sets the consolation prize for anyone that doesn't win the currently-running giv
 			return true;
 		}
 
-		return this.drawWinners(announcementMessage, winnerCount, +consolation || 0);
+		return this.drawWinners(announcementMessage, winnerCount, +prize || 0, +consolation || 0);
 	}
 
-	private async drawWinners (announcementMessage: Message, winnerCount: number, consolation: number) {
+	private async getAnnouncementMessage (message: Message, announcement: string) {
+		const announcementMessage = await this.channel.fetchMessage(announcement);
+		if (announcementMessage)
+			return announcementMessage;
+
+		if (!announcement) {
+			this.logger.warning("Giveaway announcement message inaccessible", this.giveaway);
+			this.setData("giveaway", this.giveaway = undefined);
+			this.save();
+			this.reply(message, "there is no giveaway running.");
+			return undefined;
+		}
+
+		this.reply(message, "must pass a valid announcement message ID. (Right click on the announcement message and hit Copy ID)");
+		return undefined;
+	}
+
+	private async drawWinners (announcementMessage: Message, winnerCount: number, prize: number, consolation: number) {
 		const entrants = await this.getEntrants(announcementMessage);
 
 		const winners: GuildMember[] = [];
@@ -253,12 +302,14 @@ Sets the consolation prize for anyone that doesn't win the currently-running giv
 				this.regularsPlugin.autoDonate(trackedMember);
 			}
 
-		const consolationText = !consolation ? "" : `Didn't win? You got a consolation prize of ${consolation} ${this.regularsPlugin.getScoreName()}!`;
+		const prizeText = !prize ? "" : `All ${winners.length} winner(s) received the grand prize of ${prize} ${this.regularsPlugin.getScoreName()}!`;
+		const consolationText = !consolation ? "" : `Entered but didn't win? Don't worry! You still got a consolation prize of ${consolation} ${this.regularsPlugin.getScoreName()}!`;
 
-		this.channel.send(`The giveaway has ended! Winners: ${winners.map(member => `<@${member.id}>`).join(", ")}\n\n${consolationText}`);
+		this.channel.send(`The giveaway has ended!\nWinners: ${winners.map(member => `<@${member.id}>`).join(", ")}\n\n${prizeText}\n\n${consolationText}`);
 		this.logger.info(`The giveaway ended with the following winners: ${winners.map(member => member.displayName)}`);
 		if (consolation)
 			this.logger.info(`All other entrants given consolation prize of ${consolation} ${this.regularsPlugin.getScoreName()}: ${nonWinners.map(user => user.tag).join(", ")}`);
+
 		return true;
 	}
 

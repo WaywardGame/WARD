@@ -15,12 +15,17 @@ export function ImportPlugin (toImport: string) {
 	return Reflect.metadata(SYMBOL_IMPORT_PLUGIN_KEY, toImport);
 }
 
-export type CommandFunction = (message: Message, ...args: string[]) => boolean | Promise<boolean>;
+export type CommandMessage = Message & {
+	command: string;
+	args: string[];
+};
+
+export type CommandFunction = (message: CommandMessage, ...args: string[]) => boolean | Promise<boolean>;
 export type CommandRegistrationCondition<P extends Plugin = Plugin> = (plugin: P) => boolean;
 export type CommandMetadata<P extends Plugin = Plugin> = [GetterOr<ArrayOr<string>, [P]>, CommandRegistrationCondition<P>];
 
-export type CommandFunctionDescriptor = TypedPropertyDescriptor<(message: Message, ...args: string[]) => boolean> |
-	TypedPropertyDescriptor<(message: Message, ...args: string[]) => Promise<boolean>>;
+export type CommandFunctionDescriptor = TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => boolean> |
+	TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => Promise<boolean>>;
 
 export const SYMBOL_COMMAND = Symbol("import-plugin");
 export function Command<P extends Plugin = Plugin> (name: GetterOr<ArrayOr<string>, [P]>, condition?: CommandRegistrationCondition<P>) {

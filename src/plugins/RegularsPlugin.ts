@@ -1,5 +1,7 @@
-import { GuildMember, Message, RichEmbed, Role } from "discord.js";
+import { GuildMember, Message, Role } from "discord.js";
 import { Command } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
+import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
 import Strings from "../util/Strings";
 import { days, getTime, hours, minutes } from "../util/Time";
@@ -20,6 +22,16 @@ export interface IRegularsData {
 	trackedMembers: Record<string, ITrackedMember>;
 }
 
+const baseCommands = {
+	helpName: "xp",
+	check: "xp",
+	rankings: "xp rankings",
+	add: "xp add",
+	set: "xp set",
+	donate: "xp donate",
+	autodonate: "xp autodonate",
+}
+
 export interface IRegularsConfig {
 	scoreName?: string;
 	excludedChannels?: string[];
@@ -33,16 +45,27 @@ export interface IRegularsConfig {
 	daysVisitedMultiplier: number;
 	daysVisitedMultiplierReduction: number;
 	regularMilestoneTalent: number;
-	commands?: false | {
-		check?: string;
-		checkMultiplier?: string;
-		rankings?: string;
-		days?: string;
-		add?: string;
-		set?: string;
-		donate?: string;
-		autodonate?: string;
-	};
+	commands?: false | Partial<typeof baseCommands>;
+}
+
+enum CommandLanguage {
+	XpDescription = "Gets the amount of {xp} you or another user has.",
+	XpArgumentUser = "You can specify an ID, a username & tag, and a display name. If provided, gets the {xp} of the user specified. If not provided, gets your own {xp}.",
+	XpRankingsDescription = "Lists the {xp} rankings of all the tracked users in the server.",
+	XpAddDescription = "_(Requires manage members permission.)_ Adds {xp} to a user.",
+	XpAddArgumentUser = "A user's ID, partial username & tag, or partial display name.",
+	XpAddArgumentAmt = "The amount of {xp} to add to the user.",
+	XpSetDescription = "_(Requires manage members permission.)_ Sets the {xp} of a user.",
+	XpSetArgumentUser = "A user's ID, partial username & tag, or partial display name.",
+	XpSetArgumentAmt = "The amount to set the user's {xp} to.",
+	XpDonateDescription = "Donates some of your {xp} to another user. Both you and the target user must be regulars of the server. (Unless you're a mod.)",
+	XpDonateArgumentAmt = "The amount of {xp} to donate.",
+	XpDonateArgumentUser = "A user's ID, partial username & tag, or partial display name.",
+	XpAutodonateDescription = "Returns your current autodonation setting — whether you are autodonating, and if so, who to.",
+	XpAutodonateSetDescription = "Sets up autodonation to the target user.",
+	XpAutodonateSetArgumentUser = "The donation target, specified as a user's ID, partial username & tag, or partial display name.",
+	XpAutodonateSetArgumentAmt = "_Defaults to your current {xp}_. The amount of {xp} you will maintain. Any {xp} you collect _exceeding_ this value will be forwarded to the target user.",
+	XpAutodonateRemoveDescription = "Disables autodonation.",
 }
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
@@ -58,6 +81,41 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	public getDefaultId () {
 		return "regulars";
+	}
+
+	public getDescription () {
+		return "A plugin for tracking how 'regular' users are, giving them points for activity and roles if they've been active for a while.";
+	}
+
+	public isHelpVisible () {
+		return this.config.commands !== false;
+	}
+
+	private readonly help = () => new HelpContainerPlugin()
+		.setTextFilter(text => text.replace(/{xp}/g, this.getScoreName()))
+		.addCommand(this.getCommandName("check"), CommandLanguage.XpDescription, command => command
+			.addArgument("user", CommandLanguage.XpArgumentUser))
+		.addCommand(this.getCommandName("rankings"), CommandLanguage.XpRankingsDescription)
+		.addCommand(this.getCommandName("donate"), CommandLanguage.XpDonateDescription, command => command
+			.addArgument("amt", CommandLanguage.XpDonateArgumentAmt)
+			.addArgument("user", CommandLanguage.XpDonateArgumentUser))
+		.addCommand(this.getCommandName("autodonate"), CommandLanguage.XpAutodonateDescription)
+		.addCommand(this.getCommandName("autodonate"), CommandLanguage.XpAutodonateSetDescription, command => command
+			.addArgument("user", CommandLanguage.XpAutodonateSetArgumentUser)
+			.addArgument("amt", CommandLanguage.XpAutodonateSetArgumentAmt, argument => argument
+				.setOptional()))
+		.addCommand(`${this.getCommandName("autodonate")} remove|off`, CommandLanguage.XpAutodonateRemoveDescription)
+		.addCommand(this.getCommandName("add"), CommandLanguage.XpAddDescription, command => command
+			.addArgument("user", CommandLanguage.XpAddArgumentUser)
+			.addArgument("amt", CommandLanguage.XpAddArgumentAmt))
+		.addCommand(this.getCommandName("set"), CommandLanguage.XpSetDescription, command => command
+			.addArgument("user", CommandLanguage.XpSetArgumentUser)
+			.addArgument("amt", CommandLanguage.XpSetArgumentAmt));
+
+	@Command<RegularsPlugin>(p => p.getCommandName("helpName") && [`help ${p.getCommandName("helpName")}`, `${p.getCommandName("helpName")} help`], p => p.config.commands !== false)
+	protected async commandHelp (message: Message) {
+		this.reply(message, this.help());
+		return true;
 	}
 
 	public async onStart () {
@@ -160,10 +218,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public getMemberName (memberOrId: string | GuildMember) {
 		const member = typeof memberOrId == "string" ? this.guild.members.find(member => member.id === memberOrId) : memberOrId;
 		if (!member) {
-			return "Unknown";
+			return undefined;
 		}
 
-		return member.displayName;
+		return member.displayName || member.user.username;
 	}
 
 	private async onMemberMessage (member: GuildMember) {
@@ -263,6 +321,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			|| member.permissions.has("ADMINISTRATOR");
 	}
 
+	private getCommandName (command: keyof Exclude<IRegularsConfig["commands"], false | undefined>) {
+		return (this.config.commands && this.config.commands[command])
+			|| baseCommands[command];
+	}
+
 	// tslint:disable cyclomatic-complexity
 	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
 	// protected async commandTalent (message: Message, queryMember?: string) {
@@ -307,7 +370,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	// }
 
 	// tslint:disable cyclomatic-complexity
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
+	@Command<RegularsPlugin>(p => p.getCommandName("check"), p => p.config.commands !== false)
 	protected async commandTalent (message: Message, queryMember?: string) {
 		let member = message.member;
 
@@ -352,41 +415,47 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return true;
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.rankings || "talent rankings", p => p.config.commands !== false)
-	protected commandTop (message: Message, offsetStr: string, quantityStr: string) {
-		const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
-		const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
+	@Command<RegularsPlugin>(p => p.getCommandName("rankings"), p => p.config.commands !== false)
+	protected commandTop (message: Message /*, offsetStr: string, quantityStr: string */) {
+		// const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
+		// const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 
-		const max = offset + quantity;
+		const members = (this.topMembers
+			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.talent)] as const)
+			.filter(([name]) => name) as [string, string][])
+			// .slice(offset, offset + quantity)
+			;
 
-		let response = "";
+		const pages: string[] = [];
+		const quantity = 25;
+		for (let offset = 0; offset < members.length; offset += quantity) {
+			const max = offset + quantity;
+			const slice = members.slice(offset, max);
 
-		const members = this.topMembers.slice(offset, offset + quantity)
-			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.talent)] as const);
+			let response = "";
 
+			const maxLengthName = slice.map(([name]) => name.length).splat(Math.max);
+			const maxLengthTalent = slice.map(([, talent]) => talent.length).splat(Math.max);
 
-		const maxLengthName = members.map(([name]) => name.length).splat(Math.max);
-		const maxLengthTalent = members.map(([, talent]) => talent.length).splat(Math.max);
+			response += slice.map(([name, talent], i) =>
+				`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${talent.padStart(maxLengthTalent, " ")}`)
+				.join("\n");
 
-		response += members.map(([name, talent], i) =>
-			`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${talent.padStart(maxLengthTalent, " ")}`)
-			.join("\n");
+			const scoreName = this.getScoreName();
+			if (slice.length < quantity)
+				response += `\n...no more members with ${scoreName}`;
 
-		const scoreName = this.getScoreName();
-		if (members.length < quantity)
-			response += `\n...no more members with ${scoreName}`;
+			pages.push(`\`\`\`${response}\`\`\``);
+		}
 
-		this.reply(message, new RichEmbed()
-			.setDescription(`
-__**${scoreName[0].toUpperCase() + scoreName.slice(1)} Rankings!**__ (starting at ${offset + 1}):
-\`\`\`
-${response}
-\`\`\`
-`));
+		Paginator.create(pages)
+			.setPageHeader(`__**${this.getScoreName()} Rankings!**__ (Page **{page}** of **{total}**)`)
+			.reply(message);
+
 		return true;
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.add || "talent add")
+	@Command<RegularsPlugin>(p => p.getCommandName("add"))
 	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
 			// this.reply(message, "only mods may manually modify talent of members.");
@@ -417,7 +486,7 @@ ${response}
 		return true;
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.set || "talent set")
+	@Command<RegularsPlugin>(p => p.getCommandName("set"))
 	protected async commandTalentSet (message: Message, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
 			// this.reply(message, "only mods may manually modify talent of members.");
@@ -445,7 +514,7 @@ ${response}
 		return true;
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.donate || "talent donate")
+	@Command<RegularsPlugin>(p => p.getCommandName("donate"), p => p.config.commands !== false)
 	protected async commandTalentDonate (message: Message, amtStr?: string, queryMember?: string) {
 		if (queryMember === undefined) {
 			this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`);
@@ -505,7 +574,7 @@ ${response}
 		return true;
 	}
 
-	@Command<RegularsPlugin>(p => p.config.commands && p.config.commands.autodonate || "talent autodonate")
+	@Command<RegularsPlugin>(p => p.getCommandName("autodonate"), p => p.config.commands !== false)
 	protected async commandTalentAutoDonate (message: Message, queryMember?: string, amtStr?: string) {
 		const trackedMember = this.members[message.member.id];
 		if (queryMember === undefined) {

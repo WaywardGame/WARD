@@ -1,5 +1,6 @@
 import { Message, Permissions } from "discord.js";
 import { Command } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 
 
@@ -7,10 +8,32 @@ export interface IRoleTogglePluginConfig {
 	toggleableRoles: { [key: string]: string[] };
 }
 
+enum CommandLanguage {
+	RoleDescription = "Toggles whether you or another user has a role.",
+	RoleArgumentRole = "The role to toggle.",
+	RoleArgumentUser = "_(Requires manage roles permission.)_ You can specify an ID, a username & tag, and a display name. If provided, toggles the role for the user specified. If not provided, toggles the role for yourself.",
+}
+
 export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 	public getDefaultId () {
 		return "roleToggle";
+	}
+
+	public getDescription () {
+		return "A plugin for toggling roles on server members.";
+	}
+
+	private readonly help = new HelpContainerPlugin()
+		.addCommand("role", CommandLanguage.RoleDescription, command => command
+			.addArgument("role", CommandLanguage.RoleArgumentRole)
+			.addArgument("user", CommandLanguage.RoleArgumentUser, argument => argument
+				.setOptional()));
+
+	@Command(["help role", "role help"])
+	protected async commandHelp (message: Message) {
+		this.reply(message, this.help);
+		return true;
 	}
 
 	// tslint:disable cyclomatic-complexity

@@ -1,7 +1,8 @@
-import { Collection, Guild, GuildMember, Message, RichEmbed, Role, TextChannel, User } from "discord.js";
+import { Collection, DMChannel, GroupDMChannel, Guild, GuildMember, Message, RichEmbed, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Logger from "../util/Log";
 import { getTime, hours, never, seconds, TimeUnit } from "../util/Time";
+import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
 import { Importable } from "./Importable";
 
 enum Pronouns {
@@ -51,6 +52,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	private loaded = false;
 	private dirty = false;
 	private pronounRoles?: Record<keyof typeof Pronouns, Role | undefined>;
+	/**
+	 * The current command prefix, configured instance-wide. It's only for reference, changing this would do nothing
+	 */
+	// @ts-ignore
+	protected readonly commandPrefix: string;
 	public get isDirty () { return this.dirty; }
 
 
@@ -69,6 +75,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public getDefaultConfig (): CONFIG & IPluginConfig {
 		this.logger.warning("No default config");
 		return {} as any;
+	}
+
+	public getDescription (): string | undefined {
+		return undefined;
+	}
+
+	public isHelpVisible (author: User) {
+		return true;
 	}
 
 	/* hooks */
@@ -95,16 +109,24 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return this.pluginData[key]!;
 	}
 
-	public reply (message: Message, reply: string | RichEmbed) {
-		if (typeof reply === "string") {
-			reply = reply.trim();
-			if (!message.guild) {
-				reply = reply[0].toUpperCase() + reply.slice(1);
-			}
-			return message.reply(reply);
-		} else {
+	public reply (message: Message, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
+		const pluginHelp = reply instanceof HelpContainerPlugin ? reply : undefined;
+		if (pluginHelp)
+			return pluginHelp.getPaginator(this.commandPrefix)
+				.reply(message);
+
+		if (reply instanceof HelpContainerCommand)
+			reply = new RichEmbed()
+				.setDescription(reply.getDisplay(this.commandPrefix));
+
+		if (typeof reply !== "string")
 			return message.channel.send({ embed: reply });
-		}
+
+		reply = reply.trim();
+		if (!message.guild)
+			reply = reply[0].toUpperCase() + reply.slice(1);
+
+		return message.reply(reply);
 	}
 
 	/**
@@ -201,10 +223,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return true;
 	}
 
-	protected async sendAll (channelOrReplyMessage: TextChannel | Message, ...lines: string[]) {
+	protected async sendAll (channelOrReplyMessage: TextChannel | DMChannel | GroupDMChannel | Message, ...lines: (string | 0 | undefined | null)[]) {
 		// lines = lines.map(line => line.split("\n")).flat();
 		const messages: string[] = [""];
 		for (let line of lines) {
+			if (typeof line !== "string")
+				// skip non-string lines
+				continue;
+
 			line = `${line}\n`;
 			if (messages.last()!.length + line.length >= 2000)
 				messages.push("");

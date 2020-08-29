@@ -1,5 +1,6 @@
-import { GuildMember, Message, Role, TextChannel } from "discord.js";
+import { GuildMember, Message, Role, TextChannel, User } from "discord.js";
 import { Command } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
 import { minutes, seconds } from "../util/Time";
@@ -15,6 +16,12 @@ export interface IWelcomeConfig {
 	welcomeMessage: string | (string | string[])[];
 }
 
+enum CommandLanguage {
+	WelcomeDescription = "If too many users join at once, the bot pauses in case something happened so that it doesn't spam pings. The following are commands provided in case this occurs.",
+	WelcomeConfirmDescription = "This command *confirms* sending welcome messages.",
+	WelcomeSkipDescription = "This command *skips* sending welcome messages.",
+}
+
 export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> {
 	public updateInterval = minutes(1);
 
@@ -26,6 +33,30 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 	public getDefaultId () {
 		return "welcome";
+	}
+
+	public getDescription () {
+		return "A plugin for welcoming new users (when they've gotten specific roles).";
+	}
+
+	public isHelpVisible (author: User) {
+		return this.guild.members.get(author.id)
+			?.permissions.has("ADMINISTRATOR")
+			?? false;
+	}
+
+	private readonly help = new HelpContainerPlugin()
+		.setDescription(CommandLanguage.WelcomeDescription)
+		.addCommand("welcome confirm", CommandLanguage.WelcomeConfirmDescription)
+		.addCommand("welcome skip", CommandLanguage.WelcomeSkipDescription);
+
+	@Command(["help welcome", "welcome help"])
+	protected async commandHelp (message: Message) {
+		if (!message.member.permissions.has("ADMINISTRATOR"))
+			return true;
+
+		this.reply(message, this.help);
+		return true;
 	}
 
 	public async onStart () {

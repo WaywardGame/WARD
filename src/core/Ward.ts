@@ -14,13 +14,14 @@ import Data from "../util/Data";
 import Logger from "../util/Log";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, CommandFunction, CommandMetadata, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
+import { Api, CommandFunction, CommandMessage, CommandMetadata, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
 import { IConfig, IGuildConfig } from "./Config";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Importable } from "./Importable";
+import { Paginator } from "./Paginatable";
 import { IPluginConfig, Plugin } from "./Plugin";
 
-type Command = { function?: CommandFunction, subcommands: CommandMap };
+type Command = { function?: CommandFunction, plugin?: string, subcommands: CommandMap };
 type CommandMap = Map<string, Command>;
 
 export class Ward {
@@ -152,9 +153,8 @@ export class Ward {
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
 		const id = this.addImportable(plugin, this.plugins);
 		config = config || this.config.plugins[id];
-		if (config) {
+		if (config)
 			plugin.config = config;
-		}
 
 		return id;
 	}
@@ -215,6 +215,9 @@ export class Ward {
 			.split(" ")
 			.filter(v => v);
 
+		const commandMessage = message as CommandMessage;
+		let commandName = "";
+
 		let commandMap: CommandMap | undefined = this.commands;
 		let command: Command | undefined;
 		while (true) {
@@ -224,16 +227,20 @@ export class Ward {
 
 			args.shift();
 
+			commandName += `${word} `;
 			command = commandMap.get(word);
 			commandMap = command?.subcommands;
 		}
 
+		commandMessage.command = commandName.trimEnd();
+		commandMessage.args = args;
+
 		if (command)
-			command.function?.(message, ...args);
+			command.function?.(commandMessage, ...args);
 
 		else
 			for (const command of this.anythingCommands)
-				command(message, ...args);
+				command(commandMessage, ...args);
 	}
 
 	private async login () {
@@ -250,6 +257,7 @@ export class Ward {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
 			const config = this.config.plugins[pluginName];
+			(plugin as any).commandPrefix = this.commandPrefix;
 
 			if (config === false)
 				continue;
@@ -308,6 +316,7 @@ export class Ward {
 		}
 
 		this.registerCommand(["plugin", "update"], (message: Message, plugin: string) => this.commandUpdatePlugin(message, plugin));
+		this.registerCommand(["help"], (message: Message) => this.commandHelp(message));
 
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
@@ -320,7 +329,7 @@ export class Ward {
 
 				for (const command of Array.isArray(commands) ? commands : [commands]) {
 					if (command && (!condition || condition(plugin))) {
-						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin));
+						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin), undefined, pluginName);
 						const logText = `command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`;
 						if (alreadyExisted)
 							this.logger.warning(`Re-registered ${logText}`);
@@ -330,6 +339,20 @@ export class Ward {
 				}
 			}
 		}
+	}
+
+	private commandHelp (message: Message) {
+		const helpCommands = this.commands.get("help");
+		const paginator = Paginator.create(helpCommands?.subcommands || [], ([name, command]) => {
+			const plugin = this.plugins[command.plugin!] as Plugin | undefined;
+			if (!plugin?.isHelpVisible(message.author))
+				return undefined;
+
+			return `\`${this.commandPrefix}help ${name}\`\n${plugin.getDescription() || ""}`.trim();
+		});
+
+		paginator.reply(message);
+		return true;
 	}
 
 	private commandUpdatePlugin (message: Message, pluginName: string) {
@@ -348,7 +371,7 @@ export class Ward {
 		return true;
 	}
 
-	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands) {
+	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands, pluginId?: string) {
 		if (words.length === 1 && words[0] === "*") {
 			this.anythingCommands.add(commandFunction);
 			return;
@@ -361,6 +384,7 @@ export class Ward {
 			if (!words.length) {
 				const alreadyExisted = !!command.function;
 				command.function = commandFunction;
+				command.plugin = pluginId;
 				return alreadyExisted;
 			}
 

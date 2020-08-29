@@ -1,5 +1,6 @@
 import { Collection, GuildMember, Message, Permissions, RichEmbed, Role } from "discord.js";
 import { Command, ImportPlugin } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { RegularsPlugin } from "./RegularsPlugin";
 
@@ -26,6 +27,18 @@ export interface IColorsConfig {
 	colors?: { [key: string]: string[] };
 }
 
+enum CommandLanguage {
+	ColorDescription = "Prints your current colour.",
+	ColorCountDescription = "Counts how many colour roles there currently are, compared to roles in general.",
+	ColorListDescription = "Prints a guide to valid colours.",
+	ColorRemoveDescription = "Removes your colour.",
+	ColorGetDescription = "Prints your current colour, or the current colour of another user.",
+	ColorGetArgumentUser = "You can specify an ID, a username & tag, and a display name. If provided, gets the colour of the user specified. If not provided, gets your own colour.",
+	ColorSetDescription = "Sets your colour, or the colour of another user.",
+	ColorSetArgumentColor = "If the server has a list of valid colours, use one of those. If the server allows any colour, use a hex string, for example `#ff0000`. Using a `#` is optional. Follows CSS color syntax, so `#007` expands to `#000077`. Google's color picker can be used if you need to find a specific colour: https://www.google.com/search?q=color+picker",
+	ColorSetArgumentUser = "_(Requires manage roles permission.)_ You can specify an ID, a username & tag, and a display name. If provided, sets the colour of the user specified. If not provided, sets your own colour.",
+}
+
 export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	@ImportPlugin("regulars")
@@ -35,6 +48,29 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	public getDefaultId () {
 		return "colors";
+	}
+
+	public getDescription () {
+		return "A plugin for managing your own colour and the colour of other members.";
+	}
+
+	private readonly help = new HelpContainerPlugin()
+		.addCommand("color|colour", CommandLanguage.ColorDescription)
+		.addCommand("color|colour", CommandLanguage.ColorSetDescription, command => command
+			.addArgument("color", CommandLanguage.ColorSetArgumentColor)
+			.addArgument("user", CommandLanguage.ColorSetArgumentUser, argument => argument
+				.setOptional()))
+		.addCommand("color|colour reset|remove|none", CommandLanguage.ColorRemoveDescription)
+		.addCommand("color|colour list|all", CommandLanguage.ColorListDescription)
+		.addCommand("color|colour get", CommandLanguage.ColorGetDescription, command => command
+			.addArgument("user", CommandLanguage.ColorGetArgumentUser, argument => argument
+				.setOptional()))
+		.addCommand("color|colour count", CommandLanguage.ColorCountDescription);
+
+	@Command(["help color", "color help", "colour help"])
+	protected async commandHelp (message: Message) {
+		this.reply(message, this.help);
+		return true;
 	}
 
 	public async onStart () {

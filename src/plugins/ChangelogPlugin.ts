@@ -1,6 +1,7 @@
 import chalk from "chalk";
-import { Message, TextChannel } from "discord.js";
+import { Message, TextChannel, User } from "discord.js";
 import { Command, ImportApi } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
 import { hours, seconds } from "../util/Time";
@@ -54,6 +55,12 @@ export interface IChangelogConfig {
 	warningChangeCount?: number;
 }
 
+enum CommandLanguage {
+	ChangelogDescription = "If too many changes happen at once, the bot pauses in case something happened so that it doesn't spam. The following are commands provided in case this occurs.",
+	ChangelogConfirmDescription = "This command *confirms* printing the changelog.",
+	ChangelogSkipDescription = "This command *skips* printing the changelog.",
+}
+
 export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	public updateInterval = hours(1);
 
@@ -99,6 +106,30 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 		// this.log("Update complete.");
 		this.save();
+	}
+
+	public getDescription () {
+		return "A plugin for reporting changes as seen on a Trello board.";
+	}
+
+	public isHelpVisible (author: User) {
+		return this.guild.members.get(author.id)
+			?.permissions.has("ADMINISTRATOR")
+			?? false;
+	}
+
+	private readonly help = new HelpContainerPlugin()
+		.setDescription(CommandLanguage.ChangelogDescription)
+		.addCommand("changelog confirm", CommandLanguage.ChangelogConfirmDescription)
+		.addCommand("changelog skip", CommandLanguage.ChangelogSkipDescription);
+
+	@Command(["help changelog", "changelog help"])
+	protected async commandHelp (message: Message) {
+		if (!message.member.permissions.has("ADMINISTRATOR"))
+			return true;
+
+		this.reply(message, this.help);
+		return true;
 	}
 
 	@Command<ChangelogPlugin>("changelog confirm")
