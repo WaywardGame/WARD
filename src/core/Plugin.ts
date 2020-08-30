@@ -60,9 +60,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	protected readonly commandPrefix: string;
 	public get isDirty () { return this.dirty; }
 
-
+	private _config: CONFIG & IPluginConfig;
+	public get config () { return this._config; }
 	public set config (cfg: CONFIG & IPluginConfig) {
-		super.config = cfg;
+		this._config = cfg;
 
 		if (cfg && cfg.updateInterval) {
 			this.updateInterval = getTime(cfg.updateInterval);

@@ -3,6 +3,9 @@ import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
 export abstract class Api<Config = {}> extends Importable<Config> {
+	private _config: Config;
+	public get config () { return this._config; }
+	public set config (cfg: Config) { this._config = cfg; }
 }
 
 export const SYMBOL_IMPORT_API_KEY = Symbol("import-api");

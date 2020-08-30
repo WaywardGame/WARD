@@ -28,12 +28,12 @@ type CommandMap = Map<string, Command>;
 
 export class Ward {
 	private guild: Guild;
-	private discord: Client;
+	private discord?: Client;
 	private commandPrefix: string;
 	private plugins: { [key: string]: Plugin } = {};
 	private apis: { [key: string]: Api } = {};
 	private stopped = true;
-	private onStop: () => any;
+	private onStop?: () => any;
 	private readonly commands: CommandMap = new Map();
 	private readonly anythingCommands = new Set<CommandFunction>();
 	private readonly logger = new Logger(this.config.apis.discord.guild);
@@ -74,7 +74,7 @@ export class Ward {
 
 		this.logger.verbose("Login");
 		await this.login();
-		this.guild = this.discord.guilds.find(guild => guild.id === this.config.apis.discord.guild);
+		this.guild = this.discord!.guilds.find(guild => guild.id === this.config.apis.discord.guild);
 		this.logger.popScope();
 		this.logger.pushScope(this.guild.name);
 
@@ -84,7 +84,7 @@ export class Ward {
 		this.logger.verbose("Plugins init");
 		this.pluginHookInit();
 
-		this.discord.addListener("message", m => this.onMessage(m));
+		this.discord!.addListener("message", m => this.onMessage(m));
 		// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
 
 		this.logger.verbose("Plugins start");
@@ -106,7 +106,7 @@ export class Ward {
 		await this.logout();
 
 		this.logger.verbose("Stop");
-		this.onStop();
+		this.onStop?.();
 		delete this.onStop;
 	}
 
@@ -252,16 +252,16 @@ export class Ward {
 							const newCommandMessage = new1 as CommandMessage;
 							newCommandMessage.previous = result;
 							this.onCommand(newCommandMessage);
-							await commandMessage.reactions.get("✏")?.remove(this.discord.user);
-							this.discord.off("messageUpdate", handleMessageEdit);
+							await commandMessage.reactions.get("✏")?.remove(this.discord!.user);
+							this.discord!.off("messageUpdate", handleMessageEdit);
 						}
 					};
 
 					await commandMessage.react("✏");
-					this.discord.on("messageUpdate", handleMessageEdit);
+					this.discord!.on("messageUpdate", handleMessageEdit);
 					await sleep(seconds(15));
-					await commandMessage.reactions.get("✏")?.remove(this.discord.user);
-					this.discord.off("messageUpdate", handleMessageEdit);
+					await commandMessage.reactions.get("✏")?.remove(this.discord!.user);
+					this.discord!.off("messageUpdate", handleMessageEdit);
 				});
 			return;
 		}
@@ -276,7 +276,7 @@ export class Ward {
 		await this.discord.login(this.config.apis.discord.token);
 	}
 	private async logout () {
-		await this.discord.destroy();
+		await this.discord?.destroy();
 		delete this.discord;
 	}
 
@@ -323,7 +323,7 @@ export class Ward {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName] as Plugin;
-			plugin.user = this.discord.user;
+			plugin.user = this.discord!.user;
 			plugin.guild = this.guild;
 			plugin.logger = new Logger(this.guild.name, plugin.getId());
 

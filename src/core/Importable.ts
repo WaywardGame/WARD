@@ -1,5 +1,6 @@
 export abstract class Importable<Config = {}> {
-	public config: Config;
+	public abstract get config (): Config;
+	public abstract set config (value: Config);
 
 	private id = this.getDefaultId();
 

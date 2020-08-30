@@ -41,7 +41,7 @@ export class Config {
 						handler(this.result);
 					}
 
-					delete this.onGetHandlers;
+					this.onGetHandlers.splice(0, Infinity);
 					this.isGetting = false;
 				}).catch(err => {
 					// tslint:disable-next-line no-console
@@ -50,7 +50,7 @@ export class Config {
 						errorHandler(err);
 					}
 
-					delete this.onGetHandlers;
+					this.onGetHandlers.splice(0, Infinity);
 				});
 			}
 
