@@ -2,6 +2,7 @@ import { Collection, DMChannel, GroupDMChannel, Guild, GuildMember, Message, Ric
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Logger from "../util/Log";
 import { getTime, hours, never, seconds, TimeUnit } from "../util/Time";
+import { CommandMessage } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
 import { Importable } from "./Importable";
 
@@ -109,7 +110,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return this.pluginData[key]!;
 	}
 
-	public reply (message: Message, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
+	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
 		const pluginHelp = reply instanceof HelpContainerPlugin ? reply : undefined;
 		if (pluginHelp)
 			return pluginHelp.getPaginator(this.commandPrefix)
@@ -119,14 +120,26 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			reply = new RichEmbed()
 				.setDescription(reply.getDisplay(this.commandPrefix));
 
-		if (typeof reply !== "string")
-			return message.channel.send({ embed: reply });
+		if (typeof reply === "string") {
+			reply = reply.trim();
+			if (!message.guild)
+				reply = reply[0].toUpperCase() + reply.slice(1);
+			else
+				reply = `<@${message.author.id}>, ${reply}`;
+		}
 
-		reply = reply.trim();
-		if (!message.guild)
-			reply = reply[0].toUpperCase() + reply.slice(1);
+		const content = typeof reply === "string" ? reply : { embed: reply };
 
-		return message.reply(reply);
+		if (message.previous?.output[0])
+			return message.previous?.output[0].edit(content)
+				.then(async result => {
+					for (let i = 1; i < (message.previous?.output.length || 0); i++)
+						message.previous?.output[i].delete();
+
+					return result;
+				});
+
+		return message.channel.send(content);
 	}
 
 	/**
@@ -207,20 +220,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			?? guild.roles.find(r => r.name.toLowerCase() === role.toLowerCase());
 	}
 
-	protected validateFindResult (
-		message: Message,
-		result: GuildMember | Collection<string, GuildMember> | undefined,
-	): result is GuildMember {
-		if (result instanceof Collection) {
-			this.reply(message, "I found multiple members with that name. Can you be more specific?");
-			return false;
+	protected validateFindResult (result: GuildMember | Collection<string, GuildMember> | undefined): { error: string, member?: undefined } | { member: GuildMember, error?: undefined } {
+		if (result instanceof Collection)
+			return { error: "I found multiple members with that name. Can you be more specific?" };
 
-		} else if (!result) {
-			this.reply(message, "I couldn't find a member by that name.");
-			return false;
-		}
+		if (!result)
+			return { error: "I couldn't find a member by that name." };
 
-		return true;
+		return { member: result };
 	}
 
 	protected async sendAll (channelOrReplyMessage: TextChannel | DMChannel | GroupDMChannel | Message, ...lines: (string | 0 | undefined | null)[]) {
@@ -239,8 +246,16 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 
 		const channel = channelOrReplyMessage instanceof Message ? channelOrReplyMessage.channel : channelOrReplyMessage;
-		for (const message of messages) {
-			channel.send(message);
+		const replyTo = channelOrReplyMessage instanceof Message ? channelOrReplyMessage as CommandMessage : undefined;
+
+		for (let i = 0; i < messages.length; i++) {
+			const message = messages[i];
+
+			if (i === 0 && replyTo?.previous?.output[i])
+				replyTo.previous.output[i].edit(message);
+			else
+				channel.send(message);
+
 			await sleep(seconds(1));
 		}
 	}

@@ -10,11 +10,13 @@ import { SpamPlugin } from "../plugins/SpamPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import WelcomePlugin from "../plugins/WelcomePlugin";
 import { sleep } from "../util/Async";
+import Bound from "../util/Bound";
 import Data from "../util/Data";
 import Logger from "../util/Log";
+import { seconds } from "../util/Time";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, CommandFunction, CommandMessage, CommandMetadata, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
+import { Api, CommandFunction, CommandMessage, CommandMetadata, CommandResult, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
 import { IConfig, IGuildConfig } from "./Config";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Importable } from "./Importable";
@@ -208,6 +210,9 @@ export class Ward {
 	}
 
 	private onCommand (message: Message) {
+		if (!message.content.startsWith(this.commandPrefix))
+			return;
+
 		const args = message.content.slice(this.commandPrefix.length)
 			.trim()
 			.replace(/\n/g, " \n")
@@ -235,12 +240,34 @@ export class Ward {
 		commandMessage.command = commandName.trimEnd();
 		commandMessage.args = args;
 
-		if (command)
-			command.function?.(commandMessage, ...args);
+		if (command) {
+			Promise.resolve(command.function?.(commandMessage, ...args))
+				.then(async result => {
+					if (result?.type !== "fail")
+						return;
 
-		else
-			for (const command of this.anythingCommands)
-				command(commandMessage, ...args);
+					// result === false means the user might've made a mistake, let's keep listening for a while to see if they edit
+					const handleMessageEdit = async (old1: Message, new1: Message) => {
+						if (old1.id === commandMessage.id) {
+							const newCommandMessage = new1 as CommandMessage;
+							newCommandMessage.previous = result;
+							this.onCommand(newCommandMessage);
+							await commandMessage.reactions.get("✏")?.remove(this.discord.user);
+							this.discord.off("messageUpdate", handleMessageEdit);
+						}
+					};
+
+					await commandMessage.react("✏");
+					this.discord.on("messageUpdate", handleMessageEdit);
+					await sleep(seconds(15));
+					await commandMessage.reactions.get("✏")?.remove(this.discord.user);
+					this.discord.off("messageUpdate", handleMessageEdit);
+				});
+			return;
+		}
+
+		for (const command of this.anythingCommands)
+			command(commandMessage, ...args);
 	}
 
 	private async login () {
@@ -315,8 +342,8 @@ export class Ward {
 			}
 		}
 
-		this.registerCommand(["plugin", "update"], (message: Message, plugin: string) => this.commandUpdatePlugin(message, plugin));
-		this.registerCommand(["help"], (message: Message) => this.commandHelp(message));
+		this.registerCommand(["plugin", "update"], this.commandUpdatePlugin);
+		this.registerCommand(["help"], this.commandHelp);
 
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
@@ -341,7 +368,8 @@ export class Ward {
 		}
 	}
 
-	private commandHelp (message: Message) {
+	@Bound
+	private commandHelp (message: CommandMessage) {
 		const helpCommands = this.commands.get("help");
 		const paginator = Paginator.create(helpCommands?.subcommands || [], ([name, command]) => {
 			const plugin = this.plugins[command.plugin!] as Plugin | undefined;
@@ -352,23 +380,24 @@ export class Ward {
 		});
 
 		paginator.reply(message);
-		return true;
+		return CommandResult.pass();
 	}
 
-	private commandUpdatePlugin (message: Message, pluginName: string) {
+	@Bound
+	private commandUpdatePlugin (message: CommandMessage, pluginName: string) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
-			message.reply(`can't update plugin ${pluginName}, not found.`);
-			return false;
+			return message.reply(`can't update plugin ${pluginName}, not found.`)
+				.then(reply => CommandResult.fail(message, reply));
 		}
 
 		this.logger.info(`Updating plugin "${pluginName}" due to request from ${message.member.displayName}`);
 		this.updatePlugin(plugin);
 		message.reply(`updated plugin ${pluginName}.`);
-		return true;
+		return CommandResult.pass();
 	}
 
 	private registerCommand (words: string[], commandFunction: CommandFunction, commandMap = this.commands, pluginId?: string) {

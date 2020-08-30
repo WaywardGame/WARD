@@ -1,5 +1,5 @@
-import { GuildMember, Message, Role, TextChannel, User } from "discord.js";
-import { Command } from "../core/Api";
+import { GuildMember, Role, TextChannel, User } from "discord.js";
+import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
@@ -51,12 +51,12 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		.addCommand("welcome skip", CommandLanguage.WelcomeSkipDescription);
 
 	@Command(["help welcome", "welcome help"])
-	protected async commandHelp (message: Message) {
+	protected async commandHelp (message: CommandMessage) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		this.reply(message, this.help);
-		return true;
+		return CommandResult.pass();
 	}
 
 	public async onStart () {
@@ -81,18 +81,18 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	@Command<WelcomePlugin>("welcome confirm")
-	protected confirmWelcome (message: Message) {
+	protected confirmWelcome (message: CommandMessage) {
 		this.continueLogging(message, true);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<WelcomePlugin>("welcome skip")
-	protected skipWelcome (message: Message) {
+	protected skipWelcome (message: CommandMessage) {
 		this.continueLogging(message, false);
-		return true;
+		return CommandResult.pass();
 	}
 
-	private continueLogging (message: Message, report: boolean) {
+	private continueLogging (message: CommandMessage, report: boolean) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return;
 

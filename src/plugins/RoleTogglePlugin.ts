@@ -1,5 +1,5 @@
-import { Message, Permissions } from "discord.js";
-import { Command } from "../core/Api";
+import { Permissions } from "discord.js";
+import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 
@@ -31,18 +31,17 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 				.setOptional()));
 
 	@Command(["help role", "role help"])
-	protected async commandHelp (message: Message) {
+	protected async commandHelp (message: CommandMessage) {
 		this.reply(message, this.help);
-		return true;
+		return CommandResult.pass();
 	}
 
 	// tslint:disable cyclomatic-complexity
 	@Command("role")
-	protected async commandRole (message: Message, roleName?: string, queryMember?: string) {
-		if (!roleName) {
-			this.reply(message, "you must provide a role to toggle.");
-			return false;
-		}
+	protected async commandRole (message: CommandMessage, roleName?: string, queryMember?: string) {
+		if (!roleName)
+			return this.reply(message, "you must provide a role to toggle.")
+				.then(reply => CommandResult.fail(message, reply));
 
 		roleName = roleName.toLowerCase();
 
@@ -52,23 +51,23 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 				.some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName));
 		});
 
-		if (!role) {
-			this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`);
-			return false;
-		}
+		if (!role)
+			return this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`)
+				.then(reply => CommandResult.fail(message, reply));
 
 		let toggleMember = message.member;
 		if (queryMember) {
 			if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, "only mods can toggle the roles of other members.");
-				return true;
+				return CommandResult.pass();
 			}
 
-			const resultingQueryMember = await this.findMember(queryMember);
-			if (!this.validateFindResult(message, resultingQueryMember))
-				return false;
+			const queryMemberResult = this.validateFindResult(await this.findMember(queryMember));
+			if (queryMemberResult.error !== undefined)
+				return this.reply(message, queryMemberResult.error)
+					.then(reply => CommandResult.fail(message, reply));
 
-			toggleMember = resultingQueryMember;
+			toggleMember = queryMemberResult.member;
 		}
 
 		if (toggleMember.roles.has(role.id)) {
@@ -82,6 +81,6 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
 		}
 
-		return true;
+		return CommandResult.pass();
 	}
 }

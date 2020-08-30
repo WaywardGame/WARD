@@ -1,5 +1,6 @@
 import { DMChannel, GroupDMChannel, Message, RichEmbed, TextChannel, User } from "discord.js";
 import { minutes } from "../util/Time";
+import { CommandMessage } from "./Api";
 
 export default interface Paginatable<A extends any[]> {
 	getPaginator (...args: A): Paginator;
@@ -41,17 +42,27 @@ export class Paginator {
 		return this;
 	}
 
-	public async reply (message: Message) {
+	public async reply (message: CommandMessage) {
 		return this.send(message.channel, message.author, message);
 	}
 
-	public async send (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: Message) {
+	public async send (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: CommandMessage) {
 		if (this.getSize() === 1) {
-			const content = this.get();
-			return typeof content === "string" ? channel.send(content) : channel.send({ embed: content });
+			const baseContent = this.get();
+			const content = typeof baseContent === "string" ? baseContent : { embed: baseContent };
+			if (commandMessage?.previous?.output[0])
+				return commandMessage.previous?.output[0].edit(content)
+					.then(async result => {
+						for (let i = 1; i < (commandMessage.previous?.output.length || 0); i++)
+							commandMessage.previous?.output[i].delete();
+
+						return result;
+					});
+
+			return channel.send(content);
 		}
 
-		return channel instanceof DMChannel || channel instanceof GroupDMChannel ? this.sendDM(channel, inputUser)
+		return channel instanceof DMChannel || channel instanceof GroupDMChannel ? this.sendDM(channel, inputUser, commandMessage)
 			: this.sendServer(channel, inputUser, commandMessage);
 	}
 
@@ -107,7 +118,7 @@ export class Paginator {
 		return this.pages = pages;
 	}
 
-	private async sendServer (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: Message) {
+	private async sendServer (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: CommandMessage) {
 		let resolved = false;
 		return new Promise<Message>(async resolve => {
 			let currentText = this.get();
@@ -115,7 +126,15 @@ export class Paginator {
 			if (typeof currentText !== "string")
 				currentEmbed = currentText, currentText = inputUser ? `<@${inputUser.id}>` : "";
 
-			const messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
+			let messagePromise: Promise<Message>;
+			if (commandMessage?.previous?.output[0]) {
+				messagePromise = commandMessage.previous.output[0].edit(currentText, currentEmbed);
+				for (let i = 1; i < commandMessage.previous.output.length; i++)
+					commandMessage.previous.output[i].delete();
+
+			} else
+				messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
+
 			if (!resolved) {
 				resolved = true;
 				resolve(messagePromise);
@@ -148,7 +167,10 @@ export class Paginator {
 		});
 	}
 
-	private async sendDM (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User) {
+	private async sendDM (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: CommandMessage) {
+		for (const previousMessage of commandMessage?.previous?.output || [])
+			await previousMessage.delete();
+
 		let resolved = false;
 		return new Promise<Message>(async resolve => {
 			while (true) {

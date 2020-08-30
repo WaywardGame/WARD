@@ -1,6 +1,6 @@
 import chalk from "chalk";
-import { Message, TextChannel, User } from "discord.js";
-import { Command, ImportApi } from "../core/Api";
+import { TextChannel, User } from "discord.js";
+import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
@@ -124,27 +124,27 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		.addCommand("changelog skip", CommandLanguage.ChangelogSkipDescription);
 
 	@Command(["help changelog", "changelog help"])
-	protected async commandHelp (message: Message) {
+	protected async commandHelp (message: CommandMessage) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		this.reply(message, this.help);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<ChangelogPlugin>("changelog confirm")
-	protected confirmChangelog (message: Message) {
+	protected confirmChangelog (message: CommandMessage) {
 		this.continueLogging(message, true);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<ChangelogPlugin>("changelog skip")
-	protected skipChangelog (message: Message) {
+	protected skipChangelog (message: CommandMessage) {
 		this.continueLogging(message, false);
-		return true;
+		return CommandResult.pass();
 	}
 
-	private continueLogging (message: Message, report: boolean) {
+	private continueLogging (message: CommandMessage, report: boolean) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return;
 

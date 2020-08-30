@@ -1,5 +1,5 @@
 import { GuildMember, Message, Role } from "discord.js";
-import { Command } from "../core/Api";
+import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
@@ -113,9 +113,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			.addArgument("amt", CommandLanguage.XpSetArgumentAmt));
 
 	@Command<RegularsPlugin>(p => p.getCommandName("helpName") && [`help ${p.getCommandName("helpName")}`, `${p.getCommandName("helpName")} help`], p => p.config.commands !== false)
-	protected async commandHelp (message: Message) {
+	protected async commandHelp (message: CommandMessage) {
 		this.reply(message, this.help());
-		return true;
+		return CommandResult.pass();
 	}
 
 	public async onStart () {
@@ -371,17 +371,16 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	// tslint:disable cyclomatic-complexity
 	@Command<RegularsPlugin>(p => p.getCommandName("check"), p => p.config.commands !== false)
-	protected async commandTalent (message: Message, queryMember?: string) {
+	protected async commandTalent (message: CommandMessage, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
-			const resultingQueryMember = await this.findMember(queryMember);
+			const result = this.validateFindResult(await this.findMember(queryMember));
+			if (result.error !== undefined)
+				return this.reply(message, result.error)
+					.then(reply => CommandResult.fail(message, reply));
 
-			if (!this.validateFindResult(message, resultingQueryMember)) {
-				return false;
-			}
-
-			member = resultingQueryMember;
+			member = result.member;
 		}
 
 		const memberName = member.displayName;
@@ -389,7 +388,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (member.user.bot) {
 			const who = member.id == this.user.id ? `my ${this.getScoreName()}` : `the ${this.getScoreName()} of ${memberName}`;
 			this.reply(message, `having existed since before the beginning of time itself, ${who} cannot be represented in a number system of mortals.`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		const trackedMember = this.members[member.id];
@@ -399,7 +398,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				`you have not gained ${this.getScoreName()} yet.`,
 			);
 
-			return true;
+			return CommandResult.pass();
 		}
 
 		const days = this.members[member.id].daysVisited;
@@ -412,11 +411,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			`your ${this.getScoreName()} ${resultIs}`,
 		);
 
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("rankings"), p => p.config.commands !== false)
-	protected commandTop (message: Message /*, offsetStr: string, quantityStr: string */) {
+	protected commandTop (message: CommandMessage /*, offsetStr: string, quantityStr: string */) {
 		// const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
 		// const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 
@@ -452,24 +451,25 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			.setPageHeader(`__**${this.getScoreName()} Rankings!**__ (Page **{page}** of **{total}**)`)
 			.reply(message);
 
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("add"))
-	protected async commandTalentAdd (message: Message, queryMember?: string, amtStr?: string) {
+	protected async commandTalentAdd (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
 			// this.reply(message, "only mods may manually modify talent of members.");
-			return true;
+			return CommandResult.pass();
 
-		if (queryMember === undefined || !amtStr) {
-			this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to change the ${this.getScoreName()} by.`);
-			return false;
-		}
+		if (queryMember === undefined || !amtStr)
+			return this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to change the ${this.getScoreName()} by.`)
+				.then(reply => CommandResult.fail(message, reply));
 
-		const member = await this.findMember(queryMember);
-		if (!this.validateFindResult(message, member)) {
-			return false;
-		}
+		const result = this.validateFindResult(await this.findMember(queryMember));
+		if (result.error !== undefined)
+			return this.reply(message, result.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = result.member;
 
 		const pronouns = await this.getPronouns(member);
 
@@ -483,23 +483,25 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.logger.info(message.member.displayName, reply);
 
 		this.updateTopMember(trackedMember);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("set"))
-	protected async commandTalentSet (message: Message, queryMember?: string, amtStr?: string) {
+	protected async commandTalentSet (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
 			// this.reply(message, "only mods may manually modify talent of members.");
-			return true;
+			return CommandResult.pass();
 
-		if (queryMember === undefined || !amtStr) {
-			this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to set the ${this.getScoreName()} to.`);
-			return false;
-		}
+		if (queryMember === undefined || !amtStr)
+			return this.reply(message, `you must provide a member to update the ${this.getScoreName()} on and the amount to set the ${this.getScoreName()} to.`)
+				.then(reply => CommandResult.fail(message, reply));
 
-		const member = await this.findMember(queryMember);
-		if (!this.validateFindResult(message, member))
-			return false;
+		const result = this.validateFindResult(await this.findMember(queryMember));
+		if (result.error !== undefined)
+			return message.reply(result.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = result.member;
 
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
@@ -511,46 +513,46 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.logger.info(message.member.displayName, reply);
 
 		this.updateTopMember(trackedMember);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("donate"), p => p.config.commands !== false)
-	protected async commandTalentDonate (message: Message, amtStr?: string, queryMember?: string) {
-		if (queryMember === undefined) {
-			this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`);
-			return false;
-		}
+	protected async commandTalentDonate (message: CommandMessage, amtStr?: string, queryMember?: string) {
+		if (queryMember === undefined)
+			return this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`)
+				.then(reply => CommandResult.fail(message, reply));
 
 		const amt = Math.floor(+amtStr!);
-		if (isNaN(amt)) {
-			this.reply(message, `you must provide an amount of ${this.getScoreName()} to donate.`);
-			return false;
-		}
+		if (isNaN(amt))
+			return this.reply(message, `you must provide an amount of ${this.getScoreName()} to donate.`)
+				.then(reply => CommandResult.fail(message, reply));
 
-		if (amt < 1) {
-			this.reply(message, `you must donate a positive amount of ${this.getScoreName()}. No stealing allowed 😡`);
-			return false;
-		}
+		if (amt < 1)
+			return this.reply(message, `you must donate a positive amount of ${this.getScoreName()}. No stealing allowed 😡`)
+				.then(reply => CommandResult.fail(message, reply));
 
 		const trackedMember = this.members[message.member.id];
 		if (!message.member.roles.has(this.roleRegular.id)) {
 			this.reply(message, `only regulars can donate ${this.getScoreName()}.`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		if (trackedMember.talent - this.config.regularMilestoneTalent < amt) {
 			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
-			return true;
+			return CommandResult.pass();
 		}
 
-		const member = await this.findMember(queryMember);
-		if (!this.validateFindResult(message, member))
-			return false;
+		const queryMemberResult = this.validateFindResult(await this.findMember(queryMember));
+		if (queryMemberResult.error !== undefined)
+			return message.reply(queryMemberResult.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
 		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		const pronouns = await this.getPronouns(member);
@@ -571,37 +573,40 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			this.logger.info(message.member.displayName, `${operation}. ${member.displayName}'s ${theirNew}. ${message.member.displayName}'s ${yourNew}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("autodonate"), p => p.config.commands !== false)
-	protected async commandTalentAutoDonate (message: Message, queryMember?: string, amtStr?: string) {
+	protected async commandTalentAutoDonate (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		const trackedMember = this.members[message.member.id];
 		if (queryMember === undefined) {
 			const [donateMemberId, donateMinAmt] = trackedMember.autodonate || [];
 			this.reply(message, `${donateMemberId ? `you are currently auto-donating to ${this.getMemberName(donateMemberId)} when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(donateMinAmt!)}` : `you must provide a member to donate ${this.getScoreName()} to`}. (Use "remove" or "off" to turn off auto-donation.)`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		if (queryMember === "remove" || queryMember === "off") {
 			delete trackedMember.autodonate;
 			this.reply(message, "you have turned off auto-donation.");
-			return true;
+			return CommandResult.pass();
 		}
 
-		const member = await this.findMember(queryMember);
-		if (!this.validateFindResult(message, member))
-			return false;
+		const queryMemberResult = this.validateFindResult(await this.findMember(queryMember));
+		if (queryMemberResult.error !== undefined)
+			return message.reply(queryMemberResult.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
 		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		if (trackedMember.id === updatingMember.id) {
 			this.reply(message, `You cannot set up auto-donation to yourself. That makes no sense, you big dumdum.`);
-			return true;
+			return CommandResult.pass();
 		}
 
 		const minTalent = Math.max(this.config.regularMilestoneTalent, Math.floor(+amtStr!) || trackedMember.talent);
@@ -622,7 +627,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.logger.info(message.member.displayName, `${operation}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
-		return true;
+		return CommandResult.pass();
 	}
 
 	public autoDonate (trackedMember: ITrackedMember, donationChain = new Set<string>()) {

@@ -1,5 +1,5 @@
 import { GuildMember, Message, TextChannel, User } from "discord.js";
-import { Command, CommandMessage, ImportPlugin } from "../core/Api";
+import { Command, CommandMessage, CommandResult, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import Bound from "../util/Bound";
@@ -91,12 +91,12 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 				.setOptional()));
 
 	@Command(["help giveaway", "giveaway help"])
-	protected async commandHelp (message: Message) {
+	protected async commandHelp (message: CommandMessage) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		this.reply(message, this.help);
-		return true;
+		return CommandResult.pass();
 	}
 
 	public async onStart () {
@@ -106,19 +106,19 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	// tslint:disable cyclomatic-complexity
 	@Command("giveaway")
-	protected async commandStartGiveaway (message: Message, winnerCount: string | number = 1, ...giveawayText: string[]) {
+	protected async commandStartGiveaway (message: CommandMessage, winnerCount: string | number = 1, ...giveawayText: string[]) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		winnerCount = +winnerCount;
 		if (winnerCount <= 0) {
-			this.reply(message, "invalid winner count, must be an integer greater than 0.");
-			return false;
+			return this.reply(message, "invalid winner count, must be an integer greater than 0.")
+				.then(reply => CommandResult.fail(message, reply));
 		}
 
 		if (this.giveaway) {
 			this.reply(message, "there is already a giveaway, please finish or cancel the existing giveaway before starting a new one.");
-			return true;
+			return CommandResult.pass();
 		}
 
 		const lockInfoText = this.config.userLock ? `Members are only eligible if they have chatted on at least ${this.config.userLock.days} day(s) and have at least ${this.config.userLock.talent} ${this.regularsPlugin.getScoreName()} when the giveaway ends.` : "";
@@ -131,17 +131,17 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			winnerCount
 		});
 		this.save();
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command("giveaway cancel")
-	protected async commandCancelGiveaway (message: Message) {
+	protected async commandCancelGiveaway (message: CommandMessage) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		if (!this.giveaway) {
 			this.reply(message, "there is no giveaway running.");
-			return true;
+			return CommandResult.pass();
 		}
 
 		this.channel.send("The giveaway has been cancelled!");
@@ -149,17 +149,17 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 		this.setData("giveaway", this.giveaway = undefined);
 		this.save();
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command(["giveaway prize", "giveaway consolation"])
 	protected async commandSetGiveawayConsolation (message: CommandMessage, prize?: string | number) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		if (!this.giveaway) {
 			this.reply(message, "there is no giveaway running.");
-			return true;
+			return CommandResult.pass();
 		}
 
 		prize = +prize! || 0;
@@ -174,17 +174,17 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			this.reply(message, `removed the ${prizeType} ${this.regularsPlugin.getScoreName()} for the giveaway.`);
 
 		this.logger.info(`${message.member.displayName} set the giveaway ${prizeType} ${this.regularsPlugin.getScoreName()} to ${prize}`);
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command("giveaway end")
-	protected async commandEndGiveaway (message: Message) {
+	protected async commandEndGiveaway (message: CommandMessage) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		if (!this.giveaway) {
 			this.reply(message, "there is no giveaway running.");
-			return true;
+			return CommandResult.pass();
 		}
 
 		const winnerCount = this.giveaway.winnerCount;
@@ -193,30 +193,31 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 		const announcementMessage = await this.getAnnouncementMessage(message, this.giveaway.message);
 		if (!announcementMessage)
-			return true;
+			return CommandResult.pass();
 
 		this.setData("giveaway", this.giveaway = undefined);
 		this.save();
 
-		return this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
+		this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
+		return CommandResult.pass();
 	}
 
 	@Command("giveaway info")
-	protected async commandGiveawayInfo (message: Message, announcement?: string) {
+	protected async commandGiveawayInfo (message: CommandMessage, announcement?: string) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		if (announcement === this.giveaway?.message)
 			announcement = undefined;
 
 		if (!announcement && !this.giveaway) {
 			this.reply(message, "there is no giveaway running.");
-			return true;
+			return CommandResult.pass();
 		}
 
 		const announcementMessage = await this.getAnnouncementMessage(message, announcement || this.giveaway!.message);
 		if (!announcementMessage)
-			return true;
+			return CommandResult.pass();
 
 		const entrants = (await this.getEntrants(announcementMessage))
 			.filter(user => this.guild.members.has(user.id));
@@ -228,28 +229,29 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			`All **${entrants.length}** entrants:`, ...entrants
 				.map(user => `- ${this.regularsPlugin.getMemberName(user.id)}`));
 
-		return true;
+		return CommandResult.pass();
 	}
 
 	@Command("giveaway redraw")
-	protected async commandRedrawGiveaway (message: Message, announcement: string, winnerCount: string | number, prize: string | number, consolation: string | number) {
+	protected async commandRedrawGiveaway (message: CommandMessage, announcement: string, winnerCount: string | number, prize: string | number, consolation: string | number) {
 		if (!message.member.permissions.has("ADMINISTRATOR"))
-			return true;
+			return CommandResult.pass();
 
 		const announcementMessage = await this.getAnnouncementMessage(message, announcement);
 		if (!announcementMessage)
-			return true;
+			return CommandResult.pass();
 
 		winnerCount = +winnerCount || 1;
 		if (!Number.isInteger(winnerCount) || winnerCount <= 0) {
 			this.reply(message, "winner count must be a positive integer.");
-			return true;
+			return CommandResult.pass();
 		}
 
-		return this.drawWinners(announcementMessage, winnerCount, +prize || 0, +consolation || 0);
+		this.drawWinners(announcementMessage, winnerCount, +prize || 0, +consolation || 0);
+		return CommandResult.pass();
 	}
 
-	private async getAnnouncementMessage (message: Message, announcement: string) {
+	private async getAnnouncementMessage (message: CommandMessage, announcement: string) {
 		const announcementMessage = await this.channel.fetchMessage(announcement);
 		if (announcementMessage)
 			return announcementMessage;
@@ -309,8 +311,6 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		this.logger.info(`The giveaway ended with the following winners: ${winners.map(member => member.displayName)}`);
 		if (consolation)
 			this.logger.info(`All other entrants given consolation prize of ${consolation} ${this.regularsPlugin.getScoreName()}: ${nonWinners.map(user => user.tag).join(", ")}`);
-
-		return true;
 	}
 
 	private async getEntrants (message: Message) {

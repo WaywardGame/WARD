@@ -18,14 +18,32 @@ export function ImportPlugin (toImport: string) {
 export type CommandMessage = Message & {
 	command: string;
 	args: string[];
+	previous?: CommandResult;
 };
 
-export type CommandFunction = (message: CommandMessage, ...args: string[]) => boolean | Promise<boolean>;
+export interface CommandResult {
+	type: "pass" | "fail";
+	commandMessage?: CommandMessage;
+	output: Message[];
+}
+
+export module CommandResult {
+
+	export function pass (commandMessage?: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
+		return { type: "pass", commandMessage, output: output.flat() };
+	}
+
+	export function fail (commandMessage: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
+		return { type: "fail", commandMessage, output: output.flat() };
+	}
+}
+
+export type CommandFunction = (message: CommandMessage, ...args: string[]) => CommandResult | Promise<CommandResult>;
 export type CommandRegistrationCondition<P extends Plugin = Plugin> = (plugin: P) => boolean;
 export type CommandMetadata<P extends Plugin = Plugin> = [GetterOr<ArrayOr<string>, [P]>, CommandRegistrationCondition<P>];
 
-export type CommandFunctionDescriptor = TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => boolean> |
-	TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => Promise<boolean>>;
+export type CommandFunctionDescriptor = TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => CommandResult> |
+	TypedPropertyDescriptor<(message: CommandMessage, ...args: string[]) => Promise<CommandResult>>;
 
 export const SYMBOL_COMMAND = Symbol("import-plugin");
 export function Command<P extends Plugin = Plugin> (name: GetterOr<ArrayOr<string>, [P]>, condition?: CommandRegistrationCondition<P>) {
