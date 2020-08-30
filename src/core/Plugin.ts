@@ -272,4 +272,15 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 		return users;
 	}
+
+	protected async getMessage (channel: TextChannel | DMChannel | GroupDMChannel | string | undefined, messageId: string) {
+		if (typeof channel === "string")
+			channel = this.guild.channels.get(channel) as TextChannel;
+
+		if (!channel || !(channel instanceof TextChannel))
+			return undefined;
+
+		return channel.fetchMessage(messageId)
+			.catch(() => undefined);
+	}
 }

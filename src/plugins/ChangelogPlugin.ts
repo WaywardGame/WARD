@@ -1,18 +1,12 @@
 import chalk from "chalk";
-import { TextChannel, User } from "discord.js";
+import { Message, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import { sleep } from "../util/Async";
+import Strings from "../util/Strings";
 import { hours, seconds } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
-
-
-/**
- * Set this variable to true and allow the plugin to update once to save that the bot has reported all possible changes.
- * This is useful when the api changes.
- */
-const skipLog = false;
 
 const emotes: { [key: string]: string } = {
 	[ChangeType.New]: "new",
@@ -44,8 +38,10 @@ const changeOrder = [
 	ChangeType.Refactor,
 ];
 
+type ReportedChange = [trelloId: string, textHash: number, messageId?: string];
+
 export interface IChangelogData {
-	reportedChanges: string[];
+	reportedChanges: ReportedChange[];
 }
 
 export interface IChangelogConfig {
@@ -67,7 +63,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private channel: TextChannel;
 	private warningChannel?: TextChannel;
 	private isReporting = false;
-	private reportedChanges: string[];
+	private reportedChanges: ReportedChange[];
 	private continueReport?: (report: boolean) => any;
 
 	@ImportApi("trello")
@@ -163,11 +159,43 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private async changelog (version: IVersionInfo | string) {
 		const changelog = await this.trello.getChangelog(version);
 		const changes = changelog?.unsorted
-			?.filter(card => !this.reportedChanges.includes(card.id));
+			?.filter(card => !this.reportedChanges.some(([trelloId]) => trelloId === card.id));
 
-		if (!changes?.length)
-			return;
+		if (changes?.length)
+			await this.handleNewChanges(changes, version);
 
+		for (const card of changelog?.unsorted || []) {
+			const reportedChange = this.reportedChanges.find(([trelloId]) => trelloId === card.id) || [];
+			if (!reportedChange) {
+				// this shouldn't be possible but just in case
+				this.logger.warning(`Trying to verify hash of reported change, but cannot find it in the reported list. Skipping & assuming it was reported previously.\n\tChange: ${card.name} (${card.shortUrl})`);
+				await this.handleChange(version, card, false);
+				continue;
+			}
+
+			const [, textHash, messageId] = reportedChange;
+			const change = this.getChangeText(version, card);
+			const newHash = Strings.hash(change);
+			if (newHash !== textHash) {
+				this.logger.info(`Updating change: ${change}`);
+				reportedChange[1] = newHash;
+				await this.save();
+
+				if (messageId) {
+					const message = await this.getMessage(this.channel, messageId);
+					if (!message) {
+						this.logger.warning("The change message is inaccessible or no longer exists.");
+						continue;
+					}
+
+					await message.edit(change);
+					await sleep(seconds(5));
+				}
+			}
+		}
+	}
+
+	private async handleNewChanges (changes: ITrelloCard[], version: IVersionInfo | string) {
 		let report = true;
 		if (changes.length > (this.config.warningChangeCount || Infinity) && !this.continueReport) {
 			const warning = [
@@ -193,23 +221,26 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	}
 
 	private async handleChange (version: IVersionInfo | string, card: ITrelloCard, report: boolean) {
-		this.reportedChanges.push(card.id);
+		const change = this.getChangeText(version, card);
+		this.logger.info(`${report ? "Reporting" : "Skipping"} change: ${change}`);
+
+		const reportedChange: ReportedChange = [card.id, Strings.hash(change)];
+		this.reportedChanges.push(reportedChange);
+
+		if (report)
+			reportedChange[2] = (await this.channel.send(change) as Message).id;
+
 		await this.save();
 
-		if (skipLog)
-			return;
+		if (report)
+			await sleep(seconds(5));
+	}
 
+	private getChangeText (version: IVersionInfo | string, card: ITrelloCard) {
 		let change = this.generateChangeTypeEmojiPrefix(card);
 		change += typeof version === "string" ? "" : ` [${version.strPretty}]`;
 		change += ` ${card.name} ${card.shortUrl}`;
-
-		this.logger.info(`${report ? "Reporting" : "Skipping"} change: ${change}`);
-
-		if (report) {
-			this.channel.send(change);
-			await sleep(seconds(5));
-		}
-
+		return change;
 	}
 
 	private generateChangeTypeEmojiPrefix (card: ITrelloCard) {
