@@ -8,13 +8,13 @@ import { days, getTime, hours, minutes } from "../util/Time";
 
 export interface ITrackedMember {
 	id: string;
-	talent: number;
+	xp: number;
 	lastDay: number;
 	daysVisited: number;
-	maxTalentForMessageBlockStartTime: number;
-	maxTalentForMessageBlockMessagesSent: number;
-	talentLossForMessageBlockStartTime: number;
-	talentLossForMessageBlockMessagesSent: number;
+	maxXpForMessageBlockStartTime: number;
+	maxXpForMessageBlockMessagesSent: number;
+	xpLossForMessageBlockStartTime: number;
+	xpLossForMessageBlockMessagesSent: number;
 	autodonate?: [string, number];
 }
 
@@ -139,10 +139,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			const trackedMember = this.members[memberId];
 
 			if (trackedMember.lastDay < today - this.config.daysBeforeXpLoss) {
-				trackedMember.talent--;
+				trackedMember.xp--;
 			}
 
-			if (trackedMember.talent == 0) {
+			if (trackedMember.xp == 0) {
 				this.dropTrackedMember(trackedMember);
 			}
 		}
@@ -192,13 +192,13 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (!trackedMember) {
 			trackedMember = this.members[id] = {
 				id,
-				talent: 0,
+				xp: 0,
 				daysVisited: 1,
 				lastDay: today,
-				maxTalentForMessageBlockStartTime: Date.now(),
-				maxTalentForMessageBlockMessagesSent: 0,
-				talentLossForMessageBlockStartTime: Date.now(),
-				talentLossForMessageBlockMessagesSent: 0,
+				maxXpForMessageBlockStartTime: Date.now(),
+				maxXpForMessageBlockMessagesSent: 0,
+				xpLossForMessageBlockStartTime: Date.now(),
+				xpLossForMessageBlockMessagesSent: 0,
 			};
 		}
 
@@ -231,29 +231,29 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		let xpChange = this.config.xpForMessage;
 
-		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxXpForMessage[1]) < Date.now()) {
-			trackedMember.maxTalentForMessageBlockStartTime = Date.now();
-			trackedMember.maxTalentForMessageBlockMessagesSent = 0;
+		if (trackedMember.maxXpForMessageBlockStartTime + getTime(this.config.maxXpForMessage[1]) < Date.now()) {
+			trackedMember.maxXpForMessageBlockStartTime = Date.now();
+			trackedMember.maxXpForMessageBlockMessagesSent = 0;
 			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the hour.`);
 
-		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxXpForMessage[0]) {
+		} else if (trackedMember.maxXpForMessageBlockMessagesSent > this.config.maxXpForMessage[0]) {
 			xpChange = 0;
 			this.logger.info(`${member.displayName} has earned the maximum ${this.getScoreName()} for the hour.`);
 		}
 
-		trackedMember.maxTalentForMessageBlockMessagesSent++;
+		trackedMember.maxXpForMessageBlockMessagesSent++;
 
-		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.xpLossForMessage[1]) < Date.now()) {
-			trackedMember.talentLossForMessageBlockStartTime = Date.now();
-			trackedMember.talentLossForMessageBlockMessagesSent = 0;
+		if (trackedMember.xpLossForMessageBlockStartTime + getTime(this.config.xpLossForMessage[1]) < Date.now()) {
+			trackedMember.xpLossForMessageBlockStartTime = Date.now();
+			trackedMember.xpLossForMessageBlockMessagesSent = 0;
 			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the ${this.config.xpLossForMessage[1]}.`);
 
-		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.xpLossForMessage[0]) {
+		} else if (trackedMember.xpLossForMessageBlockMessagesSent > this.config.xpLossForMessage[0]) {
 			xpChange = -this.config.xpLossForMessage[2];
 			this.logger.info(`${member.displayName} is sending too many messages!`);
 		}
 
-		trackedMember.talentLossForMessageBlockMessagesSent++;
+		trackedMember.xpLossForMessageBlockMessagesSent++;
 
 		this.updateMember(member, xpChange);
 	}
@@ -279,10 +279,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (trackedMember.lastDay < today) {
 			trackedMember.daysVisited++;
 			trackedMember.lastDay = today;
-			trackedMember.talent += Math.floor(this.config.xpForNewDay * multiplier);
+			trackedMember.xp += Math.floor(this.config.xpForNewDay * multiplier);
 		}
 
-		trackedMember.talent += Math.floor(score * multiplier);
+		trackedMember.xp += Math.floor(score * multiplier);
 		this.autoDonate(trackedMember);
 
 		this.checkMemberRegular(member);
@@ -292,7 +292,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private checkMemberRegular (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
-		const shouldBeRegular = trackedMember.talent > this.config.regularMilestoneXp
+		const shouldBeRegular = trackedMember.xp > this.config.regularMilestoneXp
 			|| member.roles.has(this.roleMod.id)
 			|| member.permissions.has("ADMINISTRATOR");
 
@@ -308,12 +308,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			if (!this.topMembers.some(a => a.id == trackedMember.id))
 				this.topMembers.push(trackedMember);
 
-		this.topMembers.sort((a, b) => b.talent - a.talent);
+		this.topMembers.sort((a, b) => b.xp - a.xp);
 	}
 
 	private updateTopMembers () {
 		this.topMembers = Object.values(this.members);
-		this.topMembers.sort((a, b) => b.talent - a.talent);
+		this.topMembers.sort((a, b) => b.xp - a.xp);
 	}
 
 	private isMod (member: GuildMember) {
@@ -362,7 +362,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const multiplier = this.getMultiplier(days);
 		const multiplierFloored = Math.floor(multiplier);
 		const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
-		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.talent)}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
+		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.xp)}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
 		this.reply(message, queryMember ?
 			`the ${this.getScoreName()} of ${memberName} ${resultIs}` :
 			`your ${this.getScoreName()} ${resultIs}`,
@@ -377,7 +377,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		// const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 
 		const members = (this.topMembers
-			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.talent)] as const)
+			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.xp)] as const)
 			.filter(([name]) => name) as [string, string][])
 			// .slice(offset, offset + quantity)
 			;
@@ -431,10 +431,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
-		trackedMember.talent += amt;
+		trackedMember.xp += amt;
 
 		const operation = `${amt > 0 ? "added" : "subtracted"} ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} ${amt > 0 ? "to" : "from"}`;
-		const reply = `${operation} ${member.displayName}. ${Strings.sentence(pronouns.their)} new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}.`;
+		const reply = `${operation} ${member.displayName}. ${Strings.sentence(pronouns.their)} new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.xp)}.`;
 		this.reply(message, `I ${reply}`);
 		this.logger.info(message.member.displayName, reply);
 
@@ -460,7 +460,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
-		trackedMember.talent = amt;
+		trackedMember.xp = amt;
 
 		const operation = `set the ${this.getScoreName()} of ${member.displayName} to ${Intl.NumberFormat().format(Math.abs(amt))}`;
 		const reply = `${operation}.`;
@@ -492,7 +492,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		if (trackedMember.talent - this.config.regularMilestoneXp < amt) {
+		if (trackedMember.xp - this.config.regularMilestoneXp < amt) {
 			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
 			return CommandResult.pass();
 		}
@@ -512,15 +512,15 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const pronouns = await this.getPronouns(member);
 
-		trackedMember.talent -= amt;
-		updatingMember.talent += amt;
+		trackedMember.xp -= amt;
+		updatingMember.xp += amt;
 		this.autoDonate(updatingMember);
 
 		const self = message.member.id === member.id;
 
 		const operation = `donated ${Intl.NumberFormat().format(Math.abs(amt))} ${this.getScoreName()} to ${self ? "yourself" : member.displayName}`;
-		const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
-		const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
+		const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.xp)}`;
+		const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.xp)}`;
 		const result = self ? "In other words, nothing happened." : `${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;
 		this.reply(message, `you ${operation}. ${result}`);
 
@@ -564,15 +564,15 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		const minXp = Math.max(this.config.regularMilestoneXp, Math.floor(+amtStr!) || trackedMember.talent);
+		const minXp = Math.max(this.config.regularMilestoneXp, Math.floor(+amtStr!) || trackedMember.xp);
 		trackedMember.autodonate = [updatingMember.id, minXp];
 
 		const donatedResult = this.autoDonate(trackedMember);
 		let result: string | undefined;
 		if (donatedResult) {
 			const pronouns = await this.getPronouns(member);
-			const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.talent)}`;
-			const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.talent)}`;
+			const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.xp)}`;
+			const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.xp)}`;
 			result = `To start with, you ${donatedResult}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;
 		}
 
@@ -593,12 +593,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const [donateMemberId, donateDownTo] = autoDonate;
 		const donateMember = this.getTrackedMember(donateMemberId);
 
-		const donateAmount = trackedMember.talent - Math.max(this.config.regularMilestoneXp, donateDownTo);
+		const donateAmount = trackedMember.xp - Math.max(this.config.regularMilestoneXp, donateDownTo);
 		if (donateAmount <= 0)
 			return;
 
-		trackedMember.talent -= donateAmount;
-		donateMember.talent += donateAmount;
+		trackedMember.xp -= donateAmount;
+		donateMember.xp += donateAmount;
 
 		if (!donationChain.has(trackedMember.id)) {
 			donationChain.add(trackedMember.id);

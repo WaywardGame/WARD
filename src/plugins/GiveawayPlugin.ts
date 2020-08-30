@@ -121,7 +121,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			return CommandResult.pass();
 		}
 
-		const lockInfoText = this.config.userLock ? `Members are only eligible if they have chatted on at least ${this.config.userLock.days} day(s) and have at least ${this.config.userLock.talent} ${this.regularsPlugin.getScoreName()} when the giveaway ends.` : "";
+		const lockInfoText = this.config.userLock ? `Members are only eligible if they have chatted on at least ${this.config.userLock.days} day(s) and have at least ${this.config.userLock.xp} ${this.regularsPlugin.getScoreName()} when the giveaway ends.` : "";
 
 		const giveawayMessage = await this.channel.send(`**A giveaway is starting for ${winnerCount} winner(s)!**\n${giveawayText.length ? `${giveawayText.join(" ")}\n` : ""}\n*To enter the giveaway, leave a reaction on this message. Reacting multiple times does not change your chances of winning. ${lockInfoText}*`) as Message;
 		this.logger.info(`${message.member.displayName} started a giveaway for ${winnerCount} winner(s). Text: ${giveawayText}`);
@@ -300,7 +300,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 					continue;
 
 				nonWinners.push(entrant);
-				trackedMember.talent += consolation;
+				trackedMember.xp += consolation;
 				this.regularsPlugin.autoDonate(trackedMember);
 			}
 
