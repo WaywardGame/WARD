@@ -42,17 +42,17 @@ export class Paginator {
 	}
 
 	public async reply (message: Message) {
-		return this.send(message.channel, message.author);
+		return this.send(message.channel, message.author, message);
 	}
 
-	public async send (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User) {
+	public async send (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: Message) {
 		if (this.getSize() === 1) {
 			const content = this.get();
 			return typeof content === "string" ? channel.send(content) : channel.send({ embed: content });
 		}
 
 		return channel instanceof DMChannel || channel instanceof GroupDMChannel ? this.sendDM(channel, inputUser)
-			: this.sendServer(channel, inputUser);
+			: this.sendServer(channel, inputUser, commandMessage);
 	}
 
 	protected get () {
@@ -107,7 +107,7 @@ export class Paginator {
 		return this.pages = pages;
 	}
 
-	private async sendServer (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User) {
+	private async sendServer (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: Message) {
 		let resolved = false;
 		return new Promise<Message>(async resolve => {
 			let currentText = this.get();
@@ -130,6 +130,9 @@ export class Paginator {
 
 				if (!reaction || reaction === PaginatorReaction.Cancel) {
 					message.delete();
+					if (commandMessage?.deletable)
+						commandMessage.delete();
+
 					return;
 				}
 
@@ -152,7 +155,7 @@ export class Paginator {
 				let currentText = this.get();
 				let currentEmbed: RichEmbed | undefined;
 				if (typeof currentText !== "string")
-					currentEmbed = currentText, currentText = inputUser ? `<@${inputUser.id}>` : "";
+					currentEmbed = currentText, currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";
 
 				const messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
 				if (!resolved) {
@@ -194,7 +197,7 @@ export class Paginator {
 			{ max: 1, time: minutes(5) })
 			.catch(() => { });
 
-		if (!collected)
+		if (!collected || !collected.size)
 			return undefined;
 
 		const reaction = collected.first();
