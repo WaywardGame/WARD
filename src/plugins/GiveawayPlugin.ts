@@ -9,7 +9,7 @@ import { RegularsPlugin } from "./RegularsPlugin";
 export type IGiveawayPluginConfig = {
 	channel: string;
 	userLock?: {
-		talent: number;
+		xp: number;
 		days: number;
 	};
 }
@@ -326,7 +326,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 	private isEntrantQualified (entrant: User) {
 		const trackedMember = this.regularsPlugin.getTrackedMember(entrant.id);
 
-		if (trackedMember.talent < (this.config.userLock?.talent || 0))
+		if (trackedMember.xp < (this.config.userLock?.xp || 0))
 			return false;
 
 		if (trackedMember.daysVisited < (this.config.userLock?.days || 0))
