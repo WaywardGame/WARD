@@ -35,16 +35,16 @@ const baseCommands = {
 export interface IRegularsConfig {
 	scoreName?: string;
 	excludedChannels?: string[];
-	daysBeforeTalentLoss: number;
-	talentForNewDay: number;
-	talentForMessage: number;
-	// 0: maximum talent in 1: amount of time
-	maxTalentForMessage: [number, string];
-	// 0: amount of talent in 1: amount of time where any additional messages reduce your talent by 2: amount
-	talentLossForMessage: [number, string, number];
+	daysBeforeXpLoss: number;
+	xpForNewDay: number;
+	xpForMessage: number;
+	// 0: maximum xp in 1: amount of time
+	maxXpForMessage: [number, string];
+	// 0: amount of xp in 1: amount of time where any additional messages reduce your talent by 2: amount
+	xpLossForMessage: [number, string, number];
 	daysVisitedMultiplier: number;
 	daysVisitedMultiplierReduction: number;
-	regularMilestoneTalent: number;
+	regularMilestoneXp: number;
 	commands?: false | Partial<typeof baseCommands>;
 }
 
@@ -77,7 +77,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private roleRegular: Role;
 	private roleMod: Role;
 	private readonly onRemoveMemberHandlers: ((member: GuildMember) => any)[] = [];
-	private readonly talentMultiplierIncreaseDays = new Map<number, number>();
+	private readonly xpMultiplierIncreaseDays = new Map<number, number>();
 
 	public getDefaultId () {
 		return "regulars";
@@ -125,12 +125,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.roleRegular = this.guild.roles.find(role => role.name === "regular");
 		this.roleMod = this.guild.roles.find(role => role.name === "mod");
 
-		this.talentMultiplierIncreaseDays.clear();
+		this.xpMultiplierIncreaseDays.clear();
 		const calculateDaysUpTill = 10000;
 		new Array(calculateDaysUpTill)
 			.fill(0)
 			.map((_, i) => [Math.floor(this.getMultiplier(calculateDaysUpTill - i)), (calculateDaysUpTill - i)])
-			.forEach(([multiplier, day]) => this.talentMultiplierIncreaseDays.set(multiplier, day));
+			.forEach(([multiplier, day]) => this.xpMultiplierIncreaseDays.set(multiplier, day));
 	}
 
 	public onUpdate () {
@@ -138,7 +138,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		for (const memberId in this.members) {
 			const trackedMember = this.members[memberId];
 
-			if (trackedMember.lastDay < today - this.config.daysBeforeTalentLoss) {
+			if (trackedMember.lastDay < today - this.config.daysBeforeXpLoss) {
 				trackedMember.talent--;
 			}
 
@@ -172,11 +172,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	public onMessage (message: Message) {
-		// DMs are not counted towards talent
+		// DMs are not counted towards xp
 		if (!message.guild)
 			return;
 
-		// excluded channels are not counted towards talent
+		// excluded channels are not counted towards xp
 		if (this.config.excludedChannels && this.config.excludedChannels.includes(message.channel.id))
 			return;
 
@@ -229,37 +229,37 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const trackedMember = this.getTrackedMember(member.id);
 
-		let talentChange = this.config.talentForMessage;
+		let xpChange = this.config.xpForMessage;
 
-		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxTalentForMessage[1]) < Date.now()) {
+		if (trackedMember.maxTalentForMessageBlockStartTime + getTime(this.config.maxXpForMessage[1]) < Date.now()) {
 			trackedMember.maxTalentForMessageBlockStartTime = Date.now();
 			trackedMember.maxTalentForMessageBlockMessagesSent = 0;
 			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the hour.`);
 
-		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxTalentForMessage[0]) {
-			talentChange = 0;
+		} else if (trackedMember.maxTalentForMessageBlockMessagesSent > this.config.maxXpForMessage[0]) {
+			xpChange = 0;
 			this.logger.info(`${member.displayName} has earned the maximum ${this.getScoreName()} for the hour.`);
 		}
 
 		trackedMember.maxTalentForMessageBlockMessagesSent++;
 
-		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.talentLossForMessage[1]) < Date.now()) {
+		if (trackedMember.talentLossForMessageBlockStartTime + getTime(this.config.xpLossForMessage[1]) < Date.now()) {
 			trackedMember.talentLossForMessageBlockStartTime = Date.now();
 			trackedMember.talentLossForMessageBlockMessagesSent = 0;
-			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the ${this.config.talentLossForMessage[1]}.`);
+			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the ${this.config.xpLossForMessage[1]}.`);
 
-		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.talentLossForMessage[0]) {
-			talentChange = -this.config.talentLossForMessage[2];
+		} else if (trackedMember.talentLossForMessageBlockMessagesSent > this.config.xpLossForMessage[0]) {
+			xpChange = -this.config.xpLossForMessage[2];
 			this.logger.info(`${member.displayName} is sending too many messages!`);
 		}
 
 		trackedMember.talentLossForMessageBlockMessagesSent++;
 
-		this.updateMember(member, talentChange);
+		this.updateMember(member, xpChange);
 	}
 
 	public getScoreName () {
-		return this.config.scoreName || "talent";
+		return this.config.scoreName || "xp";
 	}
 
 	private getToday () {
@@ -279,7 +279,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (trackedMember.lastDay < today) {
 			trackedMember.daysVisited++;
 			trackedMember.lastDay = today;
-			trackedMember.talent += Math.floor(this.config.talentForNewDay * multiplier);
+			trackedMember.talent += Math.floor(this.config.xpForNewDay * multiplier);
 		}
 
 		trackedMember.talent += Math.floor(score * multiplier);
@@ -292,7 +292,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private checkMemberRegular (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
-		const shouldBeRegular = trackedMember.talent > this.config.regularMilestoneTalent
+		const shouldBeRegular = trackedMember.talent > this.config.regularMilestoneXp
 			|| member.roles.has(this.roleMod.id)
 			|| member.permissions.has("ADMINISTRATOR");
 
@@ -327,51 +327,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	// tslint:disable cyclomatic-complexity
-	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.check || "talent", p => p.config.commands !== false)
-	// protected async commandTalent (message: Message, queryMember?: string) {
-	// 	let member = message.member;
-
-	// 	if (queryMember) {
-	// 		const resultingQueryMember = await this.findMember(queryMember);
-
-	// 		if (!this.validateFindResult(message, resultingQueryMember)) {
-	// 			return;
-	// 		}
-
-	// 		member = resultingQueryMember;
-	// 	}
-
-	// 	const memberName = member.displayName;
-
-	// 	if (member.user.bot) {
-	// 		this.reply(message, member.id == this.user.id ?
-	// 			`my ${this.getScoreName()} is limitless.` :
-	// 			`the ${this.getScoreName()} of ${memberName} is limitless.`,
-	// 		);
-
-	// 		return;
-	// 	}
-
-	// 	const trackedMember = this.members[member.id];
-	// 	if (!trackedMember) {
-	// 		this.reply(message, queryMember ?
-	// 			`${memberName} has not gained ${this.getScoreName()} yet.` :
-	// 			`you have not gained ${this.getScoreName()} yet.`,
-	// 		);
-
-	// 		return;
-	// 	}
-
-	// 	const talent = this.members[member.id].talent;
-	// 	this.reply(message, queryMember ?
-	// 		`the ${this.getScoreName()} of ${memberName} is ${Intl.NumberFormat().format(talent)}.` :
-	// 		`your ${this.getScoreName()} is ${Intl.NumberFormat().format(talent)}.`,
-	// 	);
-	// }
-
-	// tslint:disable cyclomatic-complexity
 	@Command<RegularsPlugin>(p => p.getCommandName("check"), p => p.config.commands !== false)
-	protected async commandTalent (message: CommandMessage, queryMember?: string) {
+	protected async commandCheck (message: CommandMessage, queryMember?: string) {
 		let member = message.member;
 
 		if (queryMember) {
@@ -404,7 +361,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const days = this.members[member.id].daysVisited;
 		const multiplier = this.getMultiplier(days);
 		const multiplierFloored = Math.floor(multiplier);
-		const daysUntilMultiplierUp = this.talentMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
+		const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
 		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.talent)}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
 		this.reply(message, queryMember ?
 			`the ${this.getScoreName()} of ${memberName} ${resultIs}` :
@@ -434,10 +391,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			let response = "";
 
 			const maxLengthName = slice.map(([name]) => name.length).splat(Math.max);
-			const maxLengthTalent = slice.map(([, talent]) => talent.length).splat(Math.max);
+			const maxLengthXp = slice.map(([, xp]) => xp.length).splat(Math.max);
 
-			response += slice.map(([name, talent], i) =>
-				`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${talent.padStart(maxLengthTalent, " ")}`)
+			response += slice.map(([name, xp], i) =>
+				`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${xp.padStart(maxLengthXp, " ")}`)
 				.join("\n");
 
 			const scoreName = this.getScoreName();
@@ -455,9 +412,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("add"))
-	protected async commandTalentAdd (message: CommandMessage, queryMember?: string, amtStr?: string) {
+	protected async commandAdd (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
-			// this.reply(message, "only mods may manually modify talent of members.");
 			return CommandResult.pass();
 
 		if (queryMember === undefined || !amtStr)
@@ -487,9 +443,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("set"))
-	protected async commandTalentSet (message: CommandMessage, queryMember?: string, amtStr?: string) {
+	protected async commandSet (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		if (!this.isMod(message.member))
-			// this.reply(message, "only mods may manually modify talent of members.");
 			return CommandResult.pass();
 
 		if (queryMember === undefined || !amtStr)
@@ -517,7 +472,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("donate"), p => p.config.commands !== false)
-	protected async commandTalentDonate (message: CommandMessage, amtStr?: string, queryMember?: string) {
+	protected async commandDonate (message: CommandMessage, amtStr?: string, queryMember?: string) {
 		if (queryMember === undefined)
 			return this.reply(message, `you must provide a member to donate ${this.getScoreName()} to.`)
 				.then(reply => CommandResult.fail(message, reply));
@@ -537,7 +492,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		if (trackedMember.talent - this.config.regularMilestoneTalent < amt) {
+		if (trackedMember.talent - this.config.regularMilestoneXp < amt) {
 			this.reply(message, `you do not have enough ${this.getScoreName()} to donate ${amt}.`);
 			return CommandResult.pass();
 		}
@@ -577,7 +532,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("autodonate"), p => p.config.commands !== false)
-	protected async commandTalentAutoDonate (message: CommandMessage, queryMember?: string, amtStr?: string) {
+	protected async commandAutoDonate (message: CommandMessage, queryMember?: string, amtStr?: string) {
 		const trackedMember = this.members[message.member.id];
 		if (queryMember === undefined) {
 			const [donateMemberId, donateMinAmt] = trackedMember.autodonate || [];
@@ -609,8 +564,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		const minTalent = Math.max(this.config.regularMilestoneTalent, Math.floor(+amtStr!) || trackedMember.talent);
-		trackedMember.autodonate = [updatingMember.id, minTalent];
+		const minXp = Math.max(this.config.regularMilestoneXp, Math.floor(+amtStr!) || trackedMember.talent);
+		trackedMember.autodonate = [updatingMember.id, minXp];
 
 		const donatedResult = this.autoDonate(trackedMember);
 		let result: string | undefined;
@@ -621,7 +576,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			result = `To start with, you ${donatedResult}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;
 		}
 
-		const operation = `enabled auto-donation to ${member.displayName}${minTalent > this.config.regularMilestoneTalent ? `, when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(minTalent)}` : ""}`;
+		const operation = `enabled auto-donation to ${member.displayName}${minXp > this.config.regularMilestoneXp ? `, when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(minXp)}` : ""}`;
 
 		this.reply(message, `you ${operation}. ${result || ""}`);
 		this.logger.info(message.member.displayName, `${operation}.`);
@@ -638,7 +593,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const [donateMemberId, donateDownTo] = autoDonate;
 		const donateMember = this.getTrackedMember(donateMemberId);
 
-		const donateAmount = trackedMember.talent - Math.max(this.config.regularMilestoneTalent, donateDownTo);
+		const donateAmount = trackedMember.talent - Math.max(this.config.regularMilestoneXp, donateDownTo);
 		if (donateAmount <= 0)
 			return;
 
@@ -654,46 +609,4 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.logger.verbose(this.getMemberName(trackedMember.id), `auto-donated ${donateAmount} ${this.getScoreName()} to`, donateTargetName);
 		return `donated ${Intl.NumberFormat().format(Math.abs(donateAmount))} ${this.getScoreName()} to ${donateTargetName}`;
 	}
-
-	// @Command<RegularsPlugin>(p => p.config.commands && p.config.commands.days || "days", p => p.config.commands !== false)
-	// protected async commandDaysChatted (message: Message, queryMember?: string) {
-	// 	let member = message.member;
-
-	// 	if (queryMember) {
-	// 		const resultingQueryMember = await this.findMember(queryMember);
-
-	// 		if (!this.validateFindResult(message, resultingQueryMember)) {
-	// 			return;
-	// 		}
-
-	// 		member = resultingQueryMember;
-	// 	}
-
-	// 	const memberName = member.displayName;
-
-	// 	if (member.user.bot) {
-	// 		this.reply(message, member.id == this.user.id ?
-	// 			"I have existed longer than time itself." :
-	// 			`${memberName} has existed longer than time itself.`,
-	// 		);
-
-	// 		return;
-	// 	}
-
-	// 	const trackedMember = this.members[member.id];
-	// 	if (!trackedMember) {
-	// 		this.reply(message, queryMember ?
-	// 			`${memberName} has not gained ${this.getScoreName()} yet.` :
-	// 			`you have not gained ${this.getScoreName()} yet.`,
-	// 		);
-
-	// 		return;
-	// 	}
-
-	// 	const daysVisited = this.members[member.id].daysVisited;
-	// 	this.reply(message, queryMember ?
-	// 		`${memberName} has chatted on ${Intl.NumberFormat().format(daysVisited)} days.` :
-	// 		`you have chatted on ${Intl.NumberFormat().format(daysVisited)} days.`,
-	// 	);
-	// }
 }
