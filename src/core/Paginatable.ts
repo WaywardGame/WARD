@@ -148,10 +148,11 @@ export class Paginator {
 				reacted = true;
 
 				if (!reaction || reaction === PaginatorReaction.Cancel) {
-					message.delete();
-					if (commandMessage?.deletable)
-						commandMessage.delete();
-
+					await message.edit({ embed: new RichEmbed().setDescription(reaction ? "Interactable timed out." : "Interactable closed.") });
+					await message.clearReactions();
+					// message.delete();
+					// if (commandMessage?.deletable)
+					// 	commandMessage.delete();
 					return;
 				}
 
@@ -189,11 +190,12 @@ export class Paginator {
 
 				const reaction = await this.awaitReaction(message, inputUser);
 
-				message.delete();
-
-				if (!reaction || reaction === PaginatorReaction.Cancel)
+				if (!reaction || reaction === PaginatorReaction.Cancel) {
+					await message.edit({ embed: new RichEmbed().setDescription(reaction ? "Interactable timed out." : "Interactable closed.") });
 					return;
+				}
 
+				await message.delete();
 				this.paginate(reaction);
 			}
 		});
