@@ -1,4 +1,4 @@
-import { Message } from "discord.js";
+import { Message, RichEmbed } from "discord.js";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
@@ -28,6 +28,61 @@ export interface CommandResult {
 	type: "pass" | "fail";
 	commandMessage?: CommandMessage;
 	output: Message[];
+}
+
+export interface IField {
+	name: string;
+	content: string;
+	inline: boolean;
+}
+
+export module IField {
+	export function is (value: unknown): value is IField {
+		return !!value
+			&& typeof value === "object"
+			&& typeof (value as any).name === "string"
+			&& typeof (value as any).content === "string"
+			&& typeof (value as any).inline === "boolean";
+	}
+}
+
+declare module "discord.js" {
+	interface Message {
+		deleted?: true;
+		reacting?: Promise<MessageReaction>;
+	}
+
+	interface RichEmbed {
+		addFields (...fields: IField[]): this;
+	}
+}
+
+const originalReact = Message.prototype.react;
+Message.prototype.react = async function (...args) {
+	const promise = originalReact.apply(this, args);
+	this.reacting = promise;
+	const result = await promise;
+	delete this.reacting;
+	return result;
+};
+
+const originalDelete = Message.prototype.delete;
+Message.prototype.delete = async function (...args) {
+	await this.reacting;
+	this.deleted = true;
+	return await originalDelete.apply(this, args);
+};
+
+const originalSetTitle = RichEmbed.prototype.setTitle;
+RichEmbed.prototype.setTitle = function (title) {
+	return title ? originalSetTitle.call(this, title) : this;
+};
+
+RichEmbed.prototype.addFields = function (...fields) {
+	for (const field of fields)
+		this.addField(field.name, field.content, field.inline);
+
+	return this;
 }
 
 export module CommandResult {

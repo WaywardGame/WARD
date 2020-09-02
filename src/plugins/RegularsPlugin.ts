@@ -373,39 +373,18 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	@Command<RegularsPlugin>(p => p.getCommandName("rankings"), p => p.config.commands !== false)
 	protected commandTop (message: CommandMessage /*, offsetStr: string, quantityStr: string */) {
-		// const offset = isNaN(+offsetStr) ? 0 : Math.max(1, /*Math.min(20,*/ Math.floor(+offsetStr)/*)*/) - 1;
-		// const quantity = isNaN(+quantityStr) ? 20 : Math.max(1, Math.min(20, Math.floor(+quantityStr)));
 
-		const members = (this.topMembers
-			.map(member => [this.getMemberName(member.id), Intl.NumberFormat().format(member.xp)] as const)
-			.filter(([name]) => name) as [string, string][])
-			// .slice(offset, offset + quantity)
-			;
+		const members = this.topMembers
+			.map(member => ({
+				name: this.getMemberName(member.id),
+				content: `${Intl.NumberFormat().format(member.xp)} _(${member.daysVisited} days)_`,
+				inline: true,
+			}) as Partial<IField>)
+			.filter(IField.is)
+			.map((field, i) => ({ ...field, name: `${i + 1}. ${field.name}` }));
 
-		const pages: string[] = [];
-		const quantity = 25;
-		for (let offset = 0; offset < members.length; offset += quantity) {
-			const max = offset + quantity;
-			const slice = members.slice(offset, max);
-
-			let response = "";
-
-			const maxLengthName = slice.map(([name]) => name.length).splat(Math.max);
-			const maxLengthXp = slice.map(([, xp]) => xp.length).splat(Math.max);
-
-			response += slice.map(([name, xp], i) =>
-				`${`${(offset + i + 1)}`.padStart(`${max}`.length, " ")}. ${`${name}`.padEnd(maxLengthName, " ")} ${xp.padStart(maxLengthXp, " ")}`)
-				.join("\n");
-
-			const scoreName = this.getScoreName();
-			if (slice.length < quantity)
-				response += `\n...no more members with ${scoreName}`;
-
-			pages.push(`\`\`\`${response}\`\`\``);
-		}
-
-		Paginator.create(pages)
-			.setPageHeader(`__**${this.getScoreName()} Rankings!**__ (Page **{page}** of **{total}**)`)
+		Paginator.create(members)
+			.setPageHeader(`${this.getScoreName()} Rankings!`)
 			.reply(message);
 
 		return CommandResult.pass();
