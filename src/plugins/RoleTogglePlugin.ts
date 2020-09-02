@@ -16,6 +16,8 @@ enum CommandLanguage {
 
 export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
+	protected initData: undefined;
+
 	public getDefaultId () {
 		return "roleToggle";
 	}

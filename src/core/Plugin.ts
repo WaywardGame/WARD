@@ -1,8 +1,9 @@
 import { Collection, DMChannel, GroupDMChannel, Guild, GuildMember, Message, RichEmbed, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
+import Data, { FullDataContainer } from "../util/Data";
 import Logger from "../util/Log";
 import { getTime, hours, never, seconds, TimeUnit } from "../util/Time";
-import { CommandMessage } from "./Api";
+import { CommandMessage, ImportApi } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
 import { Importable } from "./Importable";
 
@@ -48,17 +49,31 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public user: User;
 	public logger: Logger;
 
-	private pluginData: Partial<DATA> & { _lastUpdate?: number } = {};
+	@ImportApi("data")
+	protected dataApi: Data = undefined!;
+
+	private _data: FullDataContainer<DATA & { _lastUpdate?: number }>;
+
+	public get data () {
+		if (!this._data)
+			this._data = this.dataApi.createContainer<DATA & { _lastUpdate?: number }>((self => ({
+				get dataPath () { return self.getId(); },
+				get autosaveInterval () { return self.autosaveInterval; },
+				initData: () => ({ ...this.initData?.(), _lastUpdate: this.lastUpdate } as any),
+			}))(this))
+				.event.subscribe("save", () => this.logger.verbose("Saved"))!;
+
+		return this._data as FullDataContainer<DATA>;
+	};
+
 	// @ts-ignore
 	private loaded = false;
-	private dirty = false;
 	private pronounRoles?: Record<keyof typeof Pronouns, Role | undefined>;
 	/**
 	 * The current command prefix, configured instance-wide. It's only for reference, changing this would do nothing
 	 */
 	// @ts-ignore
 	protected readonly commandPrefix: string;
-	public get isDirty () { return this.dirty; }
 
 	private _config: CONFIG & IPluginConfig;
 	public get config () { return this._config; }
@@ -73,6 +88,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		// 	this.autosaveInterval = getTime(cfg.autosaveInterval);
 		// }
 	}
+
+	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
+
+	public async save () { return this.data.save(); }
 
 	public getDefaultConfig (): CONFIG & IPluginConfig {
 		this.logger.warning("No default config");
@@ -92,24 +111,6 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public onStart?(): any;
 	public onStop?(): any;
 	public onMessage?(message: Message): any;
-
-	public async save () {
-		await this.event.emit("save");
-		this.dirty = false;
-	}
-
-	public setData<K extends keyof DATA> (key: K, data: DATA[K]) {
-		this.pluginData[key] = data;
-		this.dirty = true;
-	}
-	public getData<K extends keyof DATA> (key: K, defaultValue: DATA[K]) {
-		if (this.pluginData[key] === undefined) {
-			this.pluginData[key] = defaultValue;
-			this.dirty = true;
-		}
-
-		return this.pluginData[key]!;
-	}
 
 	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
 		const pluginHelp = reply instanceof HelpContainerPlugin ? reply : undefined;

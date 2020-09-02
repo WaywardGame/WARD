@@ -1,5 +1,5 @@
 import { GuildMember, Message, Role } from "discord.js";
-import { Command, CommandMessage, CommandResult } from "../core/Api";
+import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
@@ -70,9 +70,9 @@ enum CommandLanguage {
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public updateInterval = hours(12);
-	public autosaveInterval = minutes(30);
+	public autosaveInterval = minutes(5);
 
-	private members: { [key: string]: ITrackedMember };
+	private get members () { return this.data.trackedMembers; }
 	private topMembers: ITrackedMember[];
 	private roleRegular: Role;
 	private roleMod: Role;
@@ -118,8 +118,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return CommandResult.pass();
 	}
 
+	protected initData = () => ({ trackedMembers: {} });
+
 	public async onStart () {
-		this.members = this.getData("trackedMembers", {});
 		this.updateTopMembers();
 
 		this.roleRegular = this.guild.roles.find(role => role.name === "regular");

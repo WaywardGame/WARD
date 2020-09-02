@@ -25,10 +25,12 @@ enum CommandLanguage {
 export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> {
 	public updateInterval = minutes(1);
 
+	protected initData: () => ({ welcomedUsers: [] });
+
 	private channel: TextChannel;
 	private welcomeRoles: Role[];
 	private isWelcoming = false;
-	private welcomedUsers: string[];
+	private get welcomedUsers () { return this.data.welcomedUsers; }
 	private continueWelcomes?: (report: boolean) => any;
 
 	public getDefaultId () {
@@ -60,7 +62,6 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	public async onStart () {
-		this.welcomedUsers = this.getData("welcomedUsers", []);
 		this.welcomeRoles = (await Promise.all(this.config.welcomeRoles.map(role => this.findRole(role))))
 			.filter((role): role is Role => !!role);
 	}

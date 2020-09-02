@@ -1,5 +1,7 @@
 import { Api } from "../core/Api";
 import type { Plugin } from "../core/Plugin";
+import { EventEmitterAsync } from "./Async";
+import Bound from "./Bound";
 import FileSystem from "./FileSystem";
 import Logger from "./Log";
 import { minutes } from "./Time";
@@ -10,9 +12,9 @@ export interface IDataConfig {
 }
 
 export default class Data extends Api<IDataConfig> {
-	private readonly dirData: string;
-	private readonly dirBackups = "data/backups";
-	private readonly dirExternalData: string;
+	public readonly dirData: string;
+	public readonly dirBackups = "data/backups";
+	public readonly dirExternalData: string;
 	private lastBackupTime = 0;
 
 	public constructor (private readonly guild: string) {
@@ -33,39 +35,23 @@ export default class Data extends Api<IDataConfig> {
 		await this.tryMakeBackup();
 	}
 
+	public createContainer<DATA extends {}> (host: IDataContainerHost<DATA>) {
+		const container = new DataContainer(this, host);
+		const proxy = new Proxy(container, {
+			get (target, prop) {
+				return target[prop as keyof typeof target] ?? target.data?.[prop as keyof DATA];
+			},
+		}) as FullDataContainer<DATA>;
+		(container.event as any).host = proxy;
+		return proxy;
+	}
+
 	public async load (plugin: Plugin) {
-		// console.log("load", plugin.getId());
-		plugin.event.subscribe("save", () => this.save(plugin));
-
-		const path = this.getPluginDataFile(plugin);
-		if (!await FileSystem.exists(path))
-			return {};
-
-		return json5.parse(await FileSystem.readFile(path, "utf8"));
+		plugin.data.event.subscribe("save", this.tryMakeBackup);
+		return plugin.data.load();
 	}
 
-	private async save (plugin: Plugin) {
-		// console.log("request save", plugin.getId());
-
-		let data = plugin["pluginData"];
-		if (Object.keys(data).length === 0) {
-			// console.log("cancel save", plugin.getId());
-			return;
-		}
-
-		// console.log("actually save save", plugin.getId());
-		data = {
-			...data,
-			_lastUpdate: plugin.lastUpdate,
-		};
-
-		// console.log(this.getPluginDataFile(plugin), data);
-
-		await FileSystem.writeFile(this.getPluginDataFile(plugin), JSON.stringify(data));
-
-		await this.tryMakeBackup();
-	}
-
+	@Bound
 	private async tryMakeBackup () {
 		const now = Date.now();
 		if (now - this.lastBackupTime < minutes(10))
@@ -94,8 +80,64 @@ export default class Data extends Api<IDataConfig> {
 		await FileSystem.copy(this.dirData, dir);
 		Logger.info("Data", "Backup made! Directory:", dir);
 	}
+}
 
-	private getPluginDataFile (plugin: Plugin) {
-		return `${this.dirData}/${plugin.getId()}.json`;
+export type FullDataContainer<DATA extends {} = any> = DataContainer<DATA> & { [K in keyof DATA]: DATA[K] };
+
+export interface IDataContainerHost<DATA extends {} = any> {
+	autosaveInterval: number;
+	dataPath: string;
+	initData (): DATA;
+}
+
+export class DataContainer<DATA extends {} = any> {
+
+	public event = new EventEmitterAsync(this);
+
+	private _data?: DATA;
+	private dataJson?: string;
+	private dirty = false;
+	private _lastSave = 0;
+
+	public get lastSaveTime () { return this._lastSave; }
+
+	public get data () {
+		return this._data;
+	}
+
+	public constructor (private readonly api: Data, private readonly host: IDataContainerHost<DATA>) { }
+
+	public isDirty () {
+		if (this.dirty)
+			return true;
+
+		const newDataJson = JSON.stringify(this._data);
+		return this.dirty = newDataJson !== this.dataJson;
+	}
+
+	public async load () {
+		if (!await FileSystem.exists(this.getPath())) {
+			this._data = this.host.initData();
+			return;
+		}
+
+		const dataJson = await FileSystem.readFile(this.getPath(), "utf8");
+		this._data = json5.parse(dataJson);
+		this.dataJson = JSON.stringify(this._data);
+	}
+
+	public async save () {
+		await FileSystem.writeFile(this.getPath(), JSON.stringify(this._data));
+		this._lastSave = Date.now();
+		this.event.emit("save");
+	}
+
+	public async saveOpportunity () {
+		if (this.isDirty() || Date.now() - this._lastSave > this.host.autosaveInterval)
+			return this.save();
+	}
+
+	private getPath () {
+		return `${this.api.dirData}/${this.host.dataPath}.json`;
 	}
 }

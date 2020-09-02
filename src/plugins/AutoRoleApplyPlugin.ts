@@ -4,10 +4,6 @@ import Arrays from "../util/Arrays";
 import Regex from "../util/Regex";
 import { minutes } from "../util/Time";
 
-
-export interface IAutoRoleData {
-}
-
 export interface IAutoRoleConfig {
 	rules: IAutoRoleRuleConfig[];
 }
@@ -41,10 +37,12 @@ interface IAutoRoleRule {
 	apply: Role[];
 }
 
-export default class AutoRolePlugin extends Plugin<IAutoRoleConfig, IAutoRoleData> {
+export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 	public updateInterval = minutes(1);
 
 	private rules: IAutoRoleRule[];
+
+	protected initData: undefined;
 
 	public getDefaultId () {
 		return "autorole";

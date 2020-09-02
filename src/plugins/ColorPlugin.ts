@@ -46,6 +46,8 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	private aboveRole?: Role;
 
+	protected initData: undefined;
+
 	public getDefaultId () {
 		return "colors";
 	}

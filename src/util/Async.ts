@@ -61,17 +61,26 @@ type Handler = (...args: any[]) => Promise<any>;
 
 const SET_EMPTY = new Set<Handler>();
 
-export class EventEmitterAsync {
+export class EventEmitterAsync<H = void> {
 	private readonly handlers = new Map<string, Set<Handler>>();
+
+	public constructor ();
+	public constructor (host: H);
+	public constructor (private readonly host?: H) {
+	}
 
 	public subscribe (event: string, handler: Handler) {
 		this.handlers.getOrDefault(event, () => new Set(), true)
 			.add(handler);
+
+		return this.host;
 	}
 
 	public unsubscribe (event: string, handler: Handler) {
 		(this.handlers.get(event) ?? SET_EMPTY)
 			.delete(handler);
+
+		return this.host;
 	}
 
 	public async emit (event: string, ...args: any[]) {

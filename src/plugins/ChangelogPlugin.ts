@@ -63,18 +63,16 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private channel: TextChannel;
 	private warningChannel?: TextChannel;
 	private isReporting = false;
-	private reportedChanges: ReportedChange[];
+	private get reportedChanges () { return this.data.reportedChanges; }
 	private continueReport?: (report: boolean) => any;
 
 	@ImportApi("trello")
 	private trello: Trello = undefined!;
 
+	protected initData = () => ({ reportedChanges: [] });
+
 	public getDefaultId () {
 		return "changelog";
-	}
-
-	public async onStart () {
-		this.reportedChanges = this.getData("reportedChanges", []);
 	}
 
 	public async onUpdate () {

@@ -135,11 +135,7 @@ export class Ward {
 
 			// if (!Object.keys(plugin["pluginData"]).length)
 			// 	console.log("could not save", pluginName, this.guild.name);
-			if (plugin.isDirty || Date.now() - plugin.lastAutosave > plugin.autosaveInterval) {
-				this.logger.verbose("Save plugin", pluginName);
-				plugin.lastAutosave = Date.now();
-				promises.push(plugin.save());
-			}
+			promises.push(plugin.data.saveOpportunity());
 		}
 
 		await Promise.all(promises);
@@ -295,12 +291,12 @@ export class Ward {
 			if (!plugin["loaded"]) {
 				plugin["loaded"] = true;
 				this.logger.verbose("Load data for plugin", pluginName);
-				plugin["pluginData"] = await this.getApi<Data>("data")?.load(plugin)
+				await this.getApi<Data>("data")?.load(plugin)
 					.catch(err => this.logger.warning(`Unable to load ${pluginName} data`, err))
 					?? {};
 
-				if (plugin["pluginData"]._lastUpdate)
-					plugin.lastUpdate = plugin["pluginData"]._lastUpdate;
+				if (plugin["_data"]?._lastUpdate)
+					plugin.lastUpdate = plugin["_data"]._lastUpdate;
 			}
 
 			if (plugin.onStart)

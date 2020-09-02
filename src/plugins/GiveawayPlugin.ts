@@ -46,10 +46,11 @@ enum CommandLanguage {
 
 export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData> {
 	private channel: TextChannel;
-	private giveaway?: IGiveawayInfo;
 
 	@ImportPlugin("regulars")
 	private regularsPlugin: RegularsPlugin = undefined!;
+
+	protected initData = (): IGiveawayData => ({});
 
 	public getDefaultId () {
 		return "giveaway";
@@ -101,7 +102,6 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	public async onStart () {
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
-		this.giveaway = this.getData("giveaway", undefined);
 	}
 
 	// tslint:disable cyclomatic-complexity
@@ -116,7 +116,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
-		if (this.giveaway) {
+		if (this.data.giveaway) {
 			this.reply(message, "there is already a giveaway, please finish or cancel the existing giveaway before starting a new one.");
 			return CommandResult.pass();
 		}
@@ -126,10 +126,10 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		const giveawayMessage = await this.channel.send(`**A giveaway is starting for ${winnerCount} winner(s)!**\n${giveawayText.length ? `${giveawayText.join(" ")}\n` : ""}\n*To enter the giveaway, leave a reaction on this message. Reacting multiple times does not change your chances of winning. ${lockInfoText}*`) as Message;
 		this.logger.info(`${message.member.displayName} started a giveaway for ${winnerCount} winner(s). Text: ${giveawayText}`);
 
-		this.setData("giveaway", this.giveaway = {
+		this.data.giveaway = {
 			message: giveawayMessage.id,
 			winnerCount
-		});
+		};
 		this.save();
 		return CommandResult.pass();
 	}
@@ -139,7 +139,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
-		if (!this.giveaway) {
+		if (!this.data.giveaway) {
 			this.reply(message, "there is no giveaway running.");
 			return CommandResult.pass();
 		}
@@ -147,7 +147,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		this.channel.send("The giveaway has been cancelled!");
 		this.logger.info(`${message.member.displayName} cancelled the giveaway`);
 
-		this.setData("giveaway", this.giveaway = undefined);
+		delete this.data.giveaway;
 		this.save();
 		return CommandResult.pass();
 	}
@@ -157,7 +157,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
-		if (!this.giveaway) {
+		if (!this.data.giveaway) {
 			this.reply(message, "there is no giveaway running.");
 			return CommandResult.pass();
 		}
@@ -165,7 +165,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		prize = +prize! || 0;
 
 		const prizeType = message.command.endsWith("prize") ? "prize" : "consolation";
-		this.giveaway[prizeType] = prize;
+		this.data.giveaway[prizeType] = prize;
 		this.save();
 
 		if (prize)
@@ -182,20 +182,20 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
-		if (!this.giveaway) {
+		if (!this.data.giveaway) {
 			this.reply(message, "there is no giveaway running.");
 			return CommandResult.pass();
 		}
 
-		const winnerCount = this.giveaway.winnerCount;
-		const prize = this.giveaway.prize;
-		const consolation = this.giveaway.consolation;
+		const winnerCount = this.data.giveaway.winnerCount;
+		const prize = this.data.giveaway.prize;
+		const consolation = this.data.giveaway.consolation;
 
-		const announcementMessage = await this.getAnnouncementMessage(message, this.giveaway.message);
+		const announcementMessage = await this.getAnnouncementMessage(message, this.data.giveaway.message);
 		if (!announcementMessage)
 			return CommandResult.pass();
 
-		this.setData("giveaway", this.giveaway = undefined);
+		delete this.data.giveaway;
 		this.save();
 
 		this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
@@ -207,15 +207,15 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!message.member.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
-		if (announcement === this.giveaway?.message)
+		if (announcement === this.data.giveaway?.message)
 			announcement = undefined;
 
-		if (!announcement && !this.giveaway) {
+		if (!announcement && !this.data.giveaway) {
 			this.reply(message, "there is no giveaway running.");
 			return CommandResult.pass();
 		}
 
-		const announcementMessage = await this.getAnnouncementMessage(message, announcement || this.giveaway!.message);
+		const announcementMessage = await this.getAnnouncementMessage(message, announcement || this.data.giveaway!.message);
 		if (!announcementMessage)
 			return CommandResult.pass();
 
@@ -223,9 +223,9 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			.filter(user => this.guild.members.has(user.id));
 
 		this.sendAll(message.channel, `<@${message.member.id}>, here's some info on ${announcement ? "that" : "the **currently-running**"} giveaway:`,
-			this.giveaway?.winnerCount && `Choosing **${this.giveaway.winnerCount} winners**`,
-			this.giveaway?.prize && `Grand prize: **${this.giveaway.prize} ${this.regularsPlugin.getScoreName()}**`,
-			this.giveaway?.consolation && `Consolation prize: **${this.giveaway.consolation} ${this.regularsPlugin.getScoreName()}**`,
+			this.data.giveaway?.winnerCount && `Choosing **${this.data.giveaway.winnerCount} winners**`,
+			this.data.giveaway?.prize && `Grand prize: **${this.data.giveaway.prize} ${this.regularsPlugin.getScoreName()}**`,
+			this.data.giveaway?.consolation && `Consolation prize: **${this.data.giveaway.consolation} ${this.regularsPlugin.getScoreName()}**`,
 			`All **${entrants.length}** entrants:`, ...entrants
 				.map(user => `- ${this.regularsPlugin.getMemberName(user.id)}`));
 
@@ -257,8 +257,8 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			return announcementMessage;
 
 		if (!announcement) {
-			this.logger.warning("Giveaway announcement message inaccessible", this.giveaway);
-			this.setData("giveaway", this.giveaway = undefined);
+			this.logger.warning("Giveaway announcement message inaccessible", this.data.giveaway);
+			delete this.data.giveaway;
 			this.save();
 			this.reply(message, "there is no giveaway running.");
 			return undefined;

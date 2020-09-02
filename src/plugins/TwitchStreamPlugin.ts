@@ -26,14 +26,12 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	@ImportApi("twitch")
 	private twitch: Twitch = undefined!;
 
-	private trackedStreams: Record<string, number>;
+	private get trackedStreams () { return this.data.trackedStreams; }
+
+	protected initData = () => ({ trackedStreams: {} });
 
 	public getDefaultId () {
 		return "twitchStream";
-	}
-
-	public async onStart () {
-		this.trackedStreams = this.getData("trackedStreams", {});
 	}
 
 	public async onUpdate () {
@@ -69,6 +67,8 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 				}
 			}
 		}
+
+		this.save();
 	}
 
 	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {

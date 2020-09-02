@@ -11,6 +11,9 @@ export interface ISpamPluginConfig {
 }
 
 export class SpamPlugin extends Plugin<ISpamPluginConfig> {
+
+	protected initData: undefined;
+
 	public getDefaultId () {
 		return "spam";
 	}
