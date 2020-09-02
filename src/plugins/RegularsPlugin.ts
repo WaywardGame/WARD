@@ -142,7 +142,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				trackedMember.xp--;
 			}
 
-			if (trackedMember.xp == 0) {
+			if (trackedMember.xp <= 0) {
 				this.dropTrackedMember(trackedMember);
 			}
 		}
