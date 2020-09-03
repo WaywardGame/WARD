@@ -33,7 +33,7 @@ export interface CommandResult {
 export interface IField {
 	name: string;
 	content: string;
-	inline: boolean;
+	inline?: true;
 }
 
 export module IField {
@@ -53,7 +53,11 @@ declare module "discord.js" {
 	}
 
 	interface RichEmbed {
-		addFields (...fields: IField[]): this;
+		addFields (...fields: Array<IField | undefined | "" | 0 | null>): this;
+		setTitle (title?: string): this;
+		setURL (url?: string): this;
+		setThumbnail (url?: string): this;
+		setAuthor (name?: string, thumbnail?: string, url?: string): this;
 	}
 }
 
@@ -74,13 +78,29 @@ Message.prototype.delete = async function (...args) {
 };
 
 const originalSetTitle = RichEmbed.prototype.setTitle;
-RichEmbed.prototype.setTitle = function (title) {
+RichEmbed.prototype.setTitle = function (title?: string) {
 	return title ? originalSetTitle.call(this, title) : this;
+};
+
+const originalSetURL = RichEmbed.prototype.setURL;
+RichEmbed.prototype.setURL = function (url?: string) {
+	return url ? originalSetURL.call(this, url) : this;
+};
+
+const originalSetThumbnail = RichEmbed.prototype.setThumbnail;
+RichEmbed.prototype.setThumbnail = function (url?: string) {
+	return url ? originalSetThumbnail.call(this, url) : this;
+};
+
+const originalSetAuthor = RichEmbed.prototype.setAuthor;
+RichEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, url?: string) {
+	return name ? originalSetAuthor.call(this, name, thumbnail, url) : this;
 };
 
 RichEmbed.prototype.addFields = function (...fields) {
 	for (const field of fields)
-		this.addField(field.name, field.content, field.inline);
+		if (field)
+			this.addField(field.name, field.content, field.inline);
 
 	return this;
 }

@@ -1,8 +1,8 @@
-import { Collection, DMChannel, GroupDMChannel, Guild, GuildMember, Message, RichEmbed, Role, TextChannel, User } from "discord.js";
+import { Collection, DMChannel, Emoji, GroupDMChannel, Guild, GuildMember, Message, ReactionEmoji, RichEmbed, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import Logger from "../util/Log";
-import { getTime, hours, never, seconds, TimeUnit } from "../util/Time";
+import { getTime, hours, minutes, never, seconds, TimeUnit } from "../util/Time";
 import { CommandMessage, ImportApi } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
 import { Importable } from "./Importable";
@@ -263,6 +263,156 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 			await sleep(seconds(1));
 		}
+	}
+
+	protected promptReaction (prompt: string) {
+		let options: [string | Emoji, string][] = [];
+		let timeout = minutes(5);
+		const self = this;
+
+		return {
+			addOption (option: string | Emoji, definition: string) {
+				options.push([option, definition]);
+				return this;
+			},
+			addOptions (...options: (readonly [string | Emoji, string])[]) {
+				for (const [emoji, definition] of options)
+					this.addOption(emoji, definition);
+				return this;
+			},
+			addCancelOption () {
+				this.addOption("❌", "Cancel.");
+				return this;
+			},
+			setTimeout (t: number) {
+				timeout = t;
+				return this;
+			},
+			async reply (message: CommandMessage): Promise<Emoji | ReactionEmoji | undefined> {
+				const reply = await self.reply(message, `${prompt}${options.map(([emoji, definition]) => `\n  ${emoji} ${definition}`)}`) as Message;
+
+				let ended = false;
+				(async () => {
+					for (const [emoji] of options)
+						if (!ended)
+							await reply.react(emoji);
+				})();
+
+				const collected = await reply.awaitReactions((react, user) =>
+					user.id === message.author.id && options.some(([emoji]) => emoji === (emoji instanceof Emoji ? react.emoji : react.emoji.name)),
+					{ max: 1, time: timeout });
+
+				ended = true;
+
+				const result = collected?.first()?.emoji;
+				return result && result.name !== "❌" ? result : undefined;
+			},
+		};
+	}
+
+	protected yesOrNo (prompt: string) {
+		let timeout = minutes(5);
+		const self = this;
+
+		return {
+			setTimeout (t: number) {
+				timeout = t;
+				return this;
+			},
+			async reply (message: CommandMessage) {
+				const reply = await self.reply(message, `${prompt}`) as Message;
+
+				let ended = false;
+				(async () => {
+					await reply.react("✅");
+					if (!ended)
+						await reply.react("❌");
+				})();
+
+				const collected = await reply.awaitReactions((react, user) =>
+					user.id === message.author.id
+					&& (react.emoji.name === "❌"
+						|| react.emoji.name === "✅"),
+					{ max: 1, time: timeout });
+
+				ended = true;
+
+				const result = collected?.first();
+				return result && result.emoji.name === "✅";
+			},
+		};
+	}
+
+	protected prompter (prompt: string) {
+		let defaultValue: string | undefined;
+		let deletable = false;
+		let timeout = minutes(5);
+		let validator: ((value: Message) => true | string | undefined) | undefined;
+		const self = this;
+
+		return {
+			setDefaultValue (d?: string) {
+				defaultValue = d;
+				return this;
+			},
+			setDeletable () {
+				deletable = true;
+				return this;
+			},
+			setValidator (v: (value: Message) => true | string | undefined) {
+				validator = v;
+				return this;
+			},
+			setTimeout (t: number) {
+				timeout = t;
+				return this;
+			},
+			async reply (message: CommandMessage) {
+				if (defaultValue === "")
+					deletable = false;
+
+				const defaultValuePrompt = defaultValue !== undefined ? `\n_React with ✅ to use ${defaultValue ? `'${defaultValue}'` : "no value"}._` : "";
+				const deletablePrompt = deletable ? "\n_React with 🗑 to use no value._" : "";
+				const reply = await self.reply(message, `${prompt}${defaultValuePrompt}${deletablePrompt}\n_React with ❌ to cancel._`) as Message;
+
+				let ended = false;
+				(async () => {
+					if (defaultValue !== undefined)
+						await reply.react("✅");
+
+					if (deletable && !ended)
+						await reply.react("🗑");
+
+					if (!ended)
+						await reply.react("❌");
+				})();
+
+				while (true) {
+					const collected = await Promise.race([
+						message.channel.awaitMessages(() => true, { max: 1, time: timeout }),
+						reply.awaitReactions((react, user) =>
+							user.id === message.author.id
+							&& (react.emoji.name === "❌"
+								|| react.emoji.name === "✅"
+								|| react.emoji.name === "🗑"),
+							{ max: 1, time: timeout }),
+					]);
+
+					const result = collected?.first();
+					if (result instanceof Message) {
+						const validationResult = validator?.(result);
+						if (typeof validationResult === "string") {
+							await message.reply(`Invalid response. ${validationResult}`);
+							continue;
+						}
+					}
+
+					ended = true;
+
+					return !result ? undefined : result instanceof Message ? result : result.emoji.name === "❌" ? undefined : result.emoji.name === "✅" ? "default" : "delete";
+				}
+			},
+		};
 	}
 
 	protected async getReactors (message: Message): Promise<Set<User>>;

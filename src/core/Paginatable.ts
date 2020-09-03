@@ -16,6 +16,7 @@ interface IPage {
 	title?: string;
 	content: string;
 	fields: IField[];
+	embed?: RichEmbed;
 }
 
 export class Paginator {
@@ -24,18 +25,19 @@ export class Paginator {
 	public static create<T extends IField | undefined> (values: Iterable<T>, handler?: undefined): Paginator;
 	public static create<T> (values: Iterable<T>, handler: (value: T) => string | undefined): Paginator;
 	public static create<T> (values: Iterable<T>, handler: (value: T) => IField | undefined): Paginator;
-	public static create<T> (values: Iterable<T>, handler?: (value: T) => string | IField | undefined): Paginator {
+	public static create<T> (values: Iterable<T>, handler: (value: T) => RichEmbed | undefined): Paginator;
+	public static create<T> (values: Iterable<T>, handler?: (value: T) => string | IField | RichEmbed | undefined): Paginator {
 		return new Paginator(values, handler);
 	}
 
 	private readonly values: any[];
-	private readonly handler: ((value: any) => string | IField | undefined) | undefined;
+	private readonly handler: ((value: any) => string | IField | RichEmbed | undefined) | undefined;
 	private pages?: IPage[];
 	private i = 0;
 	private pageHeader?: string;
 	private autoMerge = true;
 
-	private constructor (values: Iterable<any>, handler?: (value: any) => string | IField | undefined) {
+	private constructor (values: Iterable<any>, handler?: (value: any) => string | IField | RichEmbed | undefined) {
 		this.values = Array.from(values);
 		this.handler = handler;
 	}
@@ -58,9 +60,10 @@ export class Paginator {
 		if (this.getSize() === 1) {
 			const currentContent = this.get();
 			let currentText: string;
-			let currentEmbed = new RichEmbed()
+			let currentEmbed = currentContent.embed ?? new RichEmbed()
 				.setTitle(currentContent.title)
-				.setDescription(currentContent.content);
+				.setDescription(currentContent.content)
+				.addFields(...currentContent.fields);
 
 			currentText = inputUser ? `<@${inputUser.id}>` : "";
 
@@ -114,19 +117,21 @@ export class Paginator {
 				continue;
 
 			const newField = IField.is(content) ? content : undefined;
-			const newContent = newField ? "" : `\n\n${content}\n`;
+			const richEmbed = content instanceof RichEmbed ? content : undefined;
+			const newContent = newField || richEmbed ? "" : `\n\n${content}\n`;
 
 			let currentPage = pages[pages.length - 1];
 
 			const shouldMakeNewPage =
-				!pages.length // no pages
+				richEmbed // the content is a rich embed
+				|| !pages.length // no pages
 				|| !this.autoMerge // automerge is turned off, so every single entry should be a new page
 				|| (typeof content === "string"
 					? currentPage.content.length + newContent.length > maxLength
 					: currentPage.fields.length >= maxFields);
 
 			if (shouldMakeNewPage)
-				pages.push(currentPage = { title: this.pageHeader, content: "", fields: [] });
+				pages.push(currentPage = { title: this.pageHeader, content: "", fields: [], embed: richEmbed });
 
 			currentPage.content += newContent;
 			if (newField)
@@ -144,10 +149,10 @@ export class Paginator {
 		return new Promise<Message>(async resolve => {
 			let currentContent = this.get();
 			let currentText: string;
-			let currentEmbed = new RichEmbed()
+			let currentEmbed = (currentContent.embed ?? new RichEmbed()
 				.setTitle(currentContent.title)
 				.setDescription(currentContent.content)
-				.addFields(...currentContent.fields)
+				.addFields(...currentContent.fields))
 				.setFooter(this.getPageNumberText());
 
 			currentText = inputUser ? `<@${inputUser.id}>` : "";
@@ -185,10 +190,10 @@ export class Paginator {
 				this.paginate(reaction);
 
 				currentContent = this.get();
-				currentEmbed = new RichEmbed()
+				currentEmbed = (currentContent.embed ?? new RichEmbed()
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content)
-					.addFields(...currentContent.fields)
+					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 
 				message.edit(currentText, currentEmbed);
@@ -207,10 +212,10 @@ export class Paginator {
 			while (true) {
 				let currentContent = this.get();
 				let currentText: string;
-				let currentEmbed = new RichEmbed()
+				let currentEmbed = (currentContent.embed ?? new RichEmbed()
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content)
-					.addFields(...currentContent.fields)
+					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 
 				currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";

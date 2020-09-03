@@ -18,6 +18,24 @@ module Strings {
 		}
 		return hash;
 	}
+
+	const validProtocols = new Set(["http:", "https:"]);
+	export const URL_VALID_PROTOCOL_REGEX = /^https?:/;
+
+	export function isURL (str: string, host?: string) {
+		let url: URL;
+
+		try {
+			url = new URL(str);
+			if (host && url.host !== host)
+				return false;
+
+		} catch {
+			return false;
+		}
+
+		return validProtocols.has(url.protocol);
+	}
 }
 
 export default Strings;

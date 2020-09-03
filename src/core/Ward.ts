@@ -7,6 +7,7 @@ import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import { RegularsPlugin } from "../plugins/RegularsPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
 import { SpamPlugin } from "../plugins/SpamPlugin";
+import StoryPlugin from "../plugins/StoryPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import WelcomePlugin from "../plugins/WelcomePlugin";
 import { sleep } from "../util/Async";
@@ -51,6 +52,7 @@ export class Ward {
 		this.addPlugin(new GiveawayPlugin());
 		this.addPlugin(new SpamPlugin());
 		this.addPlugin(new ColorsPlugin());
+		this.addPlugin(new StoryPlugin());
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
@@ -130,6 +132,7 @@ export class Ward {
 
 			const plugin = this.plugins[pluginName];
 			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval) {
+				// console.log(this.guild.name, pluginName, "time since", Date.now() - plugin.lastUpdate, "interval", plugin.updateInterval);
 				this.updatePlugin(plugin);
 			}
 
@@ -146,7 +149,9 @@ export class Ward {
 		plugin.lastUpdate = Date.now();
 		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
+		// console.log("set lastupdate to", plugin.lastUpdate);
 		await plugin.save();
+		// console.log("saved lastupdate is", plugin["_data"].data?._lastUpdate);
 	}
 
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
