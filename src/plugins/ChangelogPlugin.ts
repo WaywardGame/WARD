@@ -3,9 +3,8 @@ import { Message, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
-import { sleep } from "../util/Async";
 import Strings from "../util/Strings";
-import { hours, seconds } from "../util/Time";
+import { hours } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
 
 const emotes: { [key: string]: string } = {
@@ -174,10 +173,9 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 			const [, textHash, messageId] = reportedChange;
 			const change = this.getChangeText(version, card);
 			const newHash = Strings.hash(change);
+			// console.log(`${!!messageId}`.padStart(5), `${newHash}`.padStart(12), `${textHash}`.padStart(12), change);
 			if (newHash !== textHash) {
 				this.logger.info(`Updating change: ${change}`);
-				reportedChange[1] = newHash;
-				await this.save();
 
 				if (messageId) {
 					const message = await this.getMessage(this.channel, messageId);
@@ -187,8 +185,10 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 					}
 
 					await message.edit(change);
-					await sleep(seconds(5));
 				}
+
+				reportedChange[1] = newHash;
+				await this.save();
 			}
 		}
 	}
@@ -229,9 +229,6 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 			reportedChange[2] = (await this.channel.send(change) as Message).id;
 
 		await this.save();
-
-		if (report)
-			await sleep(seconds(5));
 	}
 
 	private getChangeText (version: IVersionInfo | string, card: ITrelloCard) {
