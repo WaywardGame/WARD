@@ -91,7 +91,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
 
-	public async save () { return this.data.save(); }
+	public async save () {
+		this._data.data!._lastUpdate = this.lastUpdate;
+		return this.data.save();
+	}
 
 	public getDefaultConfig (): CONFIG & IPluginConfig {
 		this.logger.warning("No default config");

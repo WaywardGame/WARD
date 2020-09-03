@@ -146,6 +146,7 @@ export class Ward {
 		plugin.lastUpdate = Date.now();
 		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
+		await plugin.save();
 	}
 
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
@@ -295,8 +296,9 @@ export class Ward {
 					.catch(err => this.logger.warning(`Unable to load ${pluginName} data`, err))
 					?? {};
 
-				if (plugin["_data"]?._lastUpdate)
-					plugin.lastUpdate = plugin["_data"]._lastUpdate;
+				// console.log(this.guild.name, plugin.getId(), plugin["_data"].data?._lastUpdate);
+				if (plugin["_data"].data?._lastUpdate)
+					plugin.lastUpdate = plugin["_data"].data._lastUpdate;
 			}
 
 			if (plugin.onStart)
