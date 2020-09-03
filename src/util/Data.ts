@@ -98,6 +98,7 @@ export class DataContainer<DATA extends {} = any> {
 	private dataJson?: string;
 	private dirty = false;
 	private _lastSave = 0;
+	private saving?: Promise<void>;
 
 	public get lastSaveTime () { return this._lastSave; }
 
@@ -127,9 +128,15 @@ export class DataContainer<DATA extends {} = any> {
 	}
 
 	public async save () {
-		await FileSystem.writeFile(this.getPath(), JSON.stringify(this._data));
-		this._lastSave = Date.now();
-		this.event.emit("save");
+		return this.saving ?? (this.saving = new Promise<void>(async resolve => {
+			this._lastSave = Date.now();
+			await FileSystem.writeFile(this.getPath(), JSON.stringify(this._data));
+			this._lastSave = Date.now();
+			this.dirty = false;
+			delete this.saving;
+			await this.event.emit("save");
+		}));
+
 	}
 
 	public async saveOpportunity () {
