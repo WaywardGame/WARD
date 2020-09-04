@@ -116,9 +116,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public onMessage?(message: Message): any;
 
 	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
-		const pluginHelp = reply instanceof HelpContainerPlugin ? reply : undefined;
-		if (pluginHelp)
-			return pluginHelp.getPaginator(this.commandPrefix)
+		if (reply instanceof HelpContainerPlugin)
+			return reply.getPaginator(this.commandPrefix)
 				.reply(message);
 
 		if (reply instanceof HelpContainerCommand)
@@ -133,10 +132,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				reply = `<@${message.author.id}>, ${reply}`;
 		}
 
-		const content = typeof reply === "string" ? reply : { embed: reply };
+		let textContent = typeof reply === "string" ? reply : message.channel instanceof DMChannel ? undefined : `<@${message.author.id}>`;
+		const embedContent = typeof reply === "string" ? undefined : reply;
 
 		if (message.previous?.output[0])
-			return message.previous?.output[0].edit(content)
+			return message.previous?.output[0].edit(textContent, embedContent)
 				.then(async result => {
 					for (let i = 1; i < (message.previous?.output.length || 0); i++)
 						message.previous?.output[i].delete();
@@ -144,7 +144,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					return result;
 				});
 
-		return message.channel.send(content);
+		return message.channel.send(textContent, embedContent);
 	}
 
 	/**
@@ -265,31 +265,56 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
-	protected promptReaction (prompt: string) {
-		let options: [string | Emoji, string][] = [];
+	protected async clearReactions (message: CommandMessage) {
+		const output = message.previous?.output.flat();
+		if (!output?.length)
+			return;
+
+		if (message.channel instanceof DMChannel) {
+			for (const outputMessage of output)
+				await outputMessage?.delete();
+
+			delete message.previous;
+		}
+		else
+			for (const outputMessage of output)
+				await outputMessage?.clearReactions();
+	}
+
+	protected promptReaction (prompt: string | RichEmbed) {
+		let options: [string | Emoji, string?][] = [];
 		let timeout = minutes(5);
 		const self = this;
 
 		return {
-			addOption (option: string | Emoji, definition: string) {
-				options.push([option, definition]);
+			addOption (option?: string | Emoji | false | 0 | null, definition?: string) {
+				if (option)
+					options.push([option, definition]);
 				return this;
 			},
-			addOptions (...options: (readonly [string | Emoji, string])[]) {
+			addOptions (...options: (readonly [string | Emoji, string?])[]) {
 				for (const [emoji, definition] of options)
 					this.addOption(emoji, definition);
 				return this;
 			},
 			addCancelOption () {
-				this.addOption("❌", "Cancel.");
+				this.addOption("❌", "Cancel");
 				return this;
 			},
 			setTimeout (t: number) {
 				timeout = t;
 				return this;
 			},
-			async reply (message: CommandMessage): Promise<Emoji | ReactionEmoji | undefined> {
-				const reply = await self.reply(message, `${prompt}${options.map(([emoji, definition]) => `\n  ${emoji} ${definition}`)}`) as Message;
+			async reply (message: CommandMessage): Promise<{ message: Message, response: Emoji | ReactionEmoji | undefined }> {
+				const optionDefinitions = options.map(([emoji, definition]) => `\n  ${emoji} ${definition}`);
+
+				if (typeof prompt === "string")
+					prompt = `${prompt}${optionDefinitions}`;
+				// else
+				// 	prompt = prompt
+				// 		.setFooter(optionDefinitions);
+
+				const reply = await self.reply(message, prompt) as Message;
 
 				let ended = false;
 				(async () => {
@@ -305,7 +330,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				ended = true;
 
 				const result = collected?.first()?.emoji;
-				return result && result.name !== "❌" ? result : undefined;
+				return { message: reply, response: result && result.name !== "❌" ? result : undefined };
 			},
 		};
 	}

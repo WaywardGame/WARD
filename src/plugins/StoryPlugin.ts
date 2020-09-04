@@ -17,6 +17,8 @@ interface IStory {
 	synopsis: string;
 	thumbnail?: string;
 	scribble?: string;
+	ao3?: string;
+	tgst?: string;
 	patreon?: string;
 	otherURL?: string;
 	status?: keyof typeof Status;
@@ -26,6 +28,7 @@ enum Status {
 	complete,
 	oneshot,
 	ongoing,
+	upcoming,
 	hiatus,
 	cancelled,
 	unknown,
@@ -34,6 +37,8 @@ enum Status {
 interface IAuthor {
 	scribble?: string;
 	patreon?: string;
+	ao3?: string;
+	tgst?: string;
 	otherURL?: string;
 	bio?: string;
 }
@@ -69,6 +74,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			return CommandResult.pass();
 		}
 
+		await this.clearReactions(message);
 		await this.authorWizard(message);
 
 		return CommandResult.pass();
@@ -135,11 +141,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return CommandResult.pass();
 	}
 
-	@Command(["stories", "author"])
-	protected async onCommandAuthor (message: CommandMessage, queryMember?: string) {
-		let member = message.member;
+	@Command("author")
+	protected async onCommandAuthor (message: CommandMessage, queryMember?: string | GuildMember) {
+		let member = queryMember instanceof GuildMember ? queryMember : message.member;
 
-		if (queryMember) {
+		if (queryMember && !(queryMember instanceof GuildMember)) {
 			const result = this.validateFindResult(await this.findMember(queryMember));
 			if (result.error !== undefined)
 				return this.reply(message, result.error)
@@ -148,7 +154,58 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			member = result.member;
 		}
 
-		Paginator.create(this.getStoriesBy(member), story => this.generateStoryEmbed(story, member))
+		await this.clearReactions(message);
+
+		const result = await this.promptReaction(this.generateAuthorEmbed(member))
+			.addOption("📖", "View this author's stories")
+			.addOption(member.id === message.author.id && "✏", "Edit your profile")
+			.addCancelOption()
+			.reply(message);
+
+		if (result.response?.name === "📖") {
+			message.previous = CommandResult.mid(message, result.message);
+			return this.onCommandStories(message, member);
+		}
+
+		if (result.response?.name === "✏" && member.id === message.author.id) {
+			message.previous = CommandResult.mid(message, result.message);
+			return this.onCommandAuthorWizard(message);
+		}
+
+		return CommandResult.pass();
+	}
+
+	@Command("stories")
+	protected async onCommandStories (message: CommandMessage, queryMember?: string | GuildMember) {
+		let member = queryMember instanceof GuildMember ? queryMember : message.member;
+
+		if (queryMember && !(queryMember instanceof GuildMember)) {
+			const result = this.validateFindResult(await this.findMember(queryMember));
+			if (result.error !== undefined)
+				return this.reply(message, result.error)
+					.then(reply => CommandResult.fail(message, reply));
+
+			member = result.member;
+		}
+
+		await this.clearReactions(message);
+
+		const stories = this.getStoriesBy(member);
+		Paginator.create(stories, story => this.generateStoryEmbed(story, member))
+			.addOption(member.id === message.author.id && "✏", "Edit story")
+			.addOption("👤", "View author's profile")
+			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji) => {
+				if (reaction.name !== "✏" && reaction.name !== "👤")
+					return;
+
+				paginator.cancel();
+
+				if (reaction.name === "👤")
+					this.onCommandAuthor(message, member);
+
+				else if (member.id === message.author.id)
+					this.storyWizard(message, stories.indexOf(paginator.get().originalValue));
+			})
 			.reply(message);
 
 		return CommandResult.pass();
@@ -234,6 +291,38 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			story.patreon = response.content;
 
 		////////////////////////////////////
+		// Ao3
+		//
+
+		response = await this.prompter(`What about Ao3?`)
+			.setDefaultValue(story.ao3)
+			.setDeletable()
+			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
+			.reply(message);
+
+		if (!response)
+			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
+
+		if (response instanceof Message)
+			story.ao3 = response.content;
+
+		////////////////////////////////////
+		// TG Storytime
+		//
+
+		response = await this.prompter(`What about TG Storytime?`)
+			.setDefaultValue(story.tgst)
+			.setDeletable()
+			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
+			.reply(message);
+
+		if (!response)
+			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
+
+		if (response instanceof Message)
+			story.tgst = response.content;
+
+		////////////////////////////////////
 		// Other URL
 		//
 
@@ -269,14 +358,14 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Status
 		//
 
-		const statusResponse = await this.promptReaction("Next, what is the status of the story?")
+		const statusResult = await this.promptReaction("Next, what is the status of the story?")
 			.addOptions(...Enums.keys(Status).map(status => [this.statusEmoji[status], Strings.sentence(status)] as const))
 			.reply(message);
 
-		if (!statusResponse)
+		if (!statusResult.response)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		story.status = this.statusFromEmoji(statusResponse);
+		story.status = this.statusFromEmoji(statusResult.response);
 
 		////////////////////////////////////
 		// Save
@@ -293,7 +382,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Bio
 		//
 
-		let response = await this.prompter("What would you like to be in your bio?")
+		let response = await this.prompter("First, please send what you would you like to be in your bio.")
 			.setDefaultValue(author.bio)
 			.setDeletable()
 			.reply(message);
@@ -308,7 +397,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Scribble
 		//
 
-		response = await this.prompter("What's your Scribble Hub URL?")
+		response = await this.prompter("Next, what's your Scribble Hub URL?")
 			.setDefaultValue(author.scribble)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.scribblehub.com") ? true : "Not a valid URL.")
@@ -337,7 +426,39 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			author.patreon = response.content;
 
 		////////////////////////////////////
-		// Patreon
+		// Ao3
+		//
+
+		response = await this.prompter("What's your Ao3 URL?")
+			.setDefaultValue(author.ao3)
+			.setDeletable()
+			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
+			.reply(message);
+
+		if (!response)
+			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
+
+		if (response instanceof Message)
+			author.ao3 = response.content;
+
+		////////////////////////////////////
+		// TG Storytime
+		//
+
+		response = await this.prompter("What's your TG Storytime URL?")
+			.setDefaultValue(author.tgst)
+			.setDeletable()
+			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
+			.reply(message);
+
+		if (!response)
+			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
+
+		if (response instanceof Message)
+			author.tgst = response.content;
+
+		////////////////////////////////////
+		// Other
 		//
 
 		response = await this.prompter("What about a profile on another website?")
@@ -391,15 +512,45 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return new RichEmbed()
 			.setTitle(story.name)
 			.setURL(story.scribble || story.otherURL || story.patreon)
-			.setAuthor(member?.displayName, member?.user.avatarURL, this.data.authors[member?.id!]?.scribble)
+			.setAuthor(member?.displayName, member?.user.avatarURL, this.getAuthorURL(this.data.authors[member?.id!]))
 			.setDescription(story.synopsis)
 			.setThumbnail(story.thumbnail)
 			.addField("Status", `${this.statusEmoji[story.status || "unknown"]} ${Strings.sentence(story.status || "unknown")}`)
 			.addFields(
 				story.scribble && { name: "Scribble Hub", content: story.scribble },
 				story.patreon && { name: "Patreon", content: story.patreon },
-				story.otherURL && { name: "Other Website", content: story.otherURL },
+				story.ao3 && { name: "Archive of Our Own", content: story.ao3 },
+				story.tgst && { name: "TG Storytime", content: story.tgst },
+				story.otherURL && { name: "Other", content: story.otherURL },
 			);
+	}
+
+	@Bound
+	private generateAuthorEmbed (inUser: User | GuildMember) {
+		const user = inUser instanceof User ? inUser : inUser.user;
+		const member = inUser instanceof GuildMember ? inUser : this.guild.members.get(inUser.id);
+		const author = this.data.authors[user.id];
+
+		return new RichEmbed()
+			.setTitle(member?.displayName || user.username)
+			.setURL(this.getAuthorURL(this.data.authors[member?.id!]))
+			.setDescription(author.bio)
+			.setThumbnail(user.avatarURL)
+			.addFields(
+				author.scribble && { name: "Scribble Hub", content: author.scribble },
+				author.patreon && { name: "Patreon", content: author.patreon },
+				author.ao3 && { name: "Archive of Our Own", content: author.ao3 },
+				author.tgst && { name: "TG Storytime", content: author.tgst },
+				author.otherURL && { name: "Other", content: author.otherURL },
+			);
+	}
+
+	private getAuthorURL (author?: IAuthor) {
+		return author && (author.scribble
+			|| author.patreon
+			|| author.ao3
+			|| author.tgst
+			|| author.otherURL);
 	}
 
 	private getStoriesBy (user: User | GuildMember) {

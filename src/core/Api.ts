@@ -25,7 +25,7 @@ export type CommandMessage = Message & {
 };
 
 export interface CommandResult {
-	type: "pass" | "fail";
+	type: "pass" | "fail" | "mid";
 	commandMessage?: CommandMessage;
 	output: Message[];
 }
@@ -58,6 +58,8 @@ declare module "discord.js" {
 		setURL (url?: string): this;
 		setThumbnail (url?: string): this;
 		setAuthor (name?: string, thumbnail?: string, url?: string): this;
+		setPreferredReactions (...reactions: (string | Emoji)[]): this;
+		getPreferredReactions (): (string | Emoji)[];
 	}
 }
 
@@ -105,6 +107,15 @@ RichEmbed.prototype.addFields = function (...fields) {
 	return this;
 }
 
+RichEmbed.prototype.setPreferredReactions = function (...reactions) {
+	(this as any).reactions = reactions;
+	return this;
+}
+
+RichEmbed.prototype.getPreferredReactions = function (...reactions) {
+	return (this as any).reactions || [];
+}
+
 export module CommandResult {
 
 	export function pass (commandMessage?: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
@@ -113,6 +124,10 @@ export module CommandResult {
 
 	export function fail (commandMessage: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
 		return { type: "fail", commandMessage, output: output.flat() };
+	}
+
+	export function mid (commandMessage?: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
+		return { type: "mid", commandMessage, output: output.flat() };
 	}
 }
 

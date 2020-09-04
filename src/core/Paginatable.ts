@@ -1,4 +1,5 @@
-import { DMChannel, GroupDMChannel, Message, RichEmbed, TextChannel, User } from "discord.js";
+import { DMChannel, Emoji, GroupDMChannel, Message, ReactionEmoji, RichEmbed, TextChannel, User } from "discord.js";
+import { EventEmitterAsync } from "../util/Async";
 import { minutes } from "../util/Time";
 import { CommandMessage, IField } from "./Api";
 
@@ -12,32 +13,37 @@ enum PaginatorReaction {
 	Cancel = "❌",
 }
 
-interface IPage {
+interface IPage<T = any> {
+	originalValue: T;
 	title?: string;
 	content: string;
 	fields: IField[];
 	embed?: RichEmbed;
 }
 
-export class Paginator {
+export class Paginator<T = any> {
 
-	public static create<T extends string | undefined> (values: Iterable<T>, handler?: undefined): Paginator;
-	public static create<T extends IField | undefined> (values: Iterable<T>, handler?: undefined): Paginator;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => string | undefined): Paginator;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => IField | undefined): Paginator;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => RichEmbed | undefined): Paginator;
-	public static create<T> (values: Iterable<T>, handler?: (value: T) => string | IField | RichEmbed | undefined): Paginator {
+	public static create<T extends string | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
+	public static create<T extends IField | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler: (value: T) => string | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler: (value: T) => IField | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler: (value: T) => RichEmbed | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler?: (value: T) => string | IField | RichEmbed | undefined): Paginator<T> {
 		return new Paginator(values, handler);
 	}
 
+	public event = new EventEmitterAsync(this);
+
 	private readonly values: any[];
 	private readonly handler: ((value: any) => string | IField | RichEmbed | undefined) | undefined;
-	private pages?: IPage[];
+	private readonly otherOptions: [string | Emoji, string?][] = [];
+	private pages?: IPage<T>[];
 	private i = 0;
 	private pageHeader?: string;
 	private autoMerge = true;
+	private cancelled = false;
 
-	private constructor (values: Iterable<any>, handler?: (value: any) => string | IField | RichEmbed | undefined) {
+	private constructor (values: Iterable<T>, handler?: (value: any) => string | IField | RichEmbed | undefined) {
 		this.values = Array.from(values);
 		this.handler = handler;
 	}
@@ -49,6 +55,17 @@ export class Paginator {
 
 	public setNoAutoMerge () {
 		this.autoMerge = false;
+		return this;
+	}
+
+	public addOption (option?: string | Emoji | false | 0 | null, definition?: string) {
+		if (option)
+			this.otherOptions.push([option, definition]);
+		return this;
+	}
+
+	public addOptions (...options: [string | Emoji, string?][]) {
+		this.otherOptions.push(...options);
 		return this;
 	}
 
@@ -65,7 +82,7 @@ export class Paginator {
 				.setDescription(currentContent.content)
 				.addFields(...currentContent.fields);
 
-			currentText = inputUser ? `<@${inputUser.id}>` : "";
+			currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";
 
 			if (commandMessage?.previous?.output[0])
 				return commandMessage.previous?.output[0].edit(currentText, currentEmbed)
@@ -83,17 +100,22 @@ export class Paginator {
 			: this.sendServer(channel, inputUser, commandMessage);
 	}
 
-	protected get () {
+	public cancel () {
+		this.cancelled = true;
+		return this;
+	}
+
+	public get () {
 		return this.getPages()[this.i];
 	}
 
-	protected next () {
+	public next () {
 		this.i++;
 		if (this.i >= this.getPages().length)
 			this.i = 0;
 	}
 
-	protected prev () {
+	public prev () {
 		if (this.i <= 0)
 			this.i = this.getPages().length;
 
@@ -110,7 +132,7 @@ export class Paginator {
 
 		const maxLength = 1400;
 		const maxFields = 24;
-		let pages: IPage[] = [];
+		let pages: IPage<T>[] = [];
 		for (const value of this.values) {
 			const content = this.handler ? this.handler(value) : value;
 			if (!content)
@@ -131,7 +153,7 @@ export class Paginator {
 					: currentPage.fields.length >= maxFields);
 
 			if (shouldMakeNewPage)
-				pages.push(currentPage = { title: this.pageHeader, content: "", fields: [], embed: richEmbed });
+				pages.push(currentPage = { title: this.pageHeader, content: "", fields: [], embed: richEmbed, originalValue: value });
 
 			currentPage.content += newContent;
 			if (newField)
@@ -139,7 +161,7 @@ export class Paginator {
 		}
 
 		if (pages.length === 0)
-			pages.push({ content: "...there is nothing here. 😭", fields: [] });
+			pages.push({ content: "...there is nothing here. 😭", fields: [], originalValue: undefined! });
 
 		return this.pages = pages;
 	}
@@ -178,7 +200,8 @@ export class Paginator {
 				const reaction = await this.awaitReaction(message, inputUser, reacted ? "edit" : "add");
 				reacted = true;
 
-				if (!reaction || reaction === PaginatorReaction.Cancel) {
+				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
+					this.cancelled = true;
 					await message.edit(currentText, currentEmbed?.setFooter(`${this.getPageNumberText()}. ${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
 					await message.clearReactions();
 					// message.delete();
@@ -187,7 +210,9 @@ export class Paginator {
 					return;
 				}
 
-				this.paginate(reaction);
+				await this.handleReaction(reaction);
+				if (this.cancelled)
+					return;
 
 				currentContent = this.get();
 				currentEmbed = (currentContent.embed ?? new RichEmbed()
@@ -230,27 +255,39 @@ export class Paginator {
 
 				const reaction = await this.awaitReaction(message, inputUser);
 
-				if (!reaction || reaction === PaginatorReaction.Cancel) {
+				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
+					this.cancelled = true;
 					await message.edit(currentText, currentEmbed?.setFooter(`${this.getPageNumberText()}. ${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
 					return;
 				}
 
 				message.deleted = true;
 				await message.delete();
-				this.paginate(reaction);
+
+				await this.handleReaction(reaction);
+				if (this.cancelled)
+					return;
 			}
 		});
 	}
 
-	private paginate (reaction: PaginatorReaction.Prev | PaginatorReaction.Next) {
-		if (reaction === PaginatorReaction.Prev)
-			this.prev();
-		else
-			this.next();
+	private async handleReaction (reaction: Emoji | ReactionEmoji) {
+		if (reaction.name === PaginatorReaction.Prev)
+			return this.prev();
+
+		if (reaction.name === PaginatorReaction.Next)
+			return this.next();
+
+		return this.event.emit("reaction", this, reaction);
 	}
 
 	private async awaitReaction (message: Message, inputUser?: User, mode: "add" | "edit" = "add") {
-		const reactions = [PaginatorReaction.Prev, PaginatorReaction.Next, PaginatorReaction.Cancel];
+		const reactions = [
+			PaginatorReaction.Prev,
+			PaginatorReaction.Next,
+			...this.otherOptions.map(([emoji]) => emoji),
+			PaginatorReaction.Cancel,
+		];
 
 		if (mode === "add")
 			// no await is intentional
@@ -269,10 +306,10 @@ export class Paginator {
 		if (!(message.channel instanceof DMChannel || message.channel instanceof GroupDMChannel))
 			await reaction.remove(inputUser);
 
-		return reaction.emoji.name as PaginatorReaction;
+		return reaction.emoji;
 	}
 
-	private async addReactions (message: Message, reactions: string[]) {
+	private async addReactions (message: Message, reactions: (string | Emoji)[]) {
 		for (const reaction of reactions)
 			if (!message.deleted)
 				await message.react(reaction);

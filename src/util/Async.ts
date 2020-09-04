@@ -57,7 +57,7 @@ export class CancellablePromise<T> extends Promise<T | undefined> {
 	}
 }
 
-type Handler = (...args: any[]) => Promise<any>;
+type Handler = ((...args: any[]) => Promise<any>) | ((...args: any[]) => any);
 
 const SET_EMPTY = new Set<Handler>();
 
@@ -73,14 +73,14 @@ export class EventEmitterAsync<H = void> {
 		this.handlers.getOrDefault(event, () => new Set(), true)
 			.add(handler);
 
-		return this.host;
+		return this.host!;
 	}
 
 	public unsubscribe (event: string, handler: Handler) {
 		(this.handlers.get(event) ?? SET_EMPTY)
 			.delete(handler);
 
-		return this.host;
+		return this.host!;
 	}
 
 	public async emit (event: string, ...args: any[]) {
