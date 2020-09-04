@@ -77,8 +77,6 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		await this.welcomeNewUsers();
 
 		this.isWelcoming = false;
-
-		this.save();
 	}
 
 	@Command<WelcomePlugin>("welcome confirm")
@@ -130,6 +128,8 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 		for (const [, user] of users)
 			await this.handleJoin(user, welcome);
+
+		this.data.markDirty();
 	}
 
 	private async handleJoin (user: GuildMember, welcome: boolean) {

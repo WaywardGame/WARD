@@ -1,4 +1,4 @@
-import { GuildMember, Message, Role } from "discord.js";
+import { GuildMember, Message, Role, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -141,6 +141,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 			if (trackedMember.lastDay < today - this.config.daysBeforeXpLoss) {
 				trackedMember.xp--;
+				this.data.markDirty();
 			}
 
 			if (trackedMember.xp <= 0) {
@@ -161,6 +162,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.removeRegularFromMember(member);
 
 		delete this.members[trackedMember.id];
+		this.data.markDirty();
 		this.logger.info(`Dropped tracked member '${this.getMemberName(member)}'`);
 	}
 
@@ -263,6 +265,32 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return this.config.scoreName || "xp";
 	}
 
+	public autoDonate (trackedMember: ITrackedMember, donationChain = new Set<string>()) {
+		const autoDonate = trackedMember.autodonate;
+		if (!autoDonate)
+			return;
+
+		const [donateMemberId, donateDownTo] = autoDonate;
+		const donateMember = this.getTrackedMember(donateMemberId);
+
+		const donateAmount = trackedMember.xp - Math.max(this.config.regularMilestoneXp, donateDownTo);
+		if (donateAmount <= 0)
+			return;
+
+		trackedMember.xp -= donateAmount;
+		donateMember.xp += donateAmount;
+		this.data.markDirty();
+
+		if (!donationChain.has(trackedMember.id)) {
+			donationChain.add(trackedMember.id);
+			this.autoDonate(donateMember, donationChain);
+		}
+
+		const donateTargetName = this.getMemberName(donateMemberId);
+		this.logger.verbose(this.getMemberName(trackedMember.id), `auto-donated ${donateAmount} ${this.getScoreName()} to`, donateTargetName);
+		return `donated ${Intl.NumberFormat().format(Math.abs(donateAmount))} ${this.getScoreName()} to ${donateTargetName}`;
+	}
+
 	private getToday () {
 		return Math.floor(Date.now() / days(1));
 	}
@@ -287,8 +315,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.autoDonate(trackedMember);
 
 		this.checkMemberRegular(member);
-
 		this.updateTopMember(trackedMember);
+
+		this.data.markDirty();
 	}
 
 	private checkMemberRegular (member: GuildMember) {
@@ -563,30 +592,5 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		this.updateTopMember(trackedMember, updatingMember);
 		return CommandResult.pass();
-	}
-
-	public autoDonate (trackedMember: ITrackedMember, donationChain = new Set<string>()) {
-		const autoDonate = trackedMember.autodonate;
-		if (!autoDonate)
-			return;
-
-		const [donateMemberId, donateDownTo] = autoDonate;
-		const donateMember = this.getTrackedMember(donateMemberId);
-
-		const donateAmount = trackedMember.xp - Math.max(this.config.regularMilestoneXp, donateDownTo);
-		if (donateAmount <= 0)
-			return;
-
-		trackedMember.xp -= donateAmount;
-		donateMember.xp += donateAmount;
-
-		if (!donationChain.has(trackedMember.id)) {
-			donationChain.add(trackedMember.id);
-			this.autoDonate(donateMember, donationChain);
-		}
-
-		const donateTargetName = this.getMemberName(donateMemberId);
-		this.logger.verbose(this.getMemberName(trackedMember.id), `auto-donated ${donateAmount} ${this.getScoreName()} to`, donateTargetName);
-		return `donated ${Intl.NumberFormat().format(Math.abs(donateAmount))} ${this.getScoreName()} to ${donateTargetName}`;
 	}
 }

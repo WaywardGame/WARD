@@ -1,8 +1,7 @@
 import { TextChannel } from "discord.js";
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
-import { sleep } from "../util/Async";
-import { minutes, seconds } from "../util/Time";
+import { minutes } from "../util/Time";
 import { IStream, Twitch } from "../util/Twitch";
 
 export interface IStreamDetector {
@@ -43,50 +42,48 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	}
 
 	private async cleanupTrackedStreams (updateTime: number) {
-		for (const trackedStreamId of Object.keys(this.trackedStreams)) {
-			if (updateTime != this.trackedStreams[trackedStreamId]) {
+		for (const trackedStreamId of Object.keys(this.trackedStreams))
+			if (updateTime != this.trackedStreams[trackedStreamId])
 				delete this.trackedStreams[trackedStreamId];
-			}
-		}
 	}
 
 	private async updateStreams (updateTime: number) {
+		const updates: (readonly [string, number] | undefined)[] = [];
+
 		for (const streamDetector of this.config.streamDetectors) {
 			if (streamDetector.game) {
 				const streams = await this.twitch.getStreams(streamDetector.game);
 
-				for (const stream of streams) {
-					await this.updateStream(streamDetector, stream, updateTime);
-				}
+				for (const stream of streams)
+					updates.push(await this.updateStream(streamDetector, stream, updateTime));
 
 			} else {
 				const stream = await this.twitch.getStream(streamDetector.streamer);
-
-				if (stream) {
-					await this.updateStream(streamDetector, stream, updateTime);
-				}
+				updates.push(stream && await this.updateStream(streamDetector, stream, updateTime));
 			}
 		}
 
-		this.save();
+		for (const [username, time] of updates.filterNullish()) {
+			this.trackedStreams[username] = time;
+			this.data.markDirty();
+		}
 	}
 
 	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {
-		if (!this.trackedStreams[stream.user_name]) {
-			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
+		if (this.trackedStreams[stream.user_name])
+			return undefined;
 
-			const user = await this.twitch.getUser(stream.user_id);
+		this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
-			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
-				.send(streamDetector.message
-					.replace("{name}", escape(stream.user_name))
-					.replace("{title}", escape(stream.title))
-					.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
-		}
+		const user = await this.twitch.getUser(stream.user_id);
 
-		sleep(seconds(1)).then(() => {
-			this.trackedStreams[stream.user_name] = time;
-		});
+		(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
+			.send(streamDetector.message
+				.replace("{name}", escape(stream.user_name))
+				.replace("{title}", escape(stream.title))
+				.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
+
+		return [stream.user_name, time] as const;
 	}
 }
 

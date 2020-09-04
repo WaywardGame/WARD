@@ -130,7 +130,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			message: giveawayMessage.id,
 			winnerCount
 		};
-		this.save();
+		await this.save();
 		return CommandResult.pass();
 	}
 
@@ -148,7 +148,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		this.logger.info(`${message.member.displayName} cancelled the giveaway`);
 
 		delete this.data.giveaway;
-		this.save();
+		await this.save();
 		return CommandResult.pass();
 	}
 
@@ -166,7 +166,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 		const prizeType = message.command.endsWith("prize") ? "prize" : "consolation";
 		this.data.giveaway[prizeType] = prize;
-		this.save();
+		await this.save();
 
 		if (prize)
 			this.reply(message, `set the ${prizeType} ${this.regularsPlugin.getScoreName()} for the giveaway to ${prize}.`);
@@ -196,7 +196,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			return CommandResult.pass();
 
 		delete this.data.giveaway;
-		this.save();
+		await this.save();
 
 		this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
 		return CommandResult.pass();
@@ -259,7 +259,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!announcement) {
 			this.logger.warning("Giveaway announcement message inaccessible", this.data.giveaway);
 			delete this.data.giveaway;
-			this.save();
+			await this.save();
 			this.reply(message, "there is no giveaway running.");
 			return undefined;
 		}

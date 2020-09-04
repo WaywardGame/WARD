@@ -101,6 +101,8 @@ export class DataContainer<DATA extends {} = any> {
 	private saving?: Promise<void>;
 
 	public get lastSaveTime () { return this._lastSave; }
+	public get timeSinceLastSave () { return Date.now() - this._lastSave; }
+	public get timeTillNextSave () { return Math.max(0, this.host.autosaveInterval - this.timeSinceLastSave); }
 
 	public get data () {
 		return this._data;
@@ -112,8 +114,22 @@ export class DataContainer<DATA extends {} = any> {
 		if (this.dirty)
 			return true;
 
+		// only recalculate with JSON.stringify every ten minutes
+		if (this.timeSinceLastSave < minutes(10))
+			return false;
+
 		const newDataJson = JSON.stringify(this._data);
-		return this.dirty = newDataJson !== this.dataJson;
+		this.dirty = newDataJson !== this.dataJson;
+
+		// fake an autosave so that it'll be another 10 minutes till the next
+		if (!this.dirty)
+			this._lastSave = Date.now();
+
+		return this.dirty;
+	}
+
+	public markDirty () {
+		this.dirty = true;
 	}
 
 	public async load () {
@@ -142,7 +158,7 @@ export class DataContainer<DATA extends {} = any> {
 	}
 
 	public async saveOpportunity () {
-		if (this.isDirty() || Date.now() - this._lastSave > this.host.autosaveInterval)
+		if (this.isDirty() || this.timeSinceLastSave > this.host.autosaveInterval)
 			return this.save();
 	}
 

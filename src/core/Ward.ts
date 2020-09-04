@@ -14,7 +14,7 @@ import { sleep } from "../util/Async";
 import Bound from "../util/Bound";
 import Data from "../util/Data";
 import Logger from "../util/Log";
-import { seconds } from "../util/Time";
+import { hours, seconds } from "../util/Time";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
 import { Api, CommandFunction, CommandMessage, CommandMetadata, CommandResult, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
@@ -149,9 +149,10 @@ export class Ward {
 		plugin.lastUpdate = Date.now();
 		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
-		// console.log("set lastupdate to", plugin.lastUpdate);
-		await plugin.save();
-		// console.log("saved lastupdate is", plugin["_data"].data?._lastUpdate);
+
+		if (plugin.autosaveInterval > hours(1))
+			// make sure the "lastUpdate" is saved, for plugins that have infrequent updates
+			plugin.data.markDirty();
 	}
 
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
@@ -245,6 +246,8 @@ export class Ward {
 		if (command) {
 			Promise.resolve(command.function?.(commandMessage, ...args))
 				.then(async result => {
+					await this.plugins[command?.plugin!]?.data.saveOpportunity();
+
 					if (result?.type !== "fail")
 						return;
 
@@ -445,14 +448,15 @@ export class Ward {
 		await Promise.all(promises);
 	}
 
-	private pluginHookMessage (message: Message) {
+	private async pluginHookMessage (message: Message) {
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName];
-			if (plugin.onMessage) {
+			if (plugin.onMessage)
 				plugin.onMessage(message);
-			}
+
+			plugin.data.saveOpportunity();
 		}
 	}
 

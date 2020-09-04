@@ -75,11 +75,9 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	}
 
 	public async onUpdate () {
-		if (this.isReporting) {
+		if (this.isReporting)
 			return;
-		}
 
-		// this.log("Updating changelog...");
 		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
 		this.warningChannel = !this.config.warningChannel ? undefined
 			: this.guild.channels.find(channel => channel.id === this.config.warningChannel) as TextChannel;
@@ -96,9 +94,6 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 				await this.changelog(list);
 
 		this.isReporting = false;
-
-		// this.log("Update complete.");
-		this.save();
 	}
 
 	public getDescription () {
@@ -188,7 +183,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 				}
 
 				reportedChange[1] = newHash;
-				await this.save();
+				this.data.markDirty();
 			}
 		}
 	}
@@ -228,7 +223,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		if (report)
 			reportedChange[2] = (await this.channel.send(change) as Message).id;
 
-		await this.save();
+		this.data.markDirty();
 	}
 
 	private getChangeText (version: IVersionInfo | string, card: ITrelloCard) {
