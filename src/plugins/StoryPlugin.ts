@@ -2,6 +2,7 @@ import { DMChannel, Emoji, GuildMember, Message, ReactionEmoji, RichEmbed, User 
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import Bound from "../util/Bound";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
 import { minutes } from "../util/Time";
@@ -252,7 +253,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Thumbnail
 		//
 
-		response = await this.prompter(`Next, what would you like to be the thumbnail of the story?`)
+		response = await this.prompter(`Next, what would you like to be the thumbnail of the story? Must be a URL. _(Hint: If you want to use your Scribble Hub thumbnail, right click on it and hit "copy link address.")_`)
 			.setDefaultValue(story.thumbnail)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
@@ -385,6 +386,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.map(({ story }) => story);
 	}
 
+	@Bound
 	private generateStoryEmbed (story: IStory, member = this.guild.members.get(story.author)) {
 		return new RichEmbed()
 			.setTitle(story.name)
