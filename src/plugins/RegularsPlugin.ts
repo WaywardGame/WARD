@@ -36,6 +36,7 @@ export interface IRegularsConfig {
 	scoreName?: string;
 	excludedChannels?: string[];
 	daysBeforeXpLoss: number;
+	xpLossAmount: number;
 	xpForNewDay: number;
 	xpForMessage: number;
 	// 0: maximum xp in 1: amount of time
@@ -140,13 +141,12 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			const trackedMember = this.members[memberId];
 
 			if (trackedMember.lastDay < today - this.config.daysBeforeXpLoss) {
-				trackedMember.xp--;
+				trackedMember.xp -= this.config.xpLossAmount;
 				this.data.markDirty();
 			}
 
-			if (trackedMember.xp <= 0) {
+			if (trackedMember.xp <= 0)
 				this.dropTrackedMember(trackedMember);
-			}
 		}
 
 		for (const [, member] of this.guild.members.filter(member => member.roles.has(this.roleRegular.id))) {
@@ -166,12 +166,15 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.logger.info(`Dropped tracked member '${this.getMemberName(member)}'`);
 	}
 
-	private removeRegularFromMember (member: GuildMember) {
-		if (member && !member.roles.has(this.roleMod.id) && !member.permissions.has("ADMINISTRATOR")) {
+	private removeRegularFromMember (member?: GuildMember) {
+		if (member && !this.shouldUserBeRegular(member)) {
 			member.removeRole(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
+			return true;
 		}
+
+		return false;
 	}
 
 	public onMessage (message: Message) {
@@ -186,6 +189,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.onMemberMessage(message.member);
 	}
 
+	public getTrackedMember (id: string): ITrackedMember;
+	public getTrackedMember (id: string, create: false): ITrackedMember | undefined;
 	public getTrackedMember (id: string, create = true) {
 		const today = this.getToday();
 
@@ -208,10 +213,23 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return trackedMember;
 	}
 
-	public isUserRegular (member: GuildMember) {
-		return member.roles.has(this.roleRegular.id) ||
-			member.highestRole.position >= this.roleMod.position ||
-			member.permissions.has("ADMINISTRATOR");
+	public isUserRegular (user?: User | GuildMember) {
+		if (user instanceof User)
+			user = this.guild.members.get(user.id);
+
+		return !user ? false : user.roles.has(this.roleRegular.id)
+			|| this.shouldUserBeRegular(user);
+	}
+
+	private shouldUserBeRegular (user?: User | GuildMember) {
+		if (user instanceof User)
+			user = this.guild.members.get(user.id);
+
+		const trackedMember = user && this.getTrackedMember(user.id, false);
+
+		return !user ? false : user.highestRole.position >= this.roleMod.position
+			|| user.permissions.has("ADMINISTRATOR")
+			|| (!trackedMember ? false : trackedMember.xp > this.config.regularMilestoneXp);
 	}
 
 	public onRemoveMember (handler: (member: GuildMember) => any) {
