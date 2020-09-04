@@ -27,6 +27,18 @@ let x: Record<LogLevel, keyof Chalk>;
 // test whether using valid colours
 x = levelColors;
 
+const scopeColors
+	// : readonly (keyof Chalk)[]
+	= [
+		"white",
+		"cyan",
+	] as const;
+
+// @ts-expect-error
+let y: readonly (keyof Chalk)[];
+// test whether using valid colours
+y = scopeColors;
+
 export default class Logger {
 	private static readonly waitToLog: string[] = [];
 	private static isReadyToLog = false;
@@ -65,7 +77,7 @@ export default class Logger {
 	}
 
 	private static async logInternal (level: LogLevel, from?: string | string[], what: any[] = []) {
-		from = Array.isArray(from) ? from.join("] [") : from;
+		from = Array.isArray(from) ? from.map((scope, i) => chalk[scopeColors[i]](scope)).join(" / ") : from;
 
 		const toLog = [];
 
@@ -76,7 +88,10 @@ export default class Logger {
 			toLog.push(from);
 
 		else if (from)
-			toLog.push(chalk.grey(`[${from}]`));
+			toLog.push(chalk.grey(`- ${from} -`));
+
+		if (level === LogLevel.verbose)
+			what = what.map(value => typeof value === "string" ? colorizer(value) : value);
 
 		toLog.push(...what);
 

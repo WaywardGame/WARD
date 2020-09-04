@@ -145,7 +145,7 @@ export class Ward {
 	}
 
 	private async updatePlugin (plugin: Plugin) {
-		this.logger.verbose("Update plugin", plugin.getId());
+		plugin.logger.verbose("Update");
 		plugin.lastUpdate = Date.now();
 		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
@@ -299,9 +299,9 @@ export class Ward {
 			// initial load of plugin data
 			if (!plugin["loaded"]) {
 				plugin["loaded"] = true;
-				this.logger.verbose("Load data for plugin", pluginName);
+				plugin.logger.verbose("Load data");
 				await this.getApi<Data>("data")?.load(plugin)
-					.catch(err => this.logger.warning(`Unable to load ${pluginName} data`, err))
+					.catch(err => plugin.logger.warning(`Unable to load data`, err))
 					?? {};
 
 				// console.log(this.guild.name, plugin.getId(), plugin["_data"].data?._lastUpdate);
@@ -363,11 +363,11 @@ export class Ward {
 				for (const command of Array.isArray(commands) ? commands : [commands]) {
 					if (command && (!condition || condition(plugin))) {
 						const alreadyExisted = this.registerCommand(command.split(" "), plugin[property].bind(plugin), undefined, pluginName);
-						const logText = `command '${chalk.cyan(`!${command}`)}' for plugin '${chalk.grey(pluginName)}'`;
+						const logText = `command '${chalk.magenta(`!${command}`)}'`;
 						if (alreadyExisted)
-							this.logger.warning(`Re-registered ${logText}`);
+							plugin.logger.warning(`Re-registered ${logText}`);
 						else
-							this.logger.verbose(`Registered ${logText}`);
+							plugin.logger.verbose(`Registered ${logText}`);
 					}
 				}
 			}
@@ -400,9 +400,9 @@ export class Ward {
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
-		this.logger.info(`Updating plugin "${pluginName}" due to request from ${message.member.displayName}`);
+		plugin.logger.info(`Updating due to request from ${message.member.displayName}`);
 		this.updatePlugin(plugin);
-		message.reply(`updated plugin ${pluginName}.`);
+		plugin.reply(message, `updated plugin ${pluginName}.`);
 		return CommandResult.pass();
 	}
 
