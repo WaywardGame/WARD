@@ -315,7 +315,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		//
 
 		if (!this.data.authors[message.author.id]) {
-			if (await this.yesOrNo("Oh! Seems like you haven't set up your author profile yet. Would you like to do that first?").reply(message))
+			if (await this.yesOrNo("Oh! Seems like you haven't set up your author profile yet. **Would you like to do that first?**").reply(message))
 				await this.authorWizard(message);
 		}
 
@@ -323,7 +323,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Name
 		//
 
-		let response = await this.prompter(`First up, please send the name of your story!`)
+		let response = await this.prompter(`First up, please **send the name of your story!**`)
 			.setDefaultValue(story.name)
 			.reply(message);
 
@@ -337,7 +337,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Synopsis
 		//
 
-		response = await this.prompter(`Next, what would you like to be the synopsis of the story?`)
+		response = await this.prompter(`Next, what would you like to be the **synopsis** of the story?`)
 			.setDefaultValue(story.synopsis)
 			.setDeletable()
 			.setTimeout(minutes(20))
@@ -353,7 +353,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Scribble
 		//
 
-		response = await this.prompter(`Next, we're going to get all the links for your story. Let's start with the Scribble Hub URL.`)
+		response = await this.prompter(`Next, we're going to get all the links for your story. Let's start with the **Scribble Hub URL**.`)
 			.setDefaultValue(story.scribble)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.scribblehub.com") ? true : "Not a valid URL.")
@@ -369,7 +369,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Patreon
 		//
 
-		response = await this.prompter(`Do you have a link for the story on your Patreon?\n_(Hint: If you tag all chapters of a story with the same tag, you can click on that tag to get the link for it.)_`)
+		response = await this.prompter(`Do you have a link for the story on your **Patreon**?\n_(Hint: If you tag all chapters of a story with the same tag, you can click on that tag to get the link for it.)_`)
 			.setDefaultValue(story.patreon)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.patreon.com") ? true : "Not a valid URL.")
@@ -385,7 +385,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Ao3
 		//
 
-		response = await this.prompter(`What about Ao3?`)
+		response = await this.prompter(`What about **Ao3**?`)
 			.setDefaultValue(story.ao3)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
@@ -401,7 +401,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// TG Storytime
 		//
 
-		response = await this.prompter(`What about TG Storytime?`)
+		response = await this.prompter(`What about **TG Storytime**?`)
 			.setDefaultValue(story.tgst)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
@@ -417,7 +417,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Other URL
 		//
 
-		response = await this.prompter(`Do you have the story on another site?`)
+		response = await this.prompter(`Do you have the story on **another site?** _(IE, not Scribble Hub, not Patreon, not Ao3, not TGST)_`)
 			.setDefaultValue(story.otherURL)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
@@ -433,7 +433,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Thumbnail
 		//
 
-		response = await this.prompter(`Next, what would you like to be the thumbnail of the story? Must be a URL. _(Hint: If you want to use your Scribble Hub thumbnail, right click on it and hit "copy link address.")_`)
+		response = await this.prompter(`Next, what would you like to be the **thumbnail** of the story? **Must be a URL.** _(Hint: If you want to use your Scribble Hub thumbnail, right click on it and hit "copy link address.")_`)
 			.setDefaultValue(story.thumbnail)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
@@ -449,7 +449,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Status
 		//
 
-		const statusResult = await this.promptReaction("Next, what is the status of the story?")
+		const statusResult = await this.promptReaction("Next, what is the **status** of the story?")
 			.addOptions(...Enums.keys(Status).map(status => [this.statusEmoji[status], Strings.sentence(status)] as const))
 			.reply(message);
 
@@ -473,7 +473,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Bio
 		//
 
-		let response = await this.prompter("First, please send what you would you like to be in your bio.")
+		let response = await this.prompter("First, please **send what you would you like to be in your bio**.")
 			.setDefaultValue(author.bio)
 			.setDeletable()
 			.reply(message);
@@ -488,7 +488,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Scribble
 		//
 
-		response = await this.prompter("Next, what's your Scribble Hub URL?")
+		response = await this.prompter("Next, what's your **Scribble Hub URL**?")
 			.setDefaultValue(author.scribble)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.scribblehub.com") ? true : "Not a valid URL.")
@@ -504,7 +504,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Patreon
 		//
 
-		response = await this.prompter("What's your Patreon URL?")
+		response = await this.prompter("What's your **Patreon URL**?")
 			.setDefaultValue(author.patreon)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.patreon.com") ? true : "Not a valid URL.")
@@ -520,7 +520,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Ao3
 		//
 
-		response = await this.prompter("What's your Ao3 URL?")
+		response = await this.prompter("What's your **Ao3 URL**?")
 			.setDefaultValue(author.ao3)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
@@ -536,7 +536,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// TG Storytime
 		//
 
-		response = await this.prompter("What's your TG Storytime URL?")
+		response = await this.prompter("What's your **TG Storytime URL**?")
 			.setDefaultValue(author.tgst)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
@@ -552,7 +552,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Other
 		//
 
-		response = await this.prompter("What about a profile on another website?")
+		response = await this.prompter("What about a profile on **another website**? _(IE, not Scribble Hub, not Patreon, not Ao3, not TGST)_")
 			.setDefaultValue(author.otherURL)
 			.setDeletable()
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
