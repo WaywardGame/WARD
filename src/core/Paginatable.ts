@@ -36,7 +36,7 @@ export class Paginator<T = any> {
 
 	private readonly values: any[];
 	private readonly handler: ((value: any) => string | IField | RichEmbed | undefined) | undefined;
-	private readonly otherOptions: [string | Emoji, string?][] = [];
+	private readonly otherOptions: [GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, string?][] = [];
 	private pages?: IPage<T>[];
 	private i = 0;
 	private pageHeader?: string;
@@ -58,14 +58,14 @@ export class Paginator<T = any> {
 		return this;
 	}
 
-	public addOption (option?: string | Emoji | false | 0 | null, definition?: string) {
+	public addOption (option?: GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, definition?: string) {
 		if (option)
 			this.otherOptions.push([option, definition]);
 		return this;
 	}
 
-	public addOptions (...options: [string | Emoji, string?][]) {
-		this.otherOptions.push(...options);
+	public addOptions (...options: [GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, string?][]) {
+		this.otherOptions.push(...options.filter(([option]) => option));
 		return this;
 	}
 
@@ -210,7 +210,7 @@ export class Paginator<T = any> {
 					return;
 				}
 
-				await this.handleReaction(reaction);
+				await this.handleReaction(reaction, message);
 				if (this.cancelled)
 					return;
 
@@ -264,30 +264,42 @@ export class Paginator<T = any> {
 				message.deleted = true;
 				await message.delete();
 
-				await this.handleReaction(reaction);
+				await this.handleReaction(reaction, message);
 				if (this.cancelled)
 					return;
 			}
 		});
 	}
 
-	private async handleReaction (reaction: Emoji | ReactionEmoji) {
+	private async handleReaction (reaction: Emoji | ReactionEmoji, responseMessage: Message) {
 		if (reaction.name === PaginatorReaction.Prev)
 			return this.prev();
 
 		if (reaction.name === PaginatorReaction.Next)
 			return this.next();
 
-		return this.event.emit("reaction", this, reaction);
+		return this.event.emit("reaction", this, reaction, responseMessage);
 	}
 
 	private async awaitReaction (message: Message, inputUser?: User, mode: "add" | "edit" = "add") {
 		const reactions = [
 			PaginatorReaction.Prev,
 			PaginatorReaction.Next,
-			...this.otherOptions.map(([emoji]) => emoji),
+			...this.otherOptions.map(([emoji]) => typeof emoji === "function" ? emoji(this.get()) : emoji)
+				.map(emoji => typeof emoji === "string" || emoji instanceof Emoji ? emoji : undefined)
+				.filterNullish(),
 			PaginatorReaction.Cancel,
 		];
+
+		if (mode !== "add") {
+			// if this page's reactions are invalid, we clear them and add them again
+			const currentReactions = [...message.reactions.values()].map(react => react.emoji.name);
+			const newReactions = reactions.map(react => typeof react === "string" ? react : react.name);
+			if (currentReactions.length !== newReactions.length || currentReactions.some(r => !newReactions.includes(r))) {
+				await message.clearReactions();
+				mode = "add";
+			}
+		}
 
 		if (mode === "add")
 			// no await is intentional

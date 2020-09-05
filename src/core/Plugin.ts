@@ -133,7 +133,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		};
 	}
 
-	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
+	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand): Promise<ArrayOr<Message>>;
+	public async reply (message: CommandMessage, reply: string, embed?: RichEmbed): Promise<ArrayOr<Message>>;
+	public async reply (message: CommandMessage, reply?: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand, embed?: RichEmbed) {
 		if (reply instanceof HelpContainerPlugin)
 			return reply.getPaginator(this.commandPrefix)
 				.reply(message);
@@ -151,7 +153,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 
 		let textContent = typeof reply === "string" ? reply : message.channel instanceof DMChannel ? undefined : `<@${message.author.id}>`;
-		const embedContent = typeof reply === "string" ? undefined : reply;
+		const embedContent = typeof reply === "string" ? embed : reply;
 
 		if (message.previous?.output[0])
 			return message.previous?.output[0].edit(textContent, embedContent)
@@ -373,7 +375,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		};
 	}
 
-	protected yesOrNo (prompt: string) {
+	protected yesOrNo (text?: string, embed?: RichEmbed) {
+		if (!text && !embed)
+			throw new Error("No message content.");
+
 		let timeout = minutes(5);
 		const self = this;
 
@@ -383,7 +388,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				return this;
 			},
 			async reply (message: CommandMessage) {
-				const reply = await self.reply(message, `${prompt}`) as Message;
+				const reply = await self.reply(message, text!, embed) as Message;
 
 				let ended = false;
 				(async () => {

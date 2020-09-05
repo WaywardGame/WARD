@@ -1,8 +1,10 @@
 import chalk from "chalk";
 import { DMChannel, Emoji, GuildMember, Message, ReactionEmoji, RichEmbed, User } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
@@ -12,7 +14,15 @@ interface IStoryConfig {
 
 }
 
+interface IStoryNameSearchCache {
+	hash: number;
+	terms: string[];
+}
+
+const SYMBOL_STORY_NAME_SEARCH_CACHE = Symbol("STORY_NAME_SEARCH_CACHE");
+
 interface IStory {
+	[SYMBOL_STORY_NAME_SEARCH_CACHE]?: IStoryNameSearchCache;
 	author: string;
 	name: string;
 	synopsis: string;
@@ -49,6 +59,21 @@ interface IStoryData {
 	stories: Record<string, IStory[]>;
 }
 
+enum CommandLanguage {
+	AuthorWizardDescription = "_DM-only._ Enters a wizard to register/edit your author profile, which can be looked up by other users with `!author <yourname>`",
+	AuthorUnregisterDescription = "_DM-only._ Unregisters/deletes your author profile.",
+	StoryWizardDescription = "_DM-only._ Enters a wizard to register/edit a new story. Does not require registering your author profile.",
+	StoryUnregisterDescription = "_DM-only._ Unregisters/deletes one of your stories.",
+	StoryUnregisterArgumentName = "The name of the story, via a list of search terms. Finds the closest match for the provided terms.",
+	StoryQueryDescription = "Searches for stories.",
+	StoryQueryArgumentName = "The name of the story, via a list of search terms. Finds all matches for the provided terms, sorted by how near a match they are.",
+	AuthorQueryDescription = "Searches for an author.",
+	AuthorQueryArgumentAuthor = "A user's ID, partial username & tag, or partial display name. If not provided, shows your own profile.",
+	StoriesMineListDescription = "Shows a list of all of your registered stories.",
+	StoriesListDescription = "Shows a list of all registered stories (shuffled), or all stories by a specific author (not shuffled).",
+	StoriesListArgumentAuthor = "The author to show the stories of. If not provided, shows all registered stories.",
+}
+
 export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	public getDefaultConfig () {
@@ -61,11 +86,37 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return "stories";
 	}
 
+	public getDescription () {
+		return "A plugin for sharing your stories!";
+	}
+
 	private statusEmoji: Record<keyof typeof Status, Emoji>;
 
 	public onStart () {
 		this.statusEmoji = Object.fromEntries(Enums.keys(Status)
 			.map(status => [status, this.guild.emojis.find(emoji => emoji.name === status)])) as Record<keyof typeof Status, Emoji>;
+	}
+
+	private readonly help = () => new HelpContainerPlugin()
+		.addCommand("author register|edit", CommandLanguage.AuthorWizardDescription)
+		.addCommand("author unregister|delete", CommandLanguage.AuthorUnregisterDescription)
+		.addCommand("story register|edit", CommandLanguage.StoryWizardDescription)
+		.addCommand("story unregister|delete", CommandLanguage.StoryUnregisterDescription, command => command
+			.addRemainingArguments("name", CommandLanguage.StoryUnregisterArgumentName))
+		.addCommand("story", CommandLanguage.StoryQueryDescription, command => command
+			.addRemainingArguments("name", CommandLanguage.StoryQueryArgumentName))
+		.addCommand("author", CommandLanguage.AuthorQueryDescription, command => command
+			.addArgument("author", CommandLanguage.AuthorQueryArgumentAuthor, argument => argument
+				.setOptional()))
+		.addCommand("stories mine", CommandLanguage.StoriesMineListDescription)
+		.addCommand("stories", CommandLanguage.StoriesListDescription, command => command
+			.addArgument("author", CommandLanguage.StoriesListArgumentAuthor, argument => argument
+				.setOptional()));
+
+	@Command(["help stories", "stories help"])
+	protected async commandHelp (message: CommandMessage) {
+		this.reply(message, this.help());
+		return CommandResult.pass();
 	}
 
 	@Command(["author register", "author edit"])
@@ -83,33 +134,26 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return CommandResult.pass();
 	}
 
-	@Command("author unregister")
+	@Command(["author unregister", "author delete"])
 	protected async onCommandAuthorUnregister (message: CommandMessage) {
+		if (!(message.channel instanceof DMChannel)) {
+			this.reply(message, "Please use this command in a DM with me so as to not spam the chat. Thanks!");
+			return CommandResult.pass();
+		}
+
+		const sure = await this.yesOrNo("Are you sure you want to delete your author profile?")
+			.reply(message);
+
+		if (!sure) {
+			await this.reply(message, "okay, I've cancelled this operation.");
+			return CommandResult.pass();
+		}
+
 		delete this.data.authors[message.author.id];
 		this.logger.info(this.getName(message.author), `removed ${this.getPronouns(message.author).their} profile`);
 		await this.reply(message, "Your author profile has been unregistered. 😭");
 		return CommandResult.pass();
 	}
-
-	// @Command("story unregister")
-	// protected async onCommandStoryUnregister (message: CommandMessage, ...queryArgs: string[]) {
-	// 	let storyId: number | undefined;
-	// 	if (queryArgs.length) {
-	// 		const matchingStories = this.queryStories(queryArgs, message.author);
-	// 		if (!matchingStories.length)
-	// 			return this.reply(message, "I could not find a story matching the given data.")
-	// 				.then(reply => CommandResult.fail(message, reply));
-
-	// 		if (matchingStories.length > 1)
-	// 			return this.reply(message, "I found multiple stories matching the given data. Can you be more specific?")
-	// 				.then(reply => CommandResult.fail(message, reply));
-
-	// 		storyId = this.data.stories[message.author.id].indexOf(matchingStories[0]);
-	// 	}
-
-	// 	await this.reply(message, "I've unregistered the story");
-	// 	return CommandResult.pass();
-	// }
 
 	@Command(["story register", "story edit"])
 	protected async onCommandStoryRegister (message: CommandMessage, ...queryArgs: string[]) {
@@ -118,24 +162,49 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			return CommandResult.pass();
 		}
 
-		let storyId: number | undefined;
-		if (queryArgs.length) {
-			const matchingStories = this.queryStories(queryArgs, message.author);
-			if (!matchingStories.length)
-				return this.reply(message, "I could not find a story matching the given data.")
-					.then(reply => CommandResult.fail(message, reply));
-
-			if (matchingStories.length > 1)
-				return this.reply(message, "I found multiple stories matching the given data. Can you be more specific?")
-					.then(reply => CommandResult.fail(message, reply));
-
-			storyId = this.data.stories[message.author.id].indexOf(matchingStories[0]);
-		}
+		const storyId = await this.handleStoryQuery(message, queryArgs);
+		if (typeof storyId !== "number")
+			return storyId;
 
 		this.logger.verbose(this.getName(message.author), `entered the story wizard`);
 		await this.storyWizard(message, storyId);
 		this.logger.verbose(this.getName(message.author), `exited the story wizard`);
 
+		return CommandResult.pass();
+	}
+
+	@Command(["story unregister", "story delete"])
+	protected async onCommandStoryUnregister (message: CommandMessage, ...queryArgs: string[]) {
+		if (!(message.channel instanceof DMChannel)) {
+			this.reply(message, "Please use this command in a DM with me so as to not spam the chat. Thanks!");
+			return CommandResult.pass();
+		}
+
+		const stories = this.getStoriesBy(message.author);
+		if (!stories.length) {
+			await this.reply(message, "you have no stories registered. 🤔")
+			return CommandResult.pass();
+		}
+
+		let storyId = await this.handleStoryQuery(message, queryArgs);
+		if (typeof storyId !== "number")
+			return storyId;
+
+		const story = stories[storyId];
+
+		const sure = await this.yesOrNo("are you sure you want to delete this story?", this.generateStoryEmbed(story))
+			.reply(message);
+
+		if (!sure) {
+			await this.reply(message, "okay, I've cancelled this operation.");
+			return CommandResult.pass();
+		}
+
+		storyId = stories.indexOf(story);
+		stories.splice(storyId, 1);
+		this.data.markDirty();
+
+		await this.reply(message, `you got it, I've unregistered your story _${story.name}_.`);
 		return CommandResult.pass();
 	}
 
@@ -149,56 +218,68 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Command("author")
 	protected async onCommandAuthor (message: CommandMessage, queryMember?: string | GuildMember) {
-		let member = queryMember instanceof GuildMember ? queryMember : message.member;
+		let members: Iterable<GuildMember> = [queryMember instanceof GuildMember ? queryMember : message.member];
 
 		if (queryMember && !(queryMember instanceof GuildMember)) {
-			const result = this.validateFindResult(await this.findMember(queryMember));
-			if (result.error !== undefined)
-				return this.reply(message, result.error)
-					.then(reply => CommandResult.fail(message, reply));
+			const queryResult = await this.findMember(queryMember);
+			if (!queryResult)
+				members = []
 
-			member = result.member;
+			else if (queryResult instanceof GuildMember)
+				members = [queryResult];
+
+			else
+				members = queryResult.values();
 		}
 
 		await this.clearReactions(message);
-
-		const result = await this.promptReaction(this.generateAuthorEmbed(member))
+		Paginator.create(members, this.generateAuthorEmbed)
 			.addOption("📖", "View this author's stories")
-			.addOption(member.id === message.author.id && message.channel instanceof DMChannel && "✏", "Edit your profile")
-			.addCancelOption()
+			.addOption(message.channel instanceof DMChannel && (page => page.originalValue.id === message.author.id && "✏"), "Edit your profile")
+			.event.subscribe("reaction", async (paginator: Paginator<GuildMember>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
+				const member = paginator.get().originalValue;
+				if (reaction.name === "📖") {
+					paginator.cancel();
+					this.onCommandStories(message, member);
+				}
+
+				else if (reaction.name === "✏" && member.id === message.author.id && message.channel instanceof DMChannel) {
+					paginator.cancel();
+					this.onCommandAuthorWizard(message);
+				}
+			})
 			.reply(message);
-
-		if (result.response?.name === "📖") {
-			message.previous = CommandResult.mid(message, result.message);
-			return this.onCommandStories(message, member);
-		}
-
-		if (result.response?.name === "✏" && member.id === message.author.id && message.channel instanceof DMChannel) {
-			message.previous = CommandResult.mid(message, result.message);
-			return this.onCommandAuthorWizard(message);
-		}
 
 		return CommandResult.pass();
 	}
 
+	@Command("stories mine")
+	protected async onCommandStoriesMine (message: CommandMessage) {
+		return this.onCommandStories(message, this.guild.members.get(message.author.id));
+	}
+
 	@Command("stories")
 	protected async onCommandStories (message: CommandMessage, queryMember?: string | GuildMember) {
-		let member = queryMember instanceof GuildMember ? queryMember : message.member;
+		let member: GuildMember | undefined;
 
-		if (queryMember && !(queryMember instanceof GuildMember)) {
-			const result = this.validateFindResult(await this.findMember(queryMember));
-			if (result.error !== undefined)
-				return this.reply(message, result.error)
-					.then(reply => CommandResult.fail(message, reply));
+		if (queryMember) {
+			if (queryMember instanceof GuildMember)
+				member = queryMember
+			else {
+				const result = this.validateFindResult(await this.findMember(queryMember));
+				if (result.error !== undefined)
+					return this.reply(message, result.error)
+						.then(reply => CommandResult.fail(message, reply));
 
-			member = result.member;
+				member = result.member;
+			}
 		}
 
 		await this.clearReactions(message);
 
-		const stories = this.getStoriesBy(member);
-		Paginator.create(stories, story => this.generateStoryEmbed(story, member))
-			.addOption(member.id === message.author.id && message.channel instanceof DMChannel && "✏", "Edit story")
+		const stories = member ? this.getStoriesBy(member) : Arrays.shuffle(Object.values(this.data.stories).flat());
+		Paginator.create(stories, story => this.generateStoryEmbed(story))
+			.addOption(message.channel instanceof DMChannel && (page => page.originalValue.author === message.author.id && "✏"), "Edit story")
 			.addOption("👤", "View author's profile")
 			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji) => {
 				if (reaction.name !== "✏" && reaction.name !== "👤")
@@ -209,7 +290,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				if (reaction.name === "👤")
 					this.onCommandAuthor(message, member);
 
-				else if (member.id === message.author.id && message.channel instanceof DMChannel) {
+				else if (paginator.get().originalValue.author === message.author.id && message.channel instanceof DMChannel) {
 					this.logger.verbose(this.getName(message.author), `entered the story wizard`);
 					await this.storyWizard(message, stories.indexOf(paginator.get().originalValue));
 					this.logger.verbose(this.getName(message.author), `exited the story wizard`);
@@ -509,22 +590,53 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} story '${chalk.magentaBright(story.name)}'`);
 	}
 
-	private queryStories (query: string[], user?: User | GuildMember) {
-		const regExpQuery = query.map(arg => new RegExp(`\\b${arg}\\b`, "i"));
+	private async handleStoryQuery (message: CommandMessage, queryArgs: string[]) {
+		const matchingStories = this.queryStories(queryArgs, message.author);
+		if (!matchingStories.length)
+			return this.reply(message, "I could not find a story matching the given data.")
+				.then(reply => CommandResult.fail(message, reply));
 
+		if (matchingStories.length > 1)
+			return this.reply(message, "I found multiple stories matching the given data. Can you be more specific?")
+				.then(reply => CommandResult.fail(message, reply));
+
+		return this.data.stories[message.author.id].indexOf(matchingStories[0]);
+	}
+
+	private queryStories (query: string[], user?: User | GuildMember) {
 		return (user ? this.data.stories[user.id] || [] : Object.values(this.data.stories).flat())
-			.map(story => ({ story, value: regExpQuery.filter(regex => regex.test(story.name)).length }))
+			.map(story => ({ story, value: this.getQueryValue(story, query) }))
 			.filter(({ value }) => value)
 			.sort(({ value: a }, { value: b }) => b - a)
 			.map(({ story }) => story);
 	}
 
+	private getQueryValue (story: IStory, query: string[]) {
+		const lowercase = story.name.toLowerCase();
+		const hash = Strings.hash(lowercase);
+
+		let nameSearch = story[SYMBOL_STORY_NAME_SEARCH_CACHE];
+		if (!nameSearch || nameSearch.hash !== hash) {
+			nameSearch = story[SYMBOL_STORY_NAME_SEARCH_CACHE] = {
+				hash,
+				terms: lowercase.split(/\s+/g),
+			};
+		}
+
+		for (const queryTerm of query)
+			if (!nameSearch.terms.includes(queryTerm))
+				return 0;
+
+		return nameSearch.terms.reduce((prev, curr) => prev + (query.includes(curr) ? 100 : -1), 0);
+	}
+
 	@Bound
-	private generateStoryEmbed (story: IStory, member = this.guild.members.get(story.author)) {
+	private generateStoryEmbed (story: IStory,) {
+		const author = this.guild.members.get(story.author);
 		return new RichEmbed()
 			.setTitle(story.name)
 			.setURL(story.scribble || story.otherURL || story.patreon)
-			.setAuthor(member?.displayName, member?.user.avatarURL, this.getAuthorURL(this.data.authors[member?.id!]))
+			.setAuthor(author?.displayName, author?.user.avatarURL, this.getAuthorURL(this.data.authors[author?.id!]))
 			.setDescription(story.synopsis)
 			.setThumbnail(story.thumbnail)
 			.addField("Status", `${this.statusEmoji[story.status || "unknown"]} ${Strings.sentence(story.status || "unknown")}`)
@@ -538,12 +650,12 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	}
 
 	@Bound
-	private generateAuthorEmbed (inUser: User | GuildMember) {
+	private generateAuthorEmbed (inUser: User | GuildMember): RichEmbed | undefined {
 		const user = inUser instanceof User ? inUser : inUser.user;
 		const member = inUser instanceof GuildMember ? inUser : this.guild.members.get(inUser.id);
 		const author = this.data.authors[user.id];
 
-		return new RichEmbed()
+		return author && new RichEmbed()
 			.setTitle(member?.displayName || user.username)
 			.setURL(this.getAuthorURL(this.data.authors[member?.id!]))
 			.setDescription(author.bio)
