@@ -7,3 +7,5 @@ type PartialUnion<A, B> = (A & Undefined<B>) | (B & Undefined<A>);
 type Undefined<T> = { [K in keyof T]?: undefined };
 
 type ArrayOrReadonlyArray<T> = T[] | readonly T[];
+
+type Class<T, A extends any[] = any[]> = new (...args: A) => T;

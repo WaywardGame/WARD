@@ -86,11 +86,11 @@ export class Ward {
 		this.logger.verbose("Plugins init");
 		this.pluginHookInit();
 
-		this.discord!.addListener("message", m => this.onMessage(m));
-		// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
-
 		this.logger.verbose("Plugins start");
 		await this.pluginHookStart();
+
+		this.discord!.addListener("message", m => this.onMessage(m));
+		// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
 
 		this.logger.verbose("Entering main process");
 		while (!this.stopped) {
@@ -304,23 +304,20 @@ export class Ward {
 					.catch(err => plugin.logger.warning(`Unable to load data`, err))
 					?? {};
 
-				// console.log(this.guild.name, plugin.getId(), plugin["_data"].data?._lastUpdate);
 				if (plugin["_data"].data?._lastUpdate)
 					plugin.lastUpdate = plugin["_data"].data._lastUpdate;
 			}
 
-			if (plugin.onStart)
-				await this.plugins[pluginName].onStart?.();
+			await this.plugins[pluginName].onStart();
 		}
 	}
 
 	private async pluginHookStop () {
 		for (const pluginName in this.plugins) {
-			if (this.isDisabledPlugin(pluginName)) continue;
+			if (this.isDisabledPlugin(pluginName))
+				continue;
 
-			const plugin = this.plugins[pluginName];
-			if (plugin.onStop)
-				await this.plugins[pluginName].onStop?.();
+			await this.plugins[pluginName].onStop();
 		}
 	}
 
@@ -336,15 +333,13 @@ export class Ward {
 			for (const property in plugin) {
 				// import apis
 				let metadata = Reflect.getMetadata(SYMBOL_IMPORT_API_KEY, plugin, property);
-				if (metadata) {
+				if (metadata)
 					(plugin as any)[property] = this.getApi(metadata);
-				}
 
 				// import other plugins
 				metadata = Reflect.getMetadata(SYMBOL_IMPORT_PLUGIN_KEY, plugin, property);
-				if (metadata) {
+				if (metadata)
 					(plugin as any)[property] = this.plugins[metadata];
-				}
 			}
 		}
 

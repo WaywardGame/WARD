@@ -246,7 +246,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private async onMemberMessage (member: GuildMember) {
-		const pronouns = await this.getPronouns(member);
+		const pronouns = this.getPronouns(member);
 
 		const trackedMember = this.getTrackedMember(member.id);
 
@@ -454,7 +454,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const member = result.member;
 
-		const pronouns = await this.getPronouns(member);
+		const pronouns = this.getPronouns(member);
 
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
@@ -537,7 +537,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		const pronouns = await this.getPronouns(member);
+		const pronouns = this.getPronouns(member);
 
 		trackedMember.xp -= amt;
 		updatingMember.xp += amt;
@@ -597,7 +597,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const donatedResult = this.autoDonate(trackedMember);
 		let result: string | undefined;
 		if (donatedResult) {
-			const pronouns = await this.getPronouns(member);
+			const pronouns = this.getPronouns(member);
 			const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.xp)}`;
 			const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.xp)}`;
 			result = `To start with, you ${donatedResult}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;

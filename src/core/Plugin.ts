@@ -1,6 +1,7 @@
 import { Collection, DMChannel, Emoji, GroupDMChannel, Guild, GuildMember, Message, ReactionEmoji, RichEmbed, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
+import { IInjectionApi, Injector } from "../util/function/Inject";
 import Logger from "../util/Log";
 import { getTime, hours, minutes, never, seconds, TimeUnit } from "../util/Time";
 import { CommandMessage, ImportApi } from "./Api";
@@ -68,7 +69,6 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 	// @ts-ignore
 	private loaded = false;
-	private pronounRoles?: Record<keyof typeof Pronouns, Role | undefined>;
 	/**
 	 * The current command prefix, configured instance-wide. It's only for reference, changing this would do nothing
 	 */
@@ -87,6 +87,13 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		// if (cfg && cfg.autosaveInterval) {
 		// 	this.autosaveInterval = getTime(cfg.autosaveInterval);
 		// }
+	}
+
+	public constructor () {
+		super();
+		Injector.into<Plugin, "onStart", "pre">(null, "onStart", "pre")
+			.inject(this, this.onStartInternal);
+		Injector.register(this.constructor as Class<this>, this);
 	}
 
 	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
@@ -110,10 +117,21 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	}
 
 	/* hooks */
-	public onUpdate?(): any;
-	public onStart?(): any;
-	public onStop?(): any;
-	public onMessage?(message: Message): any;
+	public onUpdate () { }
+	public onStart () { }
+	public onStop () { }
+	public onMessage (message: Message) { }
+
+	private pronounRoles: Record<keyof typeof Pronouns, Role | undefined>;
+
+	private async onStartInternal (api: IInjectionApi<Plugin, "onStart", "pre">) {
+		this.pronounRoles = {
+			"she/her": await this.findRole("she/her"),
+			"he/him": await this.findRole("he/him", false),
+			"they/them": await this.findRole("they/them", false),
+			"it/its": await this.findRole("it/its", false),
+		};
+	}
 
 	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand) {
 		if (reply instanceof HelpContainerPlugin)
@@ -147,6 +165,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return message.channel.send(textContent, embedContent);
 	}
 
+	protected getName (user: User | GuildMember) {
+		const member = user instanceof GuildMember ? user : this.guild.members.get(user.id);
+		user = user instanceof GuildMember ? user.user : user;
+		return member?.displayName ?? user.username;
+	}
+
 	/**
 	 * @param member Can be an ID, a tag, part of a display name, or part of a username
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
@@ -178,14 +202,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
-	protected async getPronouns (member: GuildMember): Promise<(typeof pronounLanguage)[keyof typeof Pronouns]> {
-		if (!this.pronounRoles) {
-			this.pronounRoles = {
-				"she/her": await this.findRole("she/her"),
-				"he/him": await this.findRole("he/him", false),
-				"they/them": await this.findRole("they/them", false),
-				"it/its": await this.findRole("it/its", false),
-			};
+	protected getPronouns (member: User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
+		if (member instanceof User) {
+			member = this.guild.members.get(member.id)!;
+			if (!member)
+				return pronounLanguage["they/them"];
 		}
 
 		// const pronouns: (keyof typeof Pronouns)[] = [
@@ -218,6 +239,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	 * and the matching member if one member matches
 	 */
 	protected async findRole (role: string, fetch = true): Promise<Role | undefined> {
+		if (!this.guild)
+			return;
+
 		const guild = fetch ? await this.guild.fetchMembers() : this.guild;
 
 		return guild.roles.find(r => r.id === role)
