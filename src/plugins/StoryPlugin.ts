@@ -517,11 +517,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setThumbnail(story.thumbnail)
 			.addField("Status", `${this.statusEmoji[story.status || "unknown"]} ${Strings.sentence(story.status || "unknown")}`)
 			.addFields(
-				story.scribble && { name: "Scribble Hub", content: story.scribble },
-				story.patreon && { name: "Patreon", content: story.patreon },
-				story.ao3 && { name: "Archive of Our Own", content: story.ao3 },
-				story.tgst && { name: "TG Storytime", content: story.tgst },
-				story.otherURL && { name: "Other", content: story.otherURL },
+				story.scribble && { name: "Scribble Hub", value: story.scribble },
+				story.patreon && { name: "Patreon", value: story.patreon },
+				story.ao3 && { name: "Archive of Our Own", value: story.ao3 },
+				story.tgst && { name: "TG Storytime", value: story.tgst },
+				story.otherURL && { name: "Other", value: story.otherURL },
 			);
 	}
 
@@ -537,11 +537,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setDescription(author.bio)
 			.setThumbnail(user.avatarURL)
 			.addFields(
-				author.scribble && { name: "Scribble Hub", content: author.scribble },
-				author.patreon && { name: "Patreon", content: author.patreon },
-				author.ao3 && { name: "Archive of Our Own", content: author.ao3 },
-				author.tgst && { name: "TG Storytime", content: author.tgst },
-				author.otherURL && { name: "Other", content: author.otherURL },
+				author.scribble && { name: "Scribble Hub", value: author.scribble },
+				author.patreon && { name: "Patreon", value: author.patreon },
+				author.ao3 && { name: "Archive of Our Own", value: author.ao3 },
+				author.tgst && { name: "TG Storytime", value: author.tgst },
+				author.otherURL && { name: "Other", value: author.otherURL },
 			);
 	}
 

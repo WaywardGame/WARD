@@ -425,7 +425,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const members = this.topMembers
 			.map(member => ({
 				name: this.getMemberName(member.id),
-				content: `${Intl.NumberFormat().format(member.xp)} _(${member.daysVisited} days)_`,
+				value: `${Intl.NumberFormat().format(member.xp)} _(${member.daysVisited} days)_`,
 				inline: true,
 			}) as Partial<IField>)
 			.filter(IField.is)

@@ -32,8 +32,8 @@ export interface CommandResult {
 
 export interface IField {
 	name: string;
-	content: string;
-	inline?: true;
+	value: string;
+	inline?: boolean;
 }
 
 export module IField {
@@ -41,7 +41,7 @@ export module IField {
 		return !!value
 			&& typeof value === "object"
 			&& typeof (value as any).name === "string"
-			&& typeof (value as any).content === "string"
+			&& typeof (value as any).value === "string"
 			&& typeof (value as any).inline === "boolean";
 	}
 }
@@ -60,6 +60,7 @@ declare module "discord.js" {
 		setAuthor (name?: string, thumbnail?: string, url?: string): this;
 		setPreferredReactions (...reactions: (string | Emoji)[]): this;
 		getPreferredReactions (): (string | Emoji)[];
+		inherit (embed: MessageEmbed): this;
 	}
 }
 
@@ -102,7 +103,7 @@ RichEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, url
 RichEmbed.prototype.addFields = function (...fields) {
 	for (const field of fields)
 		if (field)
-			this.addField(field.name, field.content, field.inline);
+			this.addField(field.name, field.value, field.inline);
 
 	return this;
 }
@@ -112,9 +113,30 @@ RichEmbed.prototype.setPreferredReactions = function (...reactions) {
 	return this;
 }
 
-RichEmbed.prototype.getPreferredReactions = function (...reactions) {
+RichEmbed.prototype.getPreferredReactions = function () {
 	return (this as any).reactions || [];
 }
+
+RichEmbed.prototype.inherit = function (embed) {
+	this.setTitle(embed.title);
+	this.setURL(embed.url);
+	this.setDescription(embed.description);
+	this.setFooter(embed.footer);
+	this.setColor(embed.color);
+	this.setTimestamp(new Date(embed.timestamp));
+	this.addFields(...embed.fields || []);
+
+	if (embed.author)
+		this.setAuthor(embed.author.name, embed.author.iconURL, embed.author.url);
+
+	if (embed.thumbnail)
+		this.setThumbnail(embed.thumbnail.url);
+
+	if (embed.image)
+		this.setImage(embed.image.url);
+
+	return this;
+};
 
 export module CommandResult {
 

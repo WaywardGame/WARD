@@ -324,13 +324,27 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				})();
 
 				const collected = await reply.awaitReactions((react, user) =>
-					user.id === message.author.id && options.some(([emoji]) => emoji === (emoji instanceof Emoji ? react.emoji : react.emoji.name)),
+					user.id === message.author.id
+					&& options.some(([emoji]) => emoji === (emoji instanceof Emoji ? react.emoji : react.emoji.name)),
 					{ max: 1, time: timeout });
 
 				ended = true;
 
-				const result = collected?.first()?.emoji;
-				return { message: reply, response: result && result.name !== "❌" ? result : undefined };
+				let result: Emoji | ReactionEmoji | undefined = collected?.first()?.emoji;
+
+				if (!result || result.name === "❌") {
+					// const cancelledMessage = `Interactable ${result ? "closed" : "timed out"}.`;
+					result = undefined;
+					// await reply.edit(typeof prompt !== "string" ? "" : `${reply.content}\n\n_${cancelledMessage}_`,
+					// 	typeof prompt === "string" ? undefined : new RichEmbed()
+					// 		.inherit(reply.embeds[0])
+					// 		.setFooter(cancelledMessage));
+
+					if (!(message.channel instanceof DMChannel))
+						await reply.clearReactions();
+				}
+
+				return { message: reply, response: result };
 			},
 		};
 	}
@@ -414,7 +428,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 				while (true) {
 					const collected = await Promise.race([
-						message.channel.awaitMessages(() => true, { max: 1, time: timeout }),
+						message.channel.awaitMessages(nm => nm.author.id === message.author.id, { max: 1, time: timeout }),
 						reply.awaitReactions((react, user) =>
 							user.id === message.author.id
 							&& (react.emoji.name === "❌"
