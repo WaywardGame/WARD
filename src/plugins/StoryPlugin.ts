@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { DMChannel, Emoji, GuildMember, Message, ReactionEmoji, RichEmbed, User } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
@@ -74,8 +75,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			return CommandResult.pass();
 		}
 
+		this.logger.verbose(this.getName(message.author), `entered the author wizard`);
 		await this.clearReactions(message);
 		await this.authorWizard(message);
+		this.logger.verbose(this.getName(message.author), `exited the author wizard`);
 
 		return CommandResult.pass();
 	}
@@ -83,6 +86,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	@Command("author unregister")
 	protected async onCommandAuthorUnregister (message: CommandMessage) {
 		delete this.data.authors[message.author.id];
+		this.logger.info(this.getName(message.author), `removed ${this.getPronouns(message.author).their} profile`);
 		await this.reply(message, "Your author profile has been unregistered. 😭");
 		return CommandResult.pass();
 	}
@@ -128,7 +132,9 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			storyId = this.data.stories[message.author.id].indexOf(matchingStories[0]);
 		}
 
+		this.logger.verbose(this.getName(message.author), `entered the story wizard`);
 		await this.storyWizard(message, storyId);
+		this.logger.verbose(this.getName(message.author), `exited the story wizard`);
 
 		return CommandResult.pass();
 	}
@@ -158,7 +164,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		const result = await this.promptReaction(this.generateAuthorEmbed(member))
 			.addOption("📖", "View this author's stories")
-			.addOption(member.id === message.author.id && "✏", "Edit your profile")
+			.addOption(member.id === message.author.id && message.channel instanceof DMChannel && "✏", "Edit your profile")
 			.addCancelOption()
 			.reply(message);
 
@@ -167,7 +173,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			return this.onCommandStories(message, member);
 		}
 
-		if (result.response?.name === "✏" && member.id === message.author.id) {
+		if (result.response?.name === "✏" && member.id === message.author.id && message.channel instanceof DMChannel) {
 			message.previous = CommandResult.mid(message, result.message);
 			return this.onCommandAuthorWizard(message);
 		}
@@ -192,7 +198,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		const stories = this.getStoriesBy(member);
 		Paginator.create(stories, story => this.generateStoryEmbed(story, member))
-			.addOption(member.id === message.author.id && "✏", "Edit story")
+			.addOption(member.id === message.author.id && message.channel instanceof DMChannel && "✏", "Edit story")
 			.addOption("👤", "View author's profile")
 			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji) => {
 				if (reaction.name !== "✏" && reaction.name !== "👤")
@@ -203,8 +209,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				if (reaction.name === "👤")
 					this.onCommandAuthor(message, member);
 
-				else if (member.id === message.author.id)
-					this.storyWizard(message, stories.indexOf(paginator.get().originalValue));
+				else if (member.id === message.author.id && message.channel instanceof DMChannel) {
+					this.logger.verbose(this.getName(message.author), `entered the story wizard`);
+					await this.storyWizard(message, stories.indexOf(paginator.get().originalValue));
+					this.logger.verbose(this.getName(message.author), `exited the story wizard`);
+				}
 			})
 			.reply(message);
 
@@ -478,12 +487,14 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		//
 
 		await this.registerAuthor(message.author, author);
+
 		return this.reply(message, "Author registration created/updated. Thanks!");
 	}
 
 	private async registerAuthor (user: User | GuildMember, author: IAuthor) {
 		this.data.authors[user.id] = author;
 		await this.save();
+		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} profile`);
 	}
 
 	private async registerStory (user: User | GuildMember, story: IStory) {
@@ -494,7 +505,8 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		if (!stories.includes(story))
 			stories.push(story);
 
-		return this.save();
+		await this.save();
+		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} story '${chalk.magentaBright(story.name)}'`);
 	}
 
 	private queryStories (query: string[], user?: User | GuildMember) {
