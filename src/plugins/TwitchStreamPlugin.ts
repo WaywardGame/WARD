@@ -48,7 +48,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	}
 
 	private async updateStreams (updateTime: number) {
-		const updates: (readonly [string, number] | undefined)[] = [];
+		const updates: (readonly [string, number])[] = [];
 
 		for (const streamDetector of this.config.streamDetectors) {
 			if (streamDetector.game) {
@@ -59,29 +59,30 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 
 			} else {
 				const stream = await this.twitch.getStream(streamDetector.streamer);
-				updates.push(stream && await this.updateStream(streamDetector, stream, updateTime));
+				if (stream)
+					updates.push(await this.updateStream(streamDetector, stream, updateTime));
 			}
 		}
 
-		for (const [username, time] of updates.filterNullish()) {
+		for (const [username, time] of updates)
 			this.trackedStreams[username] = time;
+
+		if (updates.length)
 			this.data.markDirty();
-		}
 	}
 
 	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {
-		if (this.trackedStreams[stream.user_name])
-			return undefined;
+		if (!this.trackedStreams[stream.user_name]) {
+			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
-		this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
+			const user = await this.twitch.getUser(stream.user_id);
 
-		const user = await this.twitch.getUser(stream.user_id);
-
-		(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
-			.send(streamDetector.message
-				.replace("{name}", escape(stream.user_name))
-				.replace("{title}", escape(stream.title))
-				.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
+			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
+				.send(streamDetector.message
+					.replace("{name}", escape(stream.user_name))
+					.replace("{title}", escape(stream.title))
+					.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
+		}
 
 		return [stream.user_name, time] as const;
 	}
