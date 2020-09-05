@@ -332,7 +332,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				return this;
 			},
 			async reply (message: CommandMessage): Promise<{ message: Message, response: Emoji | ReactionEmoji | undefined }> {
-				const optionDefinitions = options.map(([emoji, definition]) => `\n  ${emoji} ${definition}`);
+				const optionDefinitions = options.map(([emoji, definition]) => `\n  ${emoji} — ${definition}`);
 
 				if (typeof prompt === "string")
 					prompt = `${prompt}${optionDefinitions}`;
@@ -439,9 +439,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				if (defaultValue === "")
 					deletable = false;
 
-				const defaultValuePrompt = defaultValue !== undefined ? `\n_React with ✅ to use ${defaultValue ? `'${defaultValue}'` : "no value"}._` : "";
-				const deletablePrompt = deletable ? "\n_React with 🗑 to use no value._" : "";
-				const reply = await self.reply(message, `${prompt}${defaultValuePrompt}${deletablePrompt}\n_React with ❌ to cancel._`) as Message;
+				const currentValuePrompt = defaultValue !== undefined ? ` Currently:\n> ${defaultValue.replace(/\n/g, "\n> ")}` : "";
+				const defaultValuePrompt = defaultValue !== undefined ? `\n✅ — Use ${defaultValue ? `current` : "No"} value` : "";
+				const deletablePrompt = deletable ? "\n🗑 — Use no value" : "";
+				const reply = await self.reply(message, `${prompt}${currentValuePrompt}${defaultValuePrompt}${deletablePrompt}\n❌ — Cancel`) as Message;
 
 				let ended = false;
 				(async () => {
