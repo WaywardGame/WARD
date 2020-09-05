@@ -1,4 +1,4 @@
-import { Message, RichEmbed } from "discord.js";
+import { DMChannel, GroupDMChannel, Message, RichEmbed, TextChannel } from "discord.js";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
@@ -61,6 +61,18 @@ declare module "discord.js" {
 		setPreferredReactions (...reactions: (string | Emoji)[]): this;
 		getPreferredReactions (): (string | Emoji)[];
 		inherit (embed: MessageEmbed): this;
+	}
+
+	interface TextChannel {
+		isAwaitingMessages (message?: Message): boolean;
+	}
+
+	interface DMChannel {
+		isAwaitingMessages (message?: Message): boolean;
+	}
+
+	interface GroupDMChannel {
+		isAwaitingMessages (message?: Message): boolean;
 	}
 }
 
@@ -140,6 +152,23 @@ RichEmbed.prototype.inherit = function (embed) {
 
 	return this;
 };
+
+for (const cls of [TextChannel, DMChannel, GroupDMChannel]) {
+	const channelsAwaitingMessages = new Map<string, (message: Message) => boolean>();
+
+	const originalAwaitMessages = cls.prototype.awaitMessages;
+	cls.prototype.awaitMessages = async function (filter, options) {
+		channelsAwaitingMessages.set(this.id, filter);
+		const result = await originalAwaitMessages.call(this, filter, options);
+		channelsAwaitingMessages.delete(this.id);
+		return result;
+	}
+
+	cls.prototype.isAwaitingMessages = function (message?: Message) {
+		return message === undefined ? channelsAwaitingMessages.has(this.id)
+			: !!channelsAwaitingMessages.get(this.id)?.(message);
+	}
+}
 
 export module CommandResult {
 

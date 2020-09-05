@@ -192,24 +192,23 @@ export class Ward {
 	}
 
 	private onMessage (message: Message) {
-		if (message.author.bot) {
+		if (message.author.bot)
 			return;
-		}
 
-		if (!message.member) {
+		if (message.channel.isAwaitingMessages(message))
+			return;
+
+		if (!message.member)
 			message.member = this.guild.members.find(member => member.id === message.author.id);
-		}
 
-		if (!message.member) {
+		if (!message.member)
 			return;
-		}
 
-		if (message.content.startsWith(this.commandPrefix)) {
+		if (message.content.startsWith(this.commandPrefix))
 			this.onCommand(message);
 
-		} else {
+		else
 			this.pluginHookMessage(message);
-		}
 	}
 
 	private onCommand (message: Message) {
