@@ -75,9 +75,12 @@ Message.prototype.react = async function (...args) {
 
 const originalDelete = Message.prototype.delete;
 Message.prototype.delete = async function (...args) {
+	if (this.deleted)
+		return this;
+
 	await this.reacting;
 	this.deleted = true;
-	return await originalDelete.apply(this, args);
+	return originalDelete.apply(this, args);
 };
 
 const originalSetTitle = RichEmbed.prototype.setTitle;

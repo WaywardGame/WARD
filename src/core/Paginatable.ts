@@ -74,27 +74,27 @@ export class Paginator<T = any> {
 	}
 
 	public async send (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: CommandMessage) {
-		if (this.getSize() === 1) {
-			const currentContent = this.get();
-			let currentText: string;
-			let currentEmbed = currentContent.embed ?? new RichEmbed()
-				.setTitle(currentContent.title)
-				.setDescription(currentContent.content)
-				.addFields(...currentContent.fields);
+		// if (this.getSize() === 1) {
+		// 	const currentContent = this.get();
+		// 	let currentText: string;
+		// 	let currentEmbed = currentContent.embed ?? new RichEmbed()
+		// 		.setTitle(currentContent.title)
+		// 		.setDescription(currentContent.content)
+		// 		.addFields(...currentContent.fields);
 
-			currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";
+		// 	currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";
 
-			if (commandMessage?.previous?.output[0])
-				return commandMessage.previous?.output[0].edit(currentText, currentEmbed)
-					.then(async result => {
-						for (let i = 1; i < (commandMessage.previous?.output.length || 0); i++)
-							commandMessage.previous?.output[i].delete();
+		// 	if (commandMessage?.previous?.output[0])
+		// 		return commandMessage.previous?.output[0].edit(currentText, currentEmbed)
+		// 			.then(async result => {
+		// 				for (let i = 1; i < (commandMessage.previous?.output.length || 0); i++)
+		// 					commandMessage.previous?.output[i].delete();
 
-						return result;
-					});
+		// 				return result;
+		// 			});
 
-			return channel.send(currentText, currentEmbed);
-		}
+		// 	return channel.send(currentText, currentEmbed);
+		// }
 
 		return channel instanceof DMChannel || channel instanceof GroupDMChannel ? this.sendDM(channel, inputUser, commandMessage)
 			: this.sendServer(channel, inputUser, commandMessage);
@@ -227,10 +227,8 @@ export class Paginator<T = any> {
 	}
 
 	private async sendDM (channel: TextChannel | DMChannel | GroupDMChannel, inputUser?: User, commandMessage?: CommandMessage) {
-		for (const previousMessage of commandMessage?.previous?.output || []) {
-			previousMessage.deleted = true;
+		for (const previousMessage of commandMessage?.previous?.output || [])
 			await previousMessage.delete();
-		}
 
 		let resolved = false;
 		return new Promise<Message>(async resolve => {
@@ -261,7 +259,6 @@ export class Paginator<T = any> {
 					return;
 				}
 
-				message.deleted = true;
 				await message.delete();
 
 				await this.handleReaction(reaction, message);
@@ -283,8 +280,7 @@ export class Paginator<T = any> {
 
 	private async awaitReaction (message: Message, inputUser?: User, mode: "add" | "edit" = "add") {
 		const reactions = [
-			PaginatorReaction.Prev,
-			PaginatorReaction.Next,
+			...this.pages?.length !== 1 ? [PaginatorReaction.Prev, PaginatorReaction.Next] : [],
 			...this.otherOptions.map(([emoji]) => typeof emoji === "function" ? emoji(this.get()) : emoji)
 				.map(emoji => typeof emoji === "string" || emoji instanceof Emoji ? emoji : undefined)
 				.filterNullish(),

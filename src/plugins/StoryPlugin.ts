@@ -281,16 +281,17 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		Paginator.create(stories, story => this.generateStoryEmbed(story))
 			.addOption(message.channel instanceof DMChannel && (page => page.originalValue.author === message.author.id && "✏"), "Edit story")
 			.addOption("👤", "View author's profile")
-			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji) => {
+			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
 				if (reaction.name !== "✏" && reaction.name !== "👤")
 					return;
 
 				paginator.cancel();
 
-				if (reaction.name === "👤")
+				if (reaction.name === "👤") {
+					message.previous = CommandResult.mid(message, responseMessage);
 					this.onCommandAuthor(message, member);
 
-				else if (paginator.get().originalValue.author === message.author.id && message.channel instanceof DMChannel) {
+				} else if (paginator.get().originalValue.author === message.author.id && message.channel instanceof DMChannel) {
 					this.logger.verbose(this.getName(message.author), `entered the story wizard`);
 					await this.storyWizard(message, stories.indexOf(paginator.get().originalValue));
 					this.logger.verbose(this.getName(message.author), `exited the story wizard`);
