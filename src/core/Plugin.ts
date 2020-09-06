@@ -435,7 +435,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				timeout = t;
 				return this;
 			},
-			async reply (message: CommandMessage) {
+			async reply (message: CommandMessage): Promise<
+				{ cancelled: true }
+				| { cancelled: false, apply<T extends { [key in K]?: string | undefined }, K extends keyof T> (to: T, prop: K): void }
+			> {
 				if (defaultValue === "")
 					deletable = false;
 
@@ -478,7 +481,20 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 					ended = true;
 
-					return !result ? undefined : result instanceof Message ? result : result.emoji.name === "❌" ? undefined : result.emoji.name === "✅" ? "default" : "delete";
+					if (!result || (!(result instanceof Message) && result.emoji.name === "❌"))
+						return { cancelled: true };
+
+					return {
+						cancelled: false,
+						apply (to: any, prop) {
+							if (result instanceof Message)
+								to[prop] = result.content;
+							else if (result.emoji.name === "✅")
+								to[prop] = defaultValue;
+							else
+								delete to[prop];
+						}
+					};
 				}
 			},
 		};

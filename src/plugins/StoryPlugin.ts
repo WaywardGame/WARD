@@ -29,7 +29,6 @@ interface IStory {
 	thumbnail?: string;
 	scribble?: string;
 	ao3?: string;
-	tgst?: string;
 	patreon?: string;
 	otherURL?: string;
 	status?: keyof typeof Status;
@@ -49,7 +48,6 @@ interface IAuthor {
 	scribble?: string;
 	patreon?: string;
 	ao3?: string;
-	tgst?: string;
 	otherURL?: string;
 	bio?: string;
 }
@@ -327,11 +325,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setDefaultValue(story.name)
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.name = response.content;
+		response.apply(story, "name");
 
 		////////////////////////////////////
 		// Synopsis
@@ -343,11 +340,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setTimeout(minutes(20))
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.synopsis = response.content;
+		response.apply(story, "synopsis");
 
 		////////////////////////////////////
 		// Scribble
@@ -359,11 +355,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "www.scribblehub.com") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.scribble = response.content;
+		response.apply(story, "scribble");
 
 		////////////////////////////////////
 		// Patreon
@@ -375,11 +370,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "www.patreon.com") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.patreon = response.content;
+		response.apply(story, "patreon");
 
 		////////////////////////////////////
 		// Ao3
@@ -391,27 +385,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.ao3 = response.content;
-
-		////////////////////////////////////
-		// TG Storytime
-		//
-
-		response = await this.prompter(`What about **TG Storytime**?`)
-			.setDefaultValue(story.tgst)
-			.setDeletable()
-			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
-			.reply(message);
-
-		if (!response)
-			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
-
-		if (response instanceof Message)
-			story.tgst = response.content;
+		response.apply(story, "ao3");
 
 		////////////////////////////////////
 		// Other URL
@@ -439,11 +416,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Story wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			story.thumbnail = response.content;
+		response.apply(story, "thumbnail");
 
 		////////////////////////////////////
 		// Status
@@ -478,11 +454,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setDeletable()
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			author.bio = response.content;
+		response.apply(author, "bio");
 
 		////////////////////////////////////
 		// Scribble
@@ -494,11 +469,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "www.scribblehub.com") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			author.scribble = response.content;
+		response.apply(author, "scribble");
 
 		////////////////////////////////////
 		// Patreon
@@ -510,11 +484,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "www.patreon.com") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			author.patreon = response.content;
+		response.apply(author, "patreon");
 
 		////////////////////////////////////
 		// Ao3
@@ -526,27 +499,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content, "archiveofourown.org") ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			author.ao3 = response.content;
-
-		////////////////////////////////////
-		// TG Storytime
-		//
-
-		response = await this.prompter("What's your **TG Storytime URL**?")
-			.setDefaultValue(author.tgst)
-			.setDeletable()
-			.setValidator(message => Strings.isURL(message.content, "www.tgstorytime.com") ? true : "Not a valid URL.")
-			.reply(message);
-
-		if (!response)
-			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
-
-		if (response instanceof Message)
-			author.tgst = response.content;
+		response.apply(author, "ao3");
 
 		////////////////////////////////////
 		// Other
@@ -558,11 +514,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setValidator(message => Strings.isURL(message.content) ? true : "Not a valid URL.")
 			.reply(message);
 
-		if (!response)
+		if (response.cancelled)
 			return this.reply(message, "Author wizard cancelled. Stop by again soon!");
 
-		if (response instanceof Message)
-			author.otherURL = response.content;
+		response.apply(author, "otherURL");
 
 		////////////////////////////////////
 		// Save
@@ -642,10 +597,10 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.setThumbnail(story.thumbnail)
 			.addField("Status", `${this.statusEmoji[story.status || "unknown"]} ${Strings.sentence(story.status || "unknown")}`)
 			.addFields(
+				(story.scribble || story.patreon || story.ao3 || story.otherURL) && { name: "\u200b", value: "__**Links**__" },
 				story.scribble && { name: "Scribble Hub", value: story.scribble },
 				story.patreon && { name: "Patreon", value: story.patreon },
 				story.ao3 && { name: "Archive of Our Own", value: story.ao3 },
-				story.tgst && { name: "TG Storytime", value: story.tgst },
 				story.otherURL && { name: "Other", value: story.otherURL },
 			);
 	}
@@ -659,13 +614,13 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return author && new RichEmbed()
 			.setTitle(member?.displayName || user.username)
 			.setURL(this.getAuthorURL(this.data.authors[member?.id!]))
-			.setDescription(author.bio)
+			.setDescription(author.bio || "_This author prefers to remain elusive and mysterious..._")
 			.setThumbnail(user.avatarURL)
 			.addFields(
+				(author.scribble || author.patreon || author.ao3 || author.otherURL) && { name: "\u200b", value: "__**Links**__" },
 				author.scribble && { name: "Scribble Hub", value: author.scribble },
 				author.patreon && { name: "Patreon", value: author.patreon },
 				author.ao3 && { name: "Archive of Our Own", value: author.ao3 },
-				author.tgst && { name: "TG Storytime", value: author.tgst },
 				author.otherURL && { name: "Other", value: author.otherURL },
 			);
 	}
@@ -674,7 +629,6 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return author && (author.scribble
 			|| author.patreon
 			|| author.ao3
-			|| author.tgst
 			|| author.otherURL);
 	}
 
