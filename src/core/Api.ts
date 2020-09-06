@@ -55,6 +55,8 @@ declare module "discord.js" {
 	interface RichEmbed {
 		addFields (...fields: Array<IField | undefined | "" | 0 | null>): this;
 		setTitle (title?: string): this;
+		setDescription (description?: string): this;
+		setFooter (footer?: string): this;
 		setURL (url?: string): this;
 		setThumbnail (url?: string): this;
 		setAuthor (name?: string, thumbnail?: string, url?: string): this;
@@ -98,6 +100,16 @@ Message.prototype.delete = async function (...args) {
 const originalSetTitle = RichEmbed.prototype.setTitle;
 RichEmbed.prototype.setTitle = function (title?: string) {
 	return title ? originalSetTitle.call(this, title) : this;
+};
+
+const originalSetDescription = RichEmbed.prototype.setDescription;
+RichEmbed.prototype.setDescription = function (description?: string) {
+	return description ? originalSetDescription.call(this, description) : this;
+};
+
+const originalSetFooter = RichEmbed.prototype.setFooter;
+RichEmbed.prototype.setFooter = function (footer?: string) {
+	return footer ? originalSetFooter.call(this, footer) : this;
 };
 
 const originalSetURL = RichEmbed.prototype.setURL;

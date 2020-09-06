@@ -202,7 +202,8 @@ export class Paginator<T = any> {
 
 				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
 					this.cancelled = true;
-					await message.edit(currentText, currentEmbed?.setFooter(`${this.getPageNumberText()}. ${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
+					const pageNumberText = this.getPageNumberText();
+					await message.edit(currentText, currentEmbed?.setFooter(`${pageNumberText ? `${pageNumberText}. ` : ""}${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
 					await message.clearReactions();
 					// message.delete();
 					// if (commandMessage?.deletable)
@@ -255,7 +256,8 @@ export class Paginator<T = any> {
 
 				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
 					this.cancelled = true;
-					await message.edit(currentText, currentEmbed?.setFooter(`${this.getPageNumberText()}. ${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
+					const pageNumberText = this.getPageNumberText();
+					await message.edit(currentText, currentEmbed?.setFooter(`${pageNumberText ? `${pageNumberText}. ` : ""}${reaction ? "Interactable cancelled." : "Interactable timed out."}`));
 					return;
 				}
 
@@ -324,6 +326,7 @@ export class Paginator<T = any> {
 	}
 
 	private getPageNumberText () {
-		return `Page ${this.i + 1} of ${this.getPages().length}`;
+		const length = this.getPages().length;
+		return length < 2 ? undefined : `Page ${this.i + 1} of ${length}`;
 	}
 }
