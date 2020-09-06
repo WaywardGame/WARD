@@ -42,7 +42,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public event = new EventEmitterAsync();
 
 	public updateInterval = never();
-	public lastUpdate = 0;
+	public get lastUpdate () { return this._data.data!._lastUpdate || 0; }
+	public set lastUpdate (value: number) {
+		this._data.data!._lastUpdate = value;
+		this._data.markDirty();
+	}
 	public autosaveInterval = hours(2);
 	public lastAutosave = 0;
 
@@ -99,7 +103,6 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
 
 	public async save () {
-		this._data.data!._lastUpdate = this.lastUpdate;
 		return this.data.save();
 	}
 

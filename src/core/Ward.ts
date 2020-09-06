@@ -14,7 +14,7 @@ import { sleep } from "../util/Async";
 import Bound from "../util/Bound";
 import Data from "../util/Data";
 import Logger from "../util/Log";
-import { hours, seconds } from "../util/Time";
+import { seconds } from "../util/Time";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
 import { Api, CommandFunction, CommandMessage, CommandMetadata, CommandResult, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
@@ -131,14 +131,9 @@ export class Ward {
 			// this.logger.verbose("Loop plugin", pluginName);
 
 			const plugin = this.plugins[pluginName];
-			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval) {
-				// console.log(this.guild.name, pluginName, "time since", Date.now() - plugin.lastUpdate, "interval", plugin.updateInterval);
-				this.updatePlugin(plugin);
-			}
-
-			// if (!Object.keys(plugin["pluginData"]).length)
-			// 	console.log("could not save", pluginName, this.guild.name);
-			promises.push(plugin.data.saveOpportunity());
+			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval)
+				promises.push(this.updatePlugin(plugin)
+					.then(plugin.data.saveOpportunity));
 		}
 
 		await Promise.all(promises);
@@ -149,10 +144,6 @@ export class Ward {
 		plugin.lastUpdate = Date.now();
 		await plugin.onUpdate?.();
 		plugin.lastUpdate = Date.now();
-
-		if (plugin.autosaveInterval > hours(1))
-			// make sure the "lastUpdate" is saved, for plugins that have infrequent updates
-			plugin.data.markDirty();
 	}
 
 	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
@@ -302,9 +293,6 @@ export class Ward {
 				await this.getApi<Data>("data")?.load(plugin)
 					.catch(err => plugin.logger.warning(`Unable to load data`, err))
 					?? {};
-
-				if (plugin["_data"].data?._lastUpdate)
-					plugin.lastUpdate = plugin["_data"].data._lastUpdate;
 			}
 
 			await this.plugins[pluginName].onStart();

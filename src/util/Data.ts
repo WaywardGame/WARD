@@ -110,6 +110,7 @@ export class DataContainer<DATA extends {} = any> {
 
 	public constructor (private readonly api: Data, private readonly host: IDataContainerHost<DATA>) { }
 
+	@Bound
 	public isDirty () {
 		if (this.dirty)
 			return true;
@@ -128,10 +129,12 @@ export class DataContainer<DATA extends {} = any> {
 		return this.dirty;
 	}
 
+	@Bound
 	public markDirty () {
 		this.dirty = true;
 	}
 
+	@Bound
 	public async load () {
 		if (!await FileSystem.exists(this.getPath())) {
 			this._data = this.host.initData();
@@ -143,6 +146,7 @@ export class DataContainer<DATA extends {} = any> {
 		this.dataJson = JSON.stringify(this._data);
 	}
 
+	@Bound
 	public async save () {
 		return this.saving ?? (this.saving = new Promise<void>(async resolve => {
 			this._lastSave = Date.now();
@@ -157,6 +161,7 @@ export class DataContainer<DATA extends {} = any> {
 
 	}
 
+	@Bound
 	public async saveOpportunity () {
 		if (this.isDirty() || this.timeSinceLastSave > this.host.autosaveInterval)
 			return this.save();
