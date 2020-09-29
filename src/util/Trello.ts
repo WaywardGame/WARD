@@ -1,7 +1,8 @@
 import * as request from "request-promise-native";
 import { Api } from "../core/Api";
+import { sleep } from "./Async";
 import Logger from "./Log";
-import { minutes } from "./Time";
+import { minutes, seconds } from "./Time";
 
 
 const endpoint = "https://api.trello.com/1";
@@ -88,6 +89,19 @@ export interface IChangelog {
 	changeCount: number;
 }
 
+export interface ITrelloMember {
+	id: string;
+	username: string;
+	activityBlocked: boolean;
+	avatarHash: string;
+	avatarUrl: string;
+	fullName: string;
+	idMemberReferrer: string | null;
+	initials: string;
+	nonPublic: {};
+	nonPublicAvailable: false;
+}
+
 export enum ChangeType {
 	New = "New",
 	Improvement = "Improvement",
@@ -131,6 +145,8 @@ export interface ITrelloConfig {
 	board: string;
 	key: string;
 }
+
+let lastRequest = 0;
 
 export class Trello extends Api<ITrelloConfig> {
 
@@ -198,6 +214,10 @@ export class Trello extends Api<ITrelloConfig> {
 		return versions.some(v => v.active) ? versions.filter(v => v.active) : [versions[0]];
 	}
 
+	public async getMembers (cardId: string): Promise<ITrelloMember[]> {
+		return this.trelloRequest(`/cards/${cardId}/members`);
+	}
+
 	private getCardsFromBoard (board: ITrelloBoard) {
 		const result = [];
 
@@ -232,7 +252,12 @@ export class Trello extends Api<ITrelloConfig> {
 	}
 
 	private async trelloRequest (rq: string) {
-		return request(`${endpoint}${rq}&key=${this.config.key}`, {
+		const timeSinceLastRequest = Date.now() - lastRequest;
+		if (timeSinceLastRequest < seconds(2))
+			await sleep(seconds(2) - timeSinceLastRequest);
+
+		lastRequest = Date.now();
+		return request(`${endpoint}${rq}${rq.includes("?") ? "&" : "?"}key=${this.config.key}`, {
 			json: true,
 		});
 	}
