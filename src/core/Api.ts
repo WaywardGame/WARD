@@ -63,6 +63,7 @@ declare module "discord.js" {
 		setPreferredReactions (...reactions: (string | Emoji)[]): this;
 		getPreferredReactions (): (string | Emoji)[];
 		inherit (embed: MessageEmbed): this;
+		clearFields (): this;
 	}
 
 	interface TextChannel {
@@ -99,32 +100,56 @@ Message.prototype.delete = async function (...args) {
 
 const originalSetTitle = RichEmbed.prototype.setTitle;
 RichEmbed.prototype.setTitle = function (title?: string) {
-	return title ? originalSetTitle.call(this, title) : this;
+	if (title)
+		return originalSetTitle.call(this, title);
+
+	delete this.title;
+	return this;
 };
 
 const originalSetDescription = RichEmbed.prototype.setDescription;
 RichEmbed.prototype.setDescription = function (description?: string) {
-	return description ? originalSetDescription.call(this, description) : this;
+	if (description)
+		return originalSetDescription.call(this, description);
+
+	delete this.description;
+	return this;
 };
 
 const originalSetFooter = RichEmbed.prototype.setFooter;
 RichEmbed.prototype.setFooter = function (footer?: string) {
-	return footer ? originalSetFooter.call(this, footer) : this;
+	if (footer)
+		return originalSetFooter.call(this, footer);
+
+	delete this.footer;
+	return this;
 };
 
 const originalSetURL = RichEmbed.prototype.setURL;
 RichEmbed.prototype.setURL = function (url?: string) {
-	return url ? originalSetURL.call(this, url) : this;
+	if (url)
+		return originalSetURL.call(this, url);
+
+	delete this.url;
+	return this;
 };
 
 const originalSetThumbnail = RichEmbed.prototype.setThumbnail;
 RichEmbed.prototype.setThumbnail = function (url?: string) {
-	return url ? originalSetThumbnail.call(this, url) : this;
+	if (url)
+		return originalSetThumbnail.call(this, url);
+
+	delete this.thumbnail;
+	return this;
 };
 
 const originalSetAuthor = RichEmbed.prototype.setAuthor;
 RichEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, url?: string) {
-	return name ? originalSetAuthor.call(this, name, thumbnail, url) : this;
+	if (name)
+		return originalSetAuthor.call(this, name, thumbnail, url);
+
+	delete this.author;
+	return this;
 };
 
 RichEmbed.prototype.addFields = function (...fields) {
@@ -132,6 +157,11 @@ RichEmbed.prototype.addFields = function (...fields) {
 		if (field)
 			this.addField(field.name, field.value, field.inline);
 
+	return this;
+}
+
+RichEmbed.prototype.clearFields = function () {
+	this.fields?.splice(0, Infinity);
 	return this;
 }
 

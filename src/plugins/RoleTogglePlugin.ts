@@ -26,15 +26,17 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 		return "A plugin for toggling roles on server members.";
 	}
 
-	private readonly help = new HelpContainerPlugin()
+	private readonly help = () => new HelpContainerPlugin()
 		.addCommand("role", CommandLanguage.RoleDescription, command => command
-			.addArgument("role", CommandLanguage.RoleArgumentRole)
+			.addRawTextArgument("role", CommandLanguage.RoleArgumentRole, argument => argument
+				.addOptions(...Object.entries(this.config.toggleableRoles)
+					.map(([role, aliases]) => [aliases.join("|"), `Adds the role "${role}"`] as [string, string])))
 			.addArgument("user", CommandLanguage.RoleArgumentUser, argument => argument
 				.setOptional()));
 
 	@Command(["help role", "role help"])
 	protected async commandHelp (message: CommandMessage) {
-		this.reply(message, this.help);
+		this.reply(message, this.help());
 		return CommandResult.pass();
 	}
 

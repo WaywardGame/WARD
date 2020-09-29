@@ -86,7 +86,8 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			.addArgument("announcementMessageId", CommandLanguage.GiveawayInfoAnnouncementMessageId, argument => argument
 				.setOptional()))
 		.addCommand("giveaway", CommandLanguage.GiveawayPrizeDescription, command => command
-			.addRawTextArgument("prize", CommandLanguage.GiveawayPrizeArgumentPrize, argument => argument
+			.addRawTextArgument("prizeType", undefined, argument => argument
+				.addOption("prize", CommandLanguage.GiveawayPrizeArgumentPrize)
 				.addOption("consolation", CommandLanguage.GiveawayPrizeArgumentConsolation))
 			.addArgument("amount", CommandLanguage.GiveawayPrizeArgumentAmount, argument => argument
 				.setOptional()));

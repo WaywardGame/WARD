@@ -42,9 +42,9 @@ export class HelpContainerCommand {
 	}
 
 	public addRawTextArgument (rawText: string): this;
-	public addRawTextArgument (option0: string, option0Description: string | undefined, initializer: (container: HelpContainerArgumentRaw) => any): this;
-	public addRawTextArgument (option0: string, option0Description?: string, initializer?: (container: HelpContainerArgumentRaw) => any) {
-		const container = new HelpContainerArgumentRaw(option0, option0Description);
+	public addRawTextArgument (defaultOption: string, defaultOptionDescription: string | undefined, initializer: (container: HelpContainerArgumentRaw) => any): this;
+	public addRawTextArgument (defaultOption: string, defaultOptionDescription?: string, initializer?: (container: HelpContainerArgumentRaw) => any) {
+		const container = new HelpContainerArgumentRaw(defaultOption, defaultOptionDescription);
 		initializer?.(container);
 		this.arguments.push(container);
 		return this;
@@ -129,11 +129,12 @@ export class HelpContainerArgumentsRemaining extends HelpContainerArgument {
 
 export class HelpContainerArgumentRaw extends HelpContainerArgument {
 
-	private readonly options: [string, string?][] = [];
+	private readonly defaultOption: [string, string?];
+	private readonly options: [string, string][] = [];
 
-	public constructor (option0: string, option0Description?: string) {
+	public constructor (defaultOption: string, defaultOptionDescription?: string) {
 		super();
-		this.options.push([option0, option0Description]);
+		this.defaultOption = [defaultOption, defaultOptionDescription];
 	}
 
 	public addOption (option: string, description: string) {
@@ -141,8 +142,13 @@ export class HelpContainerArgumentRaw extends HelpContainerArgument {
 		return this;
 	}
 
+	public addOptions (...options: ArrayOrReadonlyArray<[option: string, description: string]>) {
+		this.options.push(...options);
+		return this;
+	}
+
 	public getDisplay () {
-		return this.options
+		return this.options.length === 0 || this.options.length > 4 ? `<${this.defaultOption[0]}>` : this.options
 			.map(([option]) => option)
 			.join("|");
 	}
@@ -152,7 +158,7 @@ export class HelpContainerArgumentRaw extends HelpContainerArgument {
 	}
 
 	public getDescription () {
-		return `Any of:\n${this.options
+		return this.options.length === 0 ? this.defaultOption[1] || "" : `Any of:\n${this.options
 			.map(([option, description]) => Strings.indent(`- \`${option}\`: ${description}`))
 			.join("\n")}`;
 	}
