@@ -42,9 +42,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public event = new EventEmitterAsync();
 
 	public updateInterval = never();
-	public get lastUpdate () { return this._data.data!._lastUpdate || 0; }
+	public get lastUpdate () { return this._data.data?._lastUpdate || 0; }
 	public set lastUpdate (value: number) {
-		this._data.data!._lastUpdate = value;
+		if (this._data.data)
+			this._data.data!._lastUpdate = value;
 		this._data.markDirty();
 	}
 	public autosaveInterval = hours(2);
