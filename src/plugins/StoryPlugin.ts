@@ -560,6 +560,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	}
 
 	private queryStories (query: string[], user?: User | GuildMember) {
+		query = query.map(term => term.toLowerCase());
 		return (user ? this.data.stories[user.id] || [] : Object.values(this.data.stories).flat())
 			.map(story => ({ story, value: this.getQueryValue(story, query) }))
 			.filter(({ value }) => value)
