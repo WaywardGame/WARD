@@ -279,13 +279,18 @@ export class Paginator<T = any> {
 	}
 
 	private async awaitReaction (message: Message, inputUser?: User, mode: "add" | "edit" = "add") {
+		const otherOptionReactions = this.otherOptions.map(([emoji]) => typeof emoji === "function" ? emoji(this.get()) : emoji)
+			.map(emoji => typeof emoji === "string" || emoji instanceof Emoji ? emoji : undefined)
+			.filterNullish();
+
 		const reactions = [
 			...this.pages?.length !== 1 ? [PaginatorReaction.Prev, PaginatorReaction.Next] : [],
-			...this.otherOptions.map(([emoji]) => typeof emoji === "function" ? emoji(this.get()) : emoji)
-				.map(emoji => typeof emoji === "string" || emoji instanceof Emoji ? emoji : undefined)
-				.filterNullish(),
-			PaginatorReaction.Cancel,
+			...otherOptionReactions,
+			...this.pages?.length !== 1 || otherOptionReactions.length ? [PaginatorReaction.Cancel] : [],
 		];
+
+		if (!reactions)
+			return undefined;
 
 		if (mode !== "add") {
 			// if this page's reactions are invalid, we clear them and add them again
