@@ -59,13 +59,8 @@ export default class Data extends Api<IDataConfig> {
 
 		this.lastBackupTime = now;
 
-		const backups = await FileSystem.readDir(this.dirBackups);
-		const lastBackup = backups.sort().last();
 		const today = new Date().toISOString().slice(0, 10);
 		const dirBackup = `${this.dirBackups}/${today}/${this.guild}`;
-		// Logger.verbose("Data", "Last backup:", lastBackup, "Today:", today);
-		if (lastBackup === today)
-			return;
 
 		const backupAlreadyExists = await FileSystem.exists(dirBackup);
 		if (backupAlreadyExists)
