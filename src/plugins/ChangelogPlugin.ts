@@ -97,16 +97,20 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		this.warningChannel = !this.config.warningChannel ? undefined
 			: this.guild.channels.find(channel => channel.id === this.config.warningChannel) as TextChannel;
 
-		const versions = await this.trello.getActiveVersions();
+		try {
+			const versions = await this.trello.getActiveVersions();
 
-		this.isReporting = true;
+			this.isReporting = true;
 
-		for (const version of versions)
-			await this.changelog(version);
+			for (const version of versions)
+				await this.changelog(version);
 
-		if (this.config.reportedLists)
-			for (const list of this.config.reportedLists)
-				await this.changelog(list);
+			if (this.config.reportedLists)
+				for (const list of this.config.reportedLists)
+					await this.changelog(list);
+		} catch (err) {
+			this.logger.error("Cannot fetch changelog", err.message || err);
+		}
 
 		this.isReporting = false;
 	}
