@@ -208,7 +208,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Command("story")
 	protected async onCommandStoryQuery (message: CommandMessage, ...queryArgs: string[]) {
-		Paginator.create(this.queryStories(queryArgs), this.generateStoryEmbed)
+		Paginator.create(this.queryStories(queryArgs).map(({ story }) => story), this.generateStoryEmbed)
 			.reply(message);
 
 		return CommandResult.pass();
@@ -553,22 +553,29 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				.then(reply => CommandResult.fail(message, reply));
 
 		if (matchingStories.length > 1)
-			return this.reply(message, "I found multiple stories matching the given data. Can you be more specific?")
+			return this.reply(message, `I found multiple stories matching the given data. Can you be more specific? All matches:\n${matchingStories.map(({ story, id }) => `- **${story.name}**  ·  ID: \`${id}\``).join("\n")}`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		return this.data.stories[message.author.id].indexOf(matchingStories[0]);
+		return this.data.stories[message.author.id].indexOf(matchingStories[0].story);
 	}
 
 	private queryStories (query: string[], user?: User | GuildMember) {
 		query = query.map(term => term.toLowerCase());
-		return (user ? this.data.stories[user.id] || [] : Object.values(this.data.stories).flat())
-			.map(story => ({ story, value: this.getQueryValue(story, query) }))
+		let stories: { story: IStory; id: string; }[];
+		if (user)
+			stories = this.data.stories[user.id]
+				.map((story, id) => ({ story, id: `${user.id}/${id}` }));
+		else
+			stories = Object.entries(this.data.stories)
+				.flatMap(([author, stories]) => stories.map((story, id) => ({ story, id: `${author}/${id}` })));
+
+		return stories
+			.map(({ story, id }) => ({ story, id, value: this.getQueryValue(story, id, query) }))
 			.filter(({ value }) => value)
-			.sort(({ value: a }, { value: b }) => b - a)
-			.map(({ story }) => story);
+			.sort(({ value: a }, { value: b }) => b - a);
 	}
 
-	private getQueryValue (story: IStory, query: string[]) {
+	private getQueryValue (story: IStory, id: string, query: string[]) {
 		const lowercase = story.name.toLowerCase();
 		const hash = Strings.hash(lowercase);
 
@@ -580,11 +587,14 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			};
 		}
 
+		let value = 0;
 		for (const queryTerm of query)
-			if (!nameSearch.terms.includes(queryTerm))
+			if (queryTerm === id)
+				value = 10000;
+			else if (!nameSearch.terms.includes(queryTerm))
 				return 0;
 
-		return nameSearch.terms.reduce((prev, curr) => prev + (query.includes(curr) ? 100 : -1), 0);
+		return value + nameSearch.terms.reduce((prev, curr) => prev + (query.includes(curr) ? 100 : -1), 0);
 	}
 
 	@Bound
