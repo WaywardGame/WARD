@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { DMChannel, Emoji, GuildMember, Message, ReactionEmoji, RichEmbed, User } from "discord.js";
+import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageEmbed, ReactionEmoji, User } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -88,11 +88,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return "A plugin for sharing your stories!";
 	}
 
-	private statusEmoji: Record<keyof typeof Status, Emoji>;
+	private statusEmoji: Record<keyof typeof Status, GuildEmoji>;
 
 	public onStart () {
 		this.statusEmoji = Object.fromEntries(Enums.keys(Status)
-			.map(status => [status, this.guild.emojis.find(emoji => emoji.name === status)])) as Record<keyof typeof Status, Emoji>;
+			.map(status => [status, this.guild.emojis.cache.find(emoji => emoji.name === status)!])) as Record<keyof typeof Status, GuildEmoji>;
 	}
 
 	private readonly help = () => new HelpContainerPlugin()
@@ -216,7 +216,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Command("author")
 	protected async onCommandAuthor (message: CommandMessage, queryMember?: string | GuildMember) {
-		let members: Iterable<GuildMember> = [queryMember instanceof GuildMember ? queryMember : message.member];
+		let members: Iterable<GuildMember> = [queryMember instanceof GuildMember ? queryMember : message.member!];
 
 		if (queryMember && !(queryMember instanceof GuildMember)) {
 			const queryResult = await this.findMember(queryMember);
@@ -253,7 +253,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Command("stories mine")
 	protected async onCommandStoriesMine (message: CommandMessage) {
-		return this.onCommandStories(message, this.guild.members.get(message.author.id));
+		return this.onCommandStories(message, this.guild.members.cache.get(message.author.id));
 	}
 
 	@Command("stories")
@@ -599,11 +599,11 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Bound
 	private generateStoryEmbed (story: IStory,) {
-		const author = this.guild.members.get(story.author);
-		return new RichEmbed()
+		const author = this.guild.members.cache.get(story.author);
+		return new MessageEmbed()
 			.setTitle(story.name)
 			.setURL(story.scribble || story.otherURL || story.patreon)
-			.setAuthor(author?.displayName, author?.user.avatarURL, this.getAuthorURL(this.data.authors[author?.id!]))
+			.setAuthor(author?.displayName, author?.user.avatarURL() || undefined, this.getAuthorURL(this.data.authors[author?.id!]))
 			.setDescription(story.synopsis)
 			.setThumbnail(story.thumbnail)
 			.addField("Status", `${this.statusEmoji[story.status || "unknown"]} ${Strings.sentence(story.status || "unknown")}`)
@@ -617,16 +617,16 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	}
 
 	@Bound
-	private generateAuthorEmbed (inUser: User | GuildMember): RichEmbed | undefined {
+	private generateAuthorEmbed (inUser: User | GuildMember): MessageEmbed | undefined {
 		const user = inUser instanceof User ? inUser : inUser.user;
-		const member = inUser instanceof GuildMember ? inUser : this.guild.members.get(inUser.id);
+		const member = inUser instanceof GuildMember ? inUser : this.guild.members.cache.get(inUser.id);
 		const author = this.data.authors[user.id];
 
-		return author && new RichEmbed()
+		return author && new MessageEmbed()
 			.setTitle(member?.displayName || user.username)
 			.setURL(this.getAuthorURL(this.data.authors[member?.id!]))
 			.setDescription(author.bio || "_This author prefers to remain elusive and mysterious..._")
-			.setThumbnail(user.avatarURL)
+			.setThumbnail(user.avatarURL() || undefined)
 			.addFields(
 				(author.scribble || author.patreon || author.ao3 || author.otherURL) && { name: "\u200b", value: "__**Links**__" },
 				author.scribble && { name: "Scribble Hub", value: author.scribble },

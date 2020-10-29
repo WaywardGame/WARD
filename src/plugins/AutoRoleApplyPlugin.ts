@@ -56,14 +56,14 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 	}
 
 	public async onUpdate () {
-		await this.guild.fetchMembers();
+		await this.guild.members.fetch();
 
 		for (const rule of this.rules) {
-			const users = this.guild.members.filter(member => member.roles.some(role => rule.match.matches(role)));
+			const users = this.guild.members.cache.filter(member => member.roles.cache.some(role => rule.match.matches(role)));
 			for (const [, user] of users) {
-				const addRoles = rule.apply.filter(role => !user.roles.has(role.id));
+				const addRoles = rule.apply.filter(role => !user.roles.cache.has(role.id));
 				if (addRoles.length) {
-					user.addRoles(addRoles);
+					user.roles.add(addRoles);
 					this.logger.info(`Added role(s) ${addRoles.map(role => `'${role.name}'`).join(", ")} to ${user.displayName}.`);
 				}
 			}

@@ -61,7 +61,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 	}
 
 	public isHelpVisible (author: User) {
-		return this.guild.members.get(author.id)
+		return this.guild.members.cache.get(author.id)
 			?.permissions.has("ADMINISTRATOR")
 			?? false;
 	}
@@ -94,7 +94,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command(["help giveaway", "giveaway help"])
 	protected async commandHelp (message: CommandMessage) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		this.reply(message, this.help);
@@ -102,13 +102,13 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 	}
 
 	public async onStart () {
-		this.channel = this.guild.channels.find(channel => channel.id === this.config.channel) as TextChannel;
+		this.channel = this.guild.channels.cache.find(channel => channel.id === this.config.channel) as TextChannel;
 	}
 
 	// tslint:disable cyclomatic-complexity
 	@Command("giveaway")
 	protected async commandStartGiveaway (message: CommandMessage, winnerCount: string | number = 1, ...giveawayText: string[]) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		winnerCount = +winnerCount;
@@ -137,7 +137,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command("giveaway cancel")
 	protected async commandCancelGiveaway (message: CommandMessage) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		if (!this.data.giveaway) {
@@ -155,7 +155,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command(["giveaway prize", "giveaway consolation"])
 	protected async commandSetGiveawayConsolation (message: CommandMessage, prize?: string | number) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		if (!this.data.giveaway) {
@@ -180,7 +180,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command("giveaway end")
 	protected async commandEndGiveaway (message: CommandMessage) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		if (!this.data.giveaway) {
@@ -205,7 +205,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command("giveaway info")
 	protected async commandGiveawayInfo (message: CommandMessage, announcement?: string) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		if (announcement === this.data.giveaway?.message)
@@ -221,7 +221,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			return CommandResult.pass();
 
 		const entrants = (await this.getEntrants(announcementMessage))
-			.filter(user => this.guild.members.has(user.id));
+			.filter(user => this.guild.members.cache.has(user.id));
 
 		this.sendAll(message.channel, `<@${message.member.id}>, here's some info on ${announcement ? "that" : "the **currently-running**"} giveaway:`,
 			this.data.giveaway?.winnerCount && `Choosing **${this.data.giveaway.winnerCount} winners**`,
@@ -235,7 +235,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 	@Command("giveaway redraw")
 	protected async commandRedrawGiveaway (message: CommandMessage, announcement: string, winnerCount: string | number, prize: string | number, consolation: string | number) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		const announcementMessage = await this.getAnnouncementMessage(message, announcement);
@@ -253,7 +253,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 	}
 
 	private async getAnnouncementMessage (message: CommandMessage, announcement: string) {
-		const announcementMessage = await this.channel.fetchMessage(announcement);
+		const announcementMessage = await this.channel.messages.fetch(announcement);
 		if (announcementMessage)
 			return announcementMessage;
 

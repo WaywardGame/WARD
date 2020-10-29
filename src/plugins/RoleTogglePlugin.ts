@@ -49,7 +49,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		roleName = roleName.toLowerCase();
 
-		const role = this.guild.roles.find(r => {
+		const role = this.guild.roles.cache.find(r => {
 			const pingRole = r.name.toLowerCase();
 			return Object.entries(this.config.toggleableRoles)
 				.some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName));
@@ -61,7 +61,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 		let toggleMember = message.member;
 		if (queryMember) {
-			if (!message.member.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
+			if (!message.member?.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, "only mods can toggle the roles of other members.");
 				return CommandResult.pass();
 			}
@@ -74,15 +74,17 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			toggleMember = queryMemberResult.member;
 		}
 
-		if (toggleMember.roles.has(role.id)) {
-			toggleMember.removeRole(role);
-			this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
-			this.reply(message, toggleMember === message.member ? `you no longer have the role "${role.name}".` : `Removed role "${role.name}" from ${toggleMember.displayName}.`);
+		if (toggleMember) {
+			if (toggleMember.roles.cache.has(role.id)) {
+				toggleMember.roles.remove(role);
+				this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
+				this.reply(message, toggleMember === message.member ? `you no longer have the role "${role.name}".` : `Removed role "${role.name}" from ${toggleMember.displayName}.`);
 
-		} else {
-			toggleMember.addRole(role);
-			this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
-			this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
+			} else {
+				toggleMember.roles.add(role);
+				this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
+				this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
+			}
 		}
 
 		return CommandResult.pass();

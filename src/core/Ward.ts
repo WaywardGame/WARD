@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { Client, Guild, Message } from "discord.js";
+import { Client, Guild, Message, PartialMessage } from "discord.js";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
@@ -76,7 +76,7 @@ export class Ward {
 
 		this.logger.verbose("Login");
 		await this.login();
-		this.guild = this.discord!.guilds.find(guild => guild.id === this.config.apis.discord.guild);
+		this.guild = await this.discord!.guilds.fetch(this.config.apis.discord.guild, true);
 		this.logger.popScope();
 		this.logger.pushScope(this.guild.name);
 
@@ -190,7 +190,7 @@ export class Ward {
 			return;
 
 		if (!message.member)
-			message.member = this.guild.members.find(member => member.id === message.author.id);
+			(message as any).member = this.guild.members.cache.get(message.author.id);
 
 		if (!message.member)
 			return;
@@ -242,12 +242,12 @@ export class Ward {
 						return;
 
 					// result === false means the user might've made a mistake, let's keep listening for a while to see if they edit
-					const handleMessageEdit = async (old1: Message, new1: Message) => {
+					const handleMessageEdit = async (old1: Message | PartialMessage, new1: Message | PartialMessage) => {
 						if (old1.id === commandMessage.id) {
 							const newCommandMessage = new1 as CommandMessage;
 							newCommandMessage.previous = result;
 							this.onCommand(newCommandMessage);
-							await commandMessage.reactions.get("✏")?.remove(this.discord!.user);
+							await commandMessage.reactions.cache.get("✏")?.remove();
 							this.discord!.off("messageUpdate", handleMessageEdit);
 						}
 					};
@@ -255,7 +255,7 @@ export class Ward {
 					await commandMessage.react("✏");
 					this.discord!.on("messageUpdate", handleMessageEdit);
 					await sleep(seconds(15));
-					await commandMessage.reactions.get("✏")?.remove(this.discord!.user);
+					await commandMessage.reactions.cache.get("✏")?.remove();
 					this.discord!.off("messageUpdate", handleMessageEdit);
 				});
 			return;
@@ -295,7 +295,7 @@ export class Ward {
 					?? {};
 			}
 
-			await this.plugins[pluginName].onStart();
+			await this.pluginHook(pluginName, "onStart");
 		}
 	}
 
@@ -304,7 +304,16 @@ export class Ward {
 			if (this.isDisabledPlugin(pluginName))
 				continue;
 
-			await this.plugins[pluginName].onStop();
+			await this.pluginHook(pluginName, "onStop");
+		}
+	}
+
+	private async pluginHook (pluginName: string, hook: "onStop" | "onStart") {
+		try {
+			await this.plugins[pluginName][hook]();
+		} catch (err) {
+			this.plugins[pluginName].logger.error(err);
+			await this.stop();
 		}
 	}
 
@@ -313,7 +322,7 @@ export class Ward {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName] as Plugin;
-			plugin.user = this.discord!.user;
+			plugin.user = this.discord!.user!;
 			plugin.guild = this.guild;
 			plugin.logger = new Logger(this.guild.name, plugin.getId());
 
@@ -373,7 +382,7 @@ export class Ward {
 
 	@Bound
 	private commandUpdatePlugin (message: CommandMessage, pluginName: string) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];

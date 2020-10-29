@@ -124,8 +124,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public async onStart () {
 		this.updateTopMembers();
 
-		this.roleRegular = this.guild.roles.find(role => role.name === "regular");
-		this.roleMod = this.guild.roles.find(role => role.name === "mod");
+		this.roleRegular = this.guild.roles.cache.find(role => role.name === "regular")!;
+		this.roleMod = this.guild.roles.cache.find(role => role.name === "mod")!;
+
+		if (!this.roleRegular || !this.roleMod)
+			throw new Error("Cannot find both regular and mod roles");
 
 		this.xpMultiplierIncreaseDays.clear();
 		const calculateDaysUpTill = 10000;
@@ -149,7 +152,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				this.dropTrackedMember(trackedMember);
 		}
 
-		for (const [, member] of this.guild.members.filter(member => member.roles.has(this.roleRegular.id))) {
+		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id))) {
 			if (!this.getTrackedMember(member.id, false)) {
 				this.logger.warning(`Member '${this.getMemberName(member)}' is regular but not tracked`);
 				// this.removeRegularFromMember(member);
@@ -158,17 +161,17 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private dropTrackedMember (trackedMember: ITrackedMember) {
-		const member = this.guild.members.find(member => member.id === trackedMember.id);
+		const member = this.guild.members.cache.get(trackedMember.id);
 		this.removeRegularFromMember(member);
 
 		delete this.members[trackedMember.id];
 		this.data.markDirty();
-		this.logger.info(`Dropped tracked member '${this.getMemberName(member)}'`);
+		this.logger.info(`Dropped tracked member '${member ? this.getMemberName(member) : trackedMember.id}'`);
 	}
 
 	private removeRegularFromMember (member?: GuildMember) {
 		if (member && !this.shouldUserBeRegular(member)) {
-			member.removeRole(this.roleRegular);
+			member.roles.remove(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
 			return true;
@@ -179,7 +182,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	public onMessage (message: Message) {
 		// DMs are not counted towards xp
-		if (!message.guild)
+		if (!message.guild || !message.member)
 			return;
 
 		// excluded channels are not counted towards xp
@@ -215,19 +218,19 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	public isUserRegular (user?: User | GuildMember) {
 		if (user instanceof User)
-			user = this.guild.members.get(user.id);
+			user = this.guild.members.cache.get(user.id);
 
-		return !user ? false : user.roles.has(this.roleRegular.id)
+		return !user ? false : user.roles.cache.has(this.roleRegular.id)
 			|| this.shouldUserBeRegular(user);
 	}
 
 	private shouldUserBeRegular (user?: User | GuildMember) {
 		if (user instanceof User)
-			user = this.guild.members.get(user.id);
+			user = this.guild.members.cache.get(user.id);
 
 		const trackedMember = user && this.getTrackedMember(user.id, false);
 
-		return !user ? false : user.highestRole.position >= this.roleMod.position
+		return !user ? false : user.roles.highest.position >= this.roleMod.position
 			|| user.permissions.has("ADMINISTRATOR")
 			|| (!trackedMember ? false : trackedMember.xp > this.config.regularMilestoneXp);
 	}
@@ -237,7 +240,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	public getMemberName (memberOrId: string | GuildMember) {
-		const member = typeof memberOrId == "string" ? this.guild.members.find(member => member.id === memberOrId) : memberOrId;
+		const member = typeof memberOrId == "string" ? this.guild.members.cache.get(memberOrId) : memberOrId;
 		if (!member) {
 			return undefined;
 		}
@@ -341,11 +344,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private checkMemberRegular (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
 		const shouldBeRegular = trackedMember.xp > this.config.regularMilestoneXp
-			|| member.roles.has(this.roleMod.id)
+			|| member.roles.cache.has(this.roleMod.id)
 			|| member.permissions.has("ADMINISTRATOR");
 
-		if (shouldBeRegular && !member.roles.has(this.roleRegular.id)) {
-			member.addRole(this.roleRegular);
+		if (shouldBeRegular && !member.roles.cache.has(this.roleRegular.id)) {
+			member.roles.add(this.roleRegular);
 			this.logger.info(`${this.getMemberName(member)} has become a regular!`);
 			this.event.emit("becomeRegular", member);
 		}
@@ -364,9 +367,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.topMembers.sort((a, b) => b.xp - a.xp);
 	}
 
-	private isMod (member: GuildMember) {
-		return member.roles.has(this.roleMod.id)
-			|| member.permissions.has("ADMINISTRATOR");
+	private isMod (member?: GuildMember | null): member is GuildMember {
+		return !!member && (member.roles.cache.has(this.roleMod.id)
+			|| member.permissions.has("ADMINISTRATOR"));
 	}
 
 	private getCommandName (command: keyof Exclude<IRegularsConfig["commands"], false | undefined>) {
@@ -387,6 +390,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 			member = result.member;
 		}
+
+		if (!member)
+			return CommandResult.pass();
 
 		const memberName = member.displayName;
 
@@ -513,8 +519,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return this.reply(message, `you must donate a positive amount of ${this.getScoreName()}. No stealing allowed 😡`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		const trackedMember = this.members[message.member.id];
-		if (!message.member.roles.has(this.roleRegular.id)) {
+		const trackedMember = this.members[message.member?.id!];
+		if (!message.member?.roles.cache.has(this.roleRegular.id)) {
 			this.reply(message, `only regulars can donate ${this.getScoreName()}.`);
 			return CommandResult.pass();
 		}
@@ -532,7 +538,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
-		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
+		if (!member.roles.cache.has(this.roleRegular.id) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
 			return CommandResult.pass();
 		}
@@ -560,7 +566,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	@Command<RegularsPlugin>(p => p.getCommandName("autodonate"), p => p.config.commands !== false)
 	protected async commandAutoDonate (message: CommandMessage, queryMember?: string, amtStr?: string) {
-		const trackedMember = this.members[message.member.id];
+		const trackedMember = this.members[message.member?.id!];
 		if (queryMember === undefined) {
 			const [donateMemberId, donateMinAmt] = trackedMember.autodonate || [];
 			this.reply(message, `${donateMemberId ? `you are currently auto-donating to ${this.getMemberName(donateMemberId)} when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(donateMinAmt!)}` : `you must provide a member to donate ${this.getScoreName()} to`}. (Use "remove" or "off" to turn off auto-donation.)`);
@@ -581,7 +587,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
-		if (!member.roles.has(this.roleRegular.id) && !this.isMod(message.member)) {
+		if (!member.roles.cache.has(this.roleRegular.id) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
 			return CommandResult.pass();
 		}
@@ -606,7 +612,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const operation = `enabled auto-donation to ${member.displayName}${minXp > this.config.regularMilestoneXp ? `, when your ${this.getScoreName()} exceeds ${Intl.NumberFormat().format(minXp)}` : ""}`;
 
 		this.reply(message, `you ${operation}. ${result || ""}`);
-		this.logger.info(message.member.displayName, `${operation}.`);
+		this.logger.info(message.member?.displayName, `${operation}.`);
 
 		this.updateTopMember(trackedMember, updatingMember);
 		return CommandResult.pass();

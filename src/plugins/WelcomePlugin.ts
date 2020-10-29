@@ -42,7 +42,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	public isHelpVisible (author: User) {
-		return this.guild.members.get(author.id)
+		return this.guild.members.cache.get(author.id)
 			?.permissions.has("ADMINISTRATOR")
 			?? false;
 	}
@@ -54,7 +54,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 	@Command(["help welcome", "welcome help"])
 	protected async commandHelp (message: CommandMessage) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		this.reply(message, this.help);
@@ -71,7 +71,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 			return;
 		}
 
-		this.channel = this.guild.channels.find(channel => channel.id === this.config.welcomeChannel) as TextChannel;
+		this.channel = this.guild.channels.cache.get(this.config.welcomeChannel) as TextChannel;
 
 		this.isWelcoming = true;
 		await this.welcomeNewUsers();
@@ -92,7 +92,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	private continueLogging (message: CommandMessage, report: boolean) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return;
 
 		if (!this.continueWelcomes) {
@@ -108,11 +108,11 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	private async welcomeNewUsers () {
-		await this.guild.fetchMembers();
+		await this.guild.members.fetch();
 
 		// each guild member that has a welcome role
-		const users = this.guild.members.filter(member =>
-			this.welcomeRoles.some(role => member.roles.has(role.id))
+		const users = this.guild.members.cache.filter(member =>
+			this.welcomeRoles.some(role => member.roles.cache.has(role.id))
 			&& !this.welcomedUsers.includes(member.id));
 
 		if (!users?.size)
@@ -124,7 +124,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 			welcome = await new Promise<boolean>(resolve => this.continueWelcomes = resolve);
 		}
 
-		users.sort((a, b) => a.joinedAt.getTime() - b.joinedAt.getTime());
+		users.sort((a, b) => (a.joinedAt?.getTime() || 0) - (b.joinedAt?.getTime() || 0));
 
 		for (const [, user] of users)
 			await this.handleJoin(user, welcome);

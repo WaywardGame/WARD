@@ -1,4 +1,4 @@
-import { DMChannel, GroupDMChannel, Message, RichEmbed, TextChannel } from "discord.js";
+import { CollectorFilter, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, TextChannel } from "discord.js";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
@@ -48,12 +48,12 @@ export module IField {
 
 declare module "discord.js" {
 	interface Message {
-		deleted?: true;
+		// deleted?: true;
 		reacting?: Promise<MessageReaction>;
 	}
 
-	interface RichEmbed {
-		addFields (...fields: Array<IField | undefined | "" | 0 | null>): this;
+	interface MessageEmbed {
+		addFields (...fields: Array<EmbedFieldData[] | EmbedFieldData | undefined | "" | 0 | null>): this;
 		setTitle (title?: string): this;
 		setDescription (description?: string): this;
 		setFooter (footer?: string): this;
@@ -74,7 +74,7 @@ declare module "discord.js" {
 		isAwaitingMessages (message?: Message): boolean;
 	}
 
-	interface GroupDMChannel {
+	interface NewsChannel {
 		isAwaitingMessages (message?: Message): boolean;
 	}
 }
@@ -98,8 +98,8 @@ Message.prototype.delete = async function (...args) {
 	return originalDelete.apply(this, args);
 };
 
-const originalSetTitle = RichEmbed.prototype.setTitle;
-RichEmbed.prototype.setTitle = function (title?: string) {
+const originalSetTitle = MessageEmbed.prototype.setTitle;
+MessageEmbed.prototype.setTitle = function (title?: string) {
 	if (title)
 		return originalSetTitle.call(this, title);
 
@@ -107,8 +107,8 @@ RichEmbed.prototype.setTitle = function (title?: string) {
 	return this;
 };
 
-const originalSetDescription = RichEmbed.prototype.setDescription;
-RichEmbed.prototype.setDescription = function (description?: string) {
+const originalSetDescription = MessageEmbed.prototype.setDescription;
+MessageEmbed.prototype.setDescription = function (description?: string) {
 	if (description)
 		return originalSetDescription.call(this, description);
 
@@ -116,17 +116,17 @@ RichEmbed.prototype.setDescription = function (description?: string) {
 	return this;
 };
 
-const originalSetFooter = RichEmbed.prototype.setFooter;
-RichEmbed.prototype.setFooter = function (footer?: string) {
+const originalSetFooter = MessageEmbed.prototype.setFooter;
+MessageEmbed.prototype.setFooter = function (footer?: string) {
 	if (footer)
 		return originalSetFooter.call(this, footer);
 
-	delete this.footer;
+	this.footer = null;
 	return this;
 };
 
-const originalSetURL = RichEmbed.prototype.setURL;
-RichEmbed.prototype.setURL = function (url?: string) {
+const originalSetURL = MessageEmbed.prototype.setURL;
+MessageEmbed.prototype.setURL = function (url?: string) {
 	if (url)
 		return originalSetURL.call(this, url);
 
@@ -134,53 +134,52 @@ RichEmbed.prototype.setURL = function (url?: string) {
 	return this;
 };
 
-const originalSetThumbnail = RichEmbed.prototype.setThumbnail;
-RichEmbed.prototype.setThumbnail = function (url?: string) {
+const originalSetThumbnail = MessageEmbed.prototype.setThumbnail;
+MessageEmbed.prototype.setThumbnail = function (url?: string) {
 	if (url)
 		return originalSetThumbnail.call(this, url);
 
-	delete this.thumbnail;
+	this.thumbnail = null;
 	return this;
 };
 
-const originalSetAuthor = RichEmbed.prototype.setAuthor;
-RichEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, url?: string) {
+const originalSetAuthor = MessageEmbed.prototype.setAuthor;
+MessageEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, url?: string) {
 	if (name)
 		return originalSetAuthor.call(this, name, thumbnail, url);
 
-	delete this.author;
+	this.author = null;
 	return this;
 };
 
-RichEmbed.prototype.addFields = function (...fields) {
-	for (const field of fields)
-		if (field)
-			this.addField(field.name, field.value, field.inline);
-
-	return this;
+const originalAddFields = MessageEmbed.prototype.addFields;
+MessageEmbed.prototype.addFields = function (...fields: Array<EmbedFieldData[] | EmbedFieldData | undefined | "" | 0 | null>) {
+	return originalAddFields.apply(this, fields.filter(field => field));
 }
 
-RichEmbed.prototype.clearFields = function () {
+MessageEmbed.prototype.clearFields = function () {
 	this.fields?.splice(0, Infinity);
 	return this;
 }
 
-RichEmbed.prototype.setPreferredReactions = function (...reactions) {
+MessageEmbed.prototype.setPreferredReactions = function (...reactions) {
 	(this as any).reactions = reactions;
 	return this;
 }
 
-RichEmbed.prototype.getPreferredReactions = function () {
+MessageEmbed.prototype.getPreferredReactions = function () {
 	return (this as any).reactions || [];
 }
 
-RichEmbed.prototype.inherit = function (embed) {
+MessageEmbed.prototype.inherit = function (embed) {
 	this.setTitle(embed.title);
 	this.setURL(embed.url);
 	this.setDescription(embed.description);
 	this.setFooter(embed.footer);
-	this.setColor(embed.color);
-	this.setTimestamp(new Date(embed.timestamp));
+	if (embed.color !== undefined)
+		this.setColor(embed.color);
+	if (embed.timestamp !== null)
+		this.setTimestamp(new Date(embed.timestamp));
 	this.addFields(...embed.fields || []);
 
 	if (embed.author)
@@ -195,8 +194,8 @@ RichEmbed.prototype.inherit = function (embed) {
 	return this;
 };
 
-for (const cls of [TextChannel, DMChannel, GroupDMChannel]) {
-	const channelsAwaitingMessages = new Map<string, (message: Message) => boolean>();
+for (const cls of [TextChannel, DMChannel, NewsChannel]) {
+	const channelsAwaitingMessages = new Map<string, CollectorFilter>();
 
 	const originalAwaitMessages = cls.prototype.awaitMessages;
 	cls.prototype.awaitMessages = async function (filter, options) {

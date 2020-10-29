@@ -77,7 +77,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 
 			const user = await this.twitch.getUser(stream.user_id);
 
-			(this.guild.channels.find(channel => channel.id === streamDetector.channel) as TextChannel)
+			(this.guild.channels.cache.get(streamDetector.channel) as TextChannel)
 				.send(streamDetector.message
 					.replace("{name}", escape(stream.user_name))
 					.replace("{title}", escape(stream.title))

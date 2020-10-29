@@ -1,4 +1,4 @@
-import { Collection, DMChannel, Emoji, GroupDMChannel, Guild, GuildMember, Message, ReactionEmoji, RichEmbed, Role, TextChannel, User } from "discord.js";
+import { Collection, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import { IInjectionApi, Injector } from "../util/function/Inject";
@@ -137,15 +137,15 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		};
 	}
 
-	public async reply (message: CommandMessage, reply: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand): Promise<ArrayOr<Message>>;
-	public async reply (message: CommandMessage, reply: string, embed?: RichEmbed): Promise<ArrayOr<Message>>;
-	public async reply (message: CommandMessage, reply?: string | RichEmbed | HelpContainerPlugin | HelpContainerCommand, embed?: RichEmbed) {
+	public async reply (message: CommandMessage, reply: string | MessageEmbed | HelpContainerPlugin | HelpContainerCommand): Promise<ArrayOr<Message>>;
+	public async reply (message: CommandMessage, reply: string, embed?: MessageEmbed): Promise<ArrayOr<Message>>;
+	public async reply (message: CommandMessage, reply?: string | MessageEmbed | HelpContainerPlugin | HelpContainerCommand, embed?: MessageEmbed) {
 		if (reply instanceof HelpContainerPlugin)
 			return reply.getPaginator(this.commandPrefix)
 				.reply(message);
 
 		if (reply instanceof HelpContainerCommand)
-			reply = new RichEmbed()
+			reply = new MessageEmbed()
 				.setDescription(reply.getDisplay(this.commandPrefix));
 
 		if (typeof reply === "string") {
@@ -172,7 +172,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	}
 
 	protected getName (user: User | GuildMember) {
-		const member = user instanceof GuildMember ? user : this.guild.members.get(user.id);
+		const member = user instanceof GuildMember ? user : this.guild.members.cache.get(user.id);
 		user = user instanceof GuildMember ? user.user : user;
 		return member?.displayName ?? user.username;
 	}
@@ -190,13 +190,13 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		if (splitMatch)
 			[, member, tag] = splitMatch;
 
-		const guild = await this.guild.fetchMembers();
-		let results = guild.members.filter(m => m.id === member);
+		await this.guild.members.fetch();
+		let results = this.guild.members.cache.filter(m => m.id === member);
 		if (!results.size)
-			results = guild.members.filter(m => m.user.username.toLowerCase().includes(member));
+			results = this.guild.members.cache.filter(m => m.user.username.toLowerCase().includes(member));
 
 		if (!results.size)
-			results = guild.members.filter(m => m.displayName.toLowerCase().includes(member));
+			results = this.guild.members.cache.filter(m => m.displayName.toLowerCase().includes(member));
 
 		if (tag)
 			results = results.filter(m => m.user.tag.endsWith(tag!));
@@ -210,7 +210,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 	protected getPronouns (member: User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
 		if (member instanceof User) {
-			member = this.guild.members.get(member.id)!;
+			member = this.guild.members.cache.get(member.id)!;
 			if (!member)
 				return pronounLanguage["they/them"];
 		}
@@ -223,10 +223,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		// ].filterFalsey(true);
 
 		const pronouns: Record<keyof typeof Pronouns, boolean | "" | undefined> = {
-			"she/her": this.pronounRoles["she/her"]?.id && member.roles.has(this.pronounRoles["she/her"]?.id),
-			"he/him": this.pronounRoles["he/him"]?.id && member.roles.has(this.pronounRoles["he/him"]?.id),
-			"they/them": this.pronounRoles["they/them"]?.id && member.roles.has(this.pronounRoles["they/them"]?.id),
-			"it/its": this.pronounRoles["it/its"]?.id && member.roles.has(this.pronounRoles["it/its"]?.id),
+			"she/her": this.pronounRoles["she/her"]?.id && member.roles.cache.has(this.pronounRoles["she/her"]?.id),
+			"he/him": this.pronounRoles["he/him"]?.id && member.roles.cache.has(this.pronounRoles["he/him"]?.id),
+			"they/them": this.pronounRoles["they/them"]?.id && member.roles.cache.has(this.pronounRoles["they/them"]?.id),
+			"it/its": this.pronounRoles["it/its"]?.id && member.roles.cache.has(this.pronounRoles["it/its"]?.id),
 		};
 
 		const count = +Boolean(pronouns["she/her"]) + +Boolean(pronouns["he/him"]) + +Boolean(pronouns["it/its"]);
@@ -248,11 +248,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		if (!this.guild)
 			return;
 
-		const guild = fetch ? await this.guild.fetchMembers() : this.guild;
+		await this.guild.members.fetch();
 
-		return guild.roles.find(r => r.id === role)
-			?? guild.roles.find(r => r.name === role)
-			?? guild.roles.find(r => r.name.toLowerCase() === role.toLowerCase());
+		return this.guild.roles.cache.find(r => r.id === role)
+			?? this.guild.roles.cache.find(r => r.name === role)
+			?? this.guild.roles.cache.find(r => r.name.toLowerCase() === role.toLowerCase());
 	}
 
 	protected validateFindResult (result: GuildMember | Collection<string, GuildMember> | undefined): { error: string, member?: undefined } | { member: GuildMember, error?: undefined } {
@@ -265,7 +265,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return { member: result };
 	}
 
-	protected async sendAll (channelOrReplyMessage: TextChannel | DMChannel | GroupDMChannel | Message, ...lines: (string | 0 | undefined | null)[]) {
+	protected async sendAll (channelOrReplyMessage: TextChannel | DMChannel | NewsChannel | Message, ...lines: (string | 0 | undefined | null)[]) {
 		// lines = lines.map(line => line.split("\n")).flat();
 		const messages: string[] = [""];
 		for (let line of lines) {
@@ -308,21 +308,21 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 		else
 			for (const outputMessage of output)
-				await outputMessage?.clearReactions();
+				await outputMessage?.reactions.removeAll();
 	}
 
-	protected promptReaction (prompt: string | RichEmbed) {
-		let options: [string | Emoji, string?][] = [];
+	protected promptReaction (prompt: string | MessageEmbed) {
+		let options: [string | GuildEmoji, string?][] = [];
 		let timeout = minutes(5);
 		const self = this;
 
 		return {
-			addOption (option?: string | Emoji | false | 0 | null, definition?: string) {
+			addOption (option?: string | GuildEmoji | false | 0 | null, definition?: string) {
 				if (option)
 					options.push([option, definition]);
 				return this;
 			},
-			addOptions (...options: (readonly [string | Emoji, string?])[]) {
+			addOptions (...options: (readonly [string | GuildEmoji, string?])[]) {
 				for (const [emoji, definition] of options)
 					this.addOption(emoji, definition);
 				return this;
@@ -335,7 +335,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				timeout = t;
 				return this;
 			},
-			async reply (message: CommandMessage): Promise<{ message: Message, response: Emoji | ReactionEmoji | undefined }> {
+			async reply (message: CommandMessage): Promise<{ message: Message, response: GuildEmoji | ReactionEmoji | undefined }> {
 				const optionDefinitions = options.map(([emoji, definition]) => `\n  ${emoji} — ${definition}`);
 
 				if (typeof prompt === "string")
@@ -360,7 +360,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 				ended = true;
 
-				let result: Emoji | ReactionEmoji | undefined = collected?.first()?.emoji;
+				let result: GuildEmoji | ReactionEmoji | undefined = collected?.first()?.emoji;
 
 				if (!result || result.name === "❌") {
 					// const cancelledMessage = `Interactable ${result ? "closed" : "timed out"}.`;
@@ -371,7 +371,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					// 		.setFooter(cancelledMessage));
 
 					if (!(message.channel instanceof DMChannel))
-						await reply.clearReactions();
+						await reply.reactions.removeAll();
 				}
 
 				return { message: reply, response: result };
@@ -379,7 +379,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		};
 	}
 
-	protected yesOrNo (text?: string, embed?: RichEmbed) {
+	protected yesOrNo (text?: string, embed?: MessageEmbed) {
 		if (!text && !embed)
 			throw new Error("No message content.");
 
@@ -507,24 +507,24 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	protected async getReactors (message: Message): Promise<Set<User>>;
 	protected async getReactors (message: string, channel: TextChannel): Promise<Set<User>>;
 	protected async getReactors (message: Message | string, channel?: TextChannel) {
-		message = message instanceof Message ? message : await channel!.fetchMessage(message);
+		message = message instanceof Message ? message : await channel!.messages.fetch(message);
 
 		const users = new Set<User>();
-		for (const reaction of message.reactions.values())
-			for (const user of (await reaction.fetchUsers()).values())
+		for (const reaction of message.reactions.cache.values())
+			for (const user of (await reaction.users.fetch()).values())
 				users.add(user);
 
 		return users;
 	}
 
-	protected async getMessage (channel: TextChannel | DMChannel | GroupDMChannel | string | undefined, messageId: string) {
+	protected async getMessage (channel: TextChannel | DMChannel | NewsChannel | string | undefined, messageId: string) {
 		if (typeof channel === "string")
-			channel = this.guild.channels.get(channel) as TextChannel;
+			channel = this.guild.channels.cache.get(channel) as TextChannel;
 
 		if (!channel || !(channel instanceof TextChannel))
 			return undefined;
 
-		return channel.fetchMessage(messageId)
+		return channel.messages.fetch(messageId)
 			.catch(() => undefined);
 	}
 }

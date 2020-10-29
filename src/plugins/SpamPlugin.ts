@@ -24,7 +24,7 @@ export class SpamPlugin extends Plugin<ISpamPluginConfig> {
 
 		if (discordURLRegex.test(message.author.username)) {
 			message.delete();
-			this.guild.ban(message.author, { reason: "Bad username" });
+			this.guild.members.ban(message.author, { reason: "Bad username" });
 			this.logger.warning(`Banned user ${message.author.username}. Reason: Bad username.`);
 			return;
 		}
@@ -34,11 +34,11 @@ export class SpamPlugin extends Plugin<ISpamPluginConfig> {
 
 		await sleep(getTime(this.config.banIfLeaveWithin) || 5000);
 
-		await this.guild.fetchMembers();
+		await this.guild.members.fetch();
 
-		if (!this.guild.members.get(message.author.id)) {
+		if (!this.guild.members.cache.get(message.author.id)) {
 			message.delete();
-			this.guild.ban(message.author, { reason: "Suspicious activity" });
+			this.guild.members.ban(message.author, { reason: "Suspicious activity" });
 			this.logger.warning(`Banned user ${message.author.username}. Reason: Suspicious activity.`);
 		}
 	}

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { Message, RichEmbed, TextChannel, User } from "discord.js";
+import { Message, MessageEmbed, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
@@ -93,9 +93,9 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		if (this.isReporting)
 			return;
 
-		this.channel = this.guild.channels.find(channel => channel.id === this.config.reportingChannel) as TextChannel;
+		this.channel = this.guild.channels.cache.get(this.config.reportingChannel) as TextChannel;
 		this.warningChannel = !this.config.warningChannel ? undefined
-			: this.guild.channels.find(channel => channel.id === this.config.warningChannel) as TextChannel;
+			: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel;
 
 		try {
 			const versions = await this.trello.getActiveVersions();
@@ -120,7 +120,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	}
 
 	public isHelpVisible (author: User) {
-		return this.guild.members.get(author.id)
+		return this.guild.members.cache.get(author.id)
 			?.permissions.has("ADMINISTRATOR")
 			?? false;
 	}
@@ -132,7 +132,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 	@Command(["help changelog", "changelog help"])
 	protected async commandHelp (message: CommandMessage) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return CommandResult.pass();
 
 		this.reply(message, this.help);
@@ -152,7 +152,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	}
 
 	private continueLogging (message: CommandMessage, report: boolean) {
-		if (!message.member.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return;
 
 		if (!this.continueReport) {
@@ -252,7 +252,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		return change;
 	}
 
-	private async getChangeAuthor (card: ITrelloCard): Promise<Parameters<RichEmbed["setAuthor"]>> {
+	private async getChangeAuthor (card: ITrelloCard): Promise<Parameters<MessageEmbed["setAuthor"]>> {
 		const members = await this.trello.getMembers(card.id);
 		if (!members.length)
 			return [];
@@ -272,7 +272,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 		description.push(`[View on Trello](${card.shortUrl})`);
 
-		return new RichEmbed()
+		return new MessageEmbed()
 			.setColor(colors[this.getChangeTypeLabels(card)[0].color as keyof typeof colors])
 			.setAuthor(...await this.getChangeAuthor(card))
 			.setDescription(card.name + "\n\n" + description.join(" \u200B · \u200B "));
@@ -297,6 +297,6 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 			return undefined;
 		}
 
-		return this.guild.emojis.find(emoji => emoji.name === emotes[emote]);
+		return this.guild.emojis.cache.find(emoji => emoji.name === emotes[emote]);
 	}
 }

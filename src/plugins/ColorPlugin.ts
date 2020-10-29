@@ -1,4 +1,4 @@
-import { Collection, GuildMember, Permissions, RichEmbed, Role } from "discord.js";
+import { Collection, GuildMember, MessageEmbed, Permissions, Role } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
@@ -83,7 +83,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 			this.removeColor(member);
 		});
 
-		this.aboveRole = !this.config.aboveRole ? undefined : this.guild.roles.find(role => role.name === this.config.aboveRole);
+		this.aboveRole = !this.config.aboveRole ? undefined : this.guild.roles.cache.find(role => role.name === this.config.aboveRole);
 		this.removeUnusedColorRoles();
 		if (this.config.mustBeRegular)
 			this.regularsPlugin.event.subscribe("becomeRegular", async (member: GuildMember) => {
@@ -101,26 +101,26 @@ I will not send any other notification messages, apologies for the interruption.
 
 	public async getColorRoles (fetch = true) {
 		if (fetch)
-			await this.guild.fetchMembers();
+			await this.guild.members.fetch();
 
-		return this.guild.roles.filter(r => this.isColorRole(r.name));
+		return this.guild.roles.cache.filter(r => this.isColorRole(r.name));
 	}
 
 	private async removeColor (member: GuildMember, removeUnused = true) {
-		const colorRoles = member.roles.filter(r => this.isColorRole(r.name));
+		const colorRoles = member.roles.cache.filter(r => this.isColorRole(r.name));
 		if (!colorRoles.size)
 			return;
 
 		this.logger.info("Removing color roles", colorRoles.map(role => role.name).join(", "), "from", member.displayName);
-		await member.removeRoles(colorRoles);
+		await member.roles.remove(colorRoles);
 		if (removeUnused)
 			await this.removeUnusedColorRoles();
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
-		await this.guild.fetchMembers();
+		await this.guild.members.fetch();
 		if (!colorRoles)
-			colorRoles = this.guild.roles;
+			colorRoles = this.guild.roles.cache;
 
 		// we only want to remove the auto-created color roles, the ones in the #COLOR format, and only if they have no members
 		colorRoles = colorRoles.filter(r => r.members.size === 0 && colorRegex.test(r.name));
@@ -147,14 +147,16 @@ I will not send any other notification messages, apologies for the interruption.
 			color = match[0];
 		}
 
-		let colorRole = this.guild.roles.find(role => role.name.toLowerCase() === color.toLowerCase());
+		let colorRole = this.guild.roles.cache.find(role => role.name.toLowerCase() === color.toLowerCase());
 		if (!colorRole && colorRegex.test(color)) {
 			this.logger.info("Created color role", color);
-			colorRole = await this.guild.createRole({
-				name: color,
-				color,
-				position: this.aboveRole && this.aboveRole.position + 1,
-				permissions: [],
+			colorRole = await this.guild.roles.create({
+				data: {
+					name: color,
+					color,
+					position: this.aboveRole && this.aboveRole.position + 1,
+					permissions: [],
+				},
 			});
 		}
 
@@ -165,21 +167,21 @@ I will not send any other notification messages, apologies for the interruption.
 	protected async commandColor (message: CommandMessage, color?: string, queryMember?: string) {
 		if (color === "count") {
 			const colors = await this.getColorRoles(true);
-			this.reply(message, new RichEmbed()
+			this.reply(message, new MessageEmbed()
 				.setColor("RANDOM")
-				.setDescription(`<@${message.member.id}>, there are currently **${colors.size} colors**, out of ${this.guild.roles.size} roles total.`));
+				.setDescription(`<@${message.member?.id}>, there are currently **${colors.size} colors**, out of ${this.guild.roles.cache.size} roles total.`));
 			return CommandResult.pass();
 		}
 
 		let member = message.member;
-		let currentColorRole = member.roles.filter(r => this.isColorRole(r.name)).first();
+		let currentColorRole = member?.roles.cache.filter(r => this.isColorRole(r.name)).first();
 
 		let isGetting = color === "get";
 		if (!color) {
 			if (!currentColorRole) {
-				return this.reply(message, new RichEmbed()
+				return this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
+					.setDescription(`<@${message.member?.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 
@@ -188,17 +190,17 @@ I will not send any other notification messages, apologies for the interruption.
 		}
 
 		if (/list|all/.test(color)) {
-			this.reply(message, new RichEmbed()
+			this.reply(message, new MessageEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
-				.setDescription(`<@${message.member.id}>, some examples include: ${this.getValidColorExamples()}`));
+				.setDescription(`<@${message.member?.id}>, some examples include: ${this.getValidColorExamples()}`));
 			return CommandResult.pass();
 		}
 
 		if (queryMember) {
-			if (!isGetting && !message.member.hasPermission(Permissions.FLAGS.MANAGE_ROLES!)) {
-				return this.reply(message, new RichEmbed()
+			if (!isGetting && !message.member?.hasPermission(Permissions.FLAGS.MANAGE_ROLES!)) {
+				return this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member.id}>, you must have the 'Manage Roles' permission to change someone else's color.`))
+					.setDescription(`<@${message.member?.id}>, you must have the 'Manage Roles' permission to change someone else's color.`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 
@@ -208,27 +210,30 @@ I will not send any other notification messages, apologies for the interruption.
 					.then(reply => CommandResult.fail(message, reply));
 
 			member = result.member;
-			currentColorRole = member.roles.filter(r => this.isColorRole(r.name)).first();
+			currentColorRole = member.roles.cache.filter(r => this.isColorRole(r.name)).first();
 		}
+
+		if (!member)
+			return CommandResult.pass();
 
 		if (isGetting) {
 			if (currentColorRole)
-				this.reply(message, new RichEmbed()
+				this.reply(message, new MessageEmbed()
 					.setColor(currentColorRole.color)
-					.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} current color is **${currentColorRole.name}**.\nWant a change? Examples: ${this.getValidColorExamples()}`));
+					.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member?.displayName}'s` : "your"} current color is **${currentColorRole.name}**.\nWant a change? Examples: ${this.getValidColorExamples()}`));
 
 			else
-				this.reply(message, new RichEmbed()
+				this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
+					.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member?.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
 
 			return CommandResult.pass();
 		}
 
 		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(member)) {
-			this.reply(message, new RichEmbed()
+			this.reply(message, new MessageEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
-				.setDescription(`Sorry, <@${message.member.id}>, ${queryMember ? `${member.displayName} is` : "you are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? "they" : "you"}'ll be able to have one soon!`));
+				.setDescription(`Sorry, <@${message.member?.id}>, ${queryMember ? `${member.displayName} is` : "you are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? "they" : "you"}'ll be able to have one soon!`));
 			return CommandResult.pass();
 		}
 
@@ -238,9 +243,9 @@ I will not send any other notification messages, apologies for the interruption.
 		if (!isRemoving) {
 			colorRole = await this.getColorRole(color);
 			if (!colorRole) {
-				return this.reply(message, new RichEmbed()
+				return this.reply(message, new MessageEmbed()
 					.setColor(currentColorRole?.color ?? "RANDOM")
-					.setDescription(`<@${message.member.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
+					.setDescription(`<@${message.member?.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 		}
@@ -248,18 +253,18 @@ I will not send any other notification messages, apologies for the interruption.
 		await this.removeColor(member, false);
 
 		if (isRemoving) {
-			this.reply(message, new RichEmbed()
+			this.reply(message, new MessageEmbed()
 				.setColor("RANDOM")
-				.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
+				.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
 			return CommandResult.pass();
 		}
 
-		await member.addRole(colorRole!);
+		await member.roles.add(colorRole!);
 		await this.removeUnusedColorRoles();
 
-		this.reply(message, new RichEmbed()
+		this.reply(message, new MessageEmbed()
 			.setColor(colorRole!.color)
-			.setDescription(`<@${message.member.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole!.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
+			.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole!.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
 		return CommandResult.pass();
 	}
 
