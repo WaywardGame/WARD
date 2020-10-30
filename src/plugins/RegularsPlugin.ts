@@ -124,6 +124,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public async onStart () {
 		this.updateTopMembers();
 
+		await this.guild.roles.fetch();
 		this.roleRegular = this.guild.roles.cache.find(role => role.name === "regular")!;
 		this.roleMod = this.guild.roles.cache.find(role => role.name === "mod")!;
 

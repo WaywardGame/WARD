@@ -76,7 +76,7 @@ export class Ward {
 
 		this.logger.verbose("Login");
 		await this.login();
-		this.guild = await this.discord!.guilds.fetch(this.config.apis.discord.guild, true);
+		this.guild = await this.discord!.guilds.fetch(this.config.apis.discord.guild, true, true);
 		this.logger.popScope();
 		this.logger.pushScope(this.guild.name);
 
@@ -190,7 +190,7 @@ export class Ward {
 			return;
 
 		if (!message.member)
-			(message as any).member = this.guild.members.cache.get(message.author.id);
+			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });;
 
 		if (!message.member)
 			return;
