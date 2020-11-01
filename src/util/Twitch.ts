@@ -106,8 +106,12 @@ export class Twitch extends Api<ITwitchConfig> {
 
 			} catch (err) {
 				lastRequestTime = Date.now();
-				tries++;
-				if (tries > 100) {
+
+				if (err.error?.message === "Invalid OAuth token") {
+					throw err;
+				}
+
+				if (++tries > 100) {
 					throw err;
 				}
 
