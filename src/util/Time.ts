@@ -93,3 +93,7 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 		default: return amt;
 	}
 }
+
+export function getISODate (date = new Date()) {
+	return date.toISOString().slice(0, 10);
+}

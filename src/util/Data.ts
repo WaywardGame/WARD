@@ -4,7 +4,7 @@ import { EventEmitterAsync } from "./Async";
 import Bound from "./Bound";
 import FileSystem from "./FileSystem";
 import Logger from "./Log";
-import { minutes } from "./Time";
+import { getISODate, minutes } from "./Time";
 import json5 = require("json5");
 
 export interface IDataConfig {
@@ -59,7 +59,7 @@ export default class Data extends Api<IDataConfig> {
 
 		this.lastBackupTime = now;
 
-		const today = new Date().toISOString().slice(0, 10);
+		const today = getISODate();
 		const dirBackup = `${this.dirBackups}/${today}/${this.guild}`;
 
 		const backupAlreadyExists = await FileSystem.exists(dirBackup);

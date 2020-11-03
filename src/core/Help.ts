@@ -130,14 +130,15 @@ export class HelpContainerArgumentsRemaining extends HelpContainerArgument {
 export class HelpContainerArgumentRaw extends HelpContainerArgument {
 
 	private readonly defaultOption: [string, string?];
-	private readonly options: [string, string][] = [];
+	private readonly options: [string, string?][] = [];
+	private optional = false;
 
 	public constructor (defaultOption: string, defaultOptionDescription?: string) {
 		super();
 		this.defaultOption = [defaultOption, defaultOptionDescription];
 	}
 
-	public addOption (option: string, description: string) {
+	public addOption (option: string, description?: string) {
 		this.options.push([option, description]);
 		return this;
 	}
@@ -147,10 +148,17 @@ export class HelpContainerArgumentRaw extends HelpContainerArgument {
 		return this;
 	}
 
+	public setOptional () {
+		this.optional = true;
+		return this;
+	}
+
 	public getDisplay () {
-		return this.options.length === 0 || this.options.length > 4 ? `<${this.defaultOption[0]}>` : this.options
+		const optional = this.optional ? "?" : "";
+		return this.options.length === 0 || this.options.length > 4 ? `<${this.defaultOption[0]}${optional}>` : this.options
 			.map(([option]) => option)
-			.join("|");
+			.join("|")
+			+ optional;
 	}
 
 	public shouldGiveHelp () {
@@ -158,8 +166,8 @@ export class HelpContainerArgumentRaw extends HelpContainerArgument {
 	}
 
 	public getDescription () {
-		return this.options.length === 0 ? this.defaultOption[1] || "" : `Any of:\n${this.options
-			.map(([option, description]) => Strings.indent(`- \`${option}\`: ${description}`))
+		return this.options.length === 0 ? this.defaultOption[1] || "" : `${this.optional ? `_Optional_. ` : ""}Any of:\n${this.options
+			.map(([option, description]) => Strings.indent(`- \`${option}\`${description ? ` — ${description}` : ""}`))
 			.join("\n")}`;
 	}
 }

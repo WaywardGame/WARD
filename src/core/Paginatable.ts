@@ -42,6 +42,8 @@ export class Paginator<T = any> {
 	private pageHeader?: string;
 	private autoMerge = true;
 	private cancelled = false;
+	private startOnLastPage = false;
+	private noContentMessage = "...there is nothing here. 😭";
 
 	private constructor (values: Iterable<T>, handler?: (value: any) => string | IField | MessageEmbed | undefined) {
 		this.values = Array.from(values);
@@ -53,8 +55,18 @@ export class Paginator<T = any> {
 		return this;
 	}
 
+	public setStartOnLastPage () {
+		this.startOnLastPage = true;
+		return this;
+	}
+
 	public setNoAutoMerge () {
 		this.autoMerge = false;
+		return this;
+	}
+
+	public setNoContentMessage (message: string) {
+		this.noContentMessage = message;
 		return this;
 	}
 
@@ -161,8 +173,9 @@ export class Paginator<T = any> {
 		}
 
 		if (pages.length === 0)
-			pages.push({ content: "...there is nothing here. 😭", fields: [], originalValue: undefined! });
+			pages.push({ title: this.pageHeader, content: this.noContentMessage, fields: [], originalValue: undefined! });
 
+		this.i = this.startOnLastPage ? pages.length - 1 : 0;
 		return this.pages = pages;
 	}
 

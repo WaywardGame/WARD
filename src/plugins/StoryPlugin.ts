@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageEmbed, ReactionEmoji, User } from "discord.js";
-import { Command, CommandMessage, CommandResult } from "../core/Api";
+import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
@@ -8,7 +8,7 @@ import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
-import { minutes } from "../util/Time";
+import { days, getISODate, minutes, months, weeks, years } from "../util/Time";
 
 interface IStoryConfig {
 
@@ -50,6 +50,7 @@ interface IAuthor {
 	ao3?: string;
 	otherURL?: string;
 	bio?: string;
+	wordTracker?: Record<string, number>;
 }
 
 interface IStoryData {
@@ -70,6 +71,18 @@ enum CommandLanguage {
 	StoriesMineListDescription = "Shows a list of all of your registered stories.",
 	StoriesListDescription = "Shows a list of all registered stories (shuffled), or all stories by a specific author (not shuffled).",
 	StoriesListArgumentAuthor = "The author to show the stories of. If not provided, shows all registered stories.",
+	WordTrackerEditDescription = "Adds or removes tracked words.",
+	WordTrackerEditArgumentDate = "The date to add or remove tracked words to or from.",
+	WordTrackerEditArgumentCounts = "The number of words to add. You can list multiple numbers, positive or negative.",
+	WordTrackerClearDescription = "Removes all words from a day.",
+	WordTrackerQueryDescription = "Gets your word count.",
+	WordTrackerQueryArgumentTimespanYear = "Gets words tracked in the past year.",
+	WordTrackerQueryArgumentTimespanMonth = "Gets words tracked in the past month.",
+	WordTrackerQueryArgumentTimespanMonths = "Gets words tracked in the past `{count}` months.",
+	WordTrackerQueryArgumentTimespanWeek = "Gets words tracked in the past week.",
+	WordTrackerQueryArgumentTimespanWeeks = "Gets words tracked in the past `{count}` weeks.",
+	WordTrackerQueryArgumentTimespanDay = "Gets words tracked today.",
+	WordTrackerQueryArgumentTimespanDays = "Gets words tracked in the past `{count}` days.",
 }
 
 export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
@@ -109,12 +122,144 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		.addCommand("stories mine", CommandLanguage.StoriesMineListDescription)
 		.addCommand("stories", CommandLanguage.StoriesListDescription, command => command
 			.addArgument("author", CommandLanguage.StoriesListArgumentAuthor, argument => argument
+				.setOptional()))
+		.addCommand("words", CommandLanguage.WordTrackerEditDescription, command => command
+			.addArgument("date", CommandLanguage.WordTrackerEditArgumentDate, argument => argument
+				.setDefaultValue("today"))
+			.addRemainingArguments("counts", CommandLanguage.WordTrackerEditArgumentCounts))
+		.addCommand("words", CommandLanguage.WordTrackerClearDescription, command => command
+			.addArgument("date", CommandLanguage.WordTrackerEditArgumentDate, argument => argument
+				.setDefaultValue("today"))
+			.addRawTextArgument("clear|remove|delete"))
+		.addCommand("words", CommandLanguage.WordTrackerQueryDescription, command => command
+			.addRawTextArgument("timespan", undefined, argument => argument
+				.addOption("year", CommandLanguage.WordTrackerQueryArgumentTimespanYear)
+				.addOption("month", CommandLanguage.WordTrackerQueryArgumentTimespanMonth)
+				.addOption("months {count}", CommandLanguage.WordTrackerQueryArgumentTimespanMonths)
+				.addOption("week", CommandLanguage.WordTrackerQueryArgumentTimespanWeek)
+				.addOption("weeks {count}", CommandLanguage.WordTrackerQueryArgumentTimespanWeeks)
+				.addOption("day", CommandLanguage.WordTrackerQueryArgumentTimespanDay)
+				.addOption("days {count}", CommandLanguage.WordTrackerQueryArgumentTimespanDays)
 				.setOptional()));
 
 	@Command(["help stories", "stories help"])
 	protected async commandHelp (message: CommandMessage) {
 		this.reply(message, this.help());
 		return CommandResult.pass();
+	}
+
+	private getWordsWritten (author: User, timespan?: number): { error: string, count?: number, days?: Map<Date, number> } | { error?: undefined, count: number, days: Map<Date, number> } {
+		if (timespan && timespan > years(1))
+			return { error: "timespan too long" };
+
+		const wordTracker = this.data.authors[author.id]?.wordTracker;
+		if (!wordTracker)
+			return { count: 0, days: new Map() };
+
+		const now = Date.now();
+		const theFuture = now + days(1);
+
+		const daysResult = new Map<Date, number>();
+		let result = 0;
+		if (!timespan)
+			for (const date in wordTracker)
+				result += wordTracker[date];
+		else
+			for (let time = now - timespan; time < theFuture; time += days(1)) {
+				const date = new Date(time);
+				const dayCount = wordTracker[getISODate(date)] || 0;
+				if (dayCount)
+					daysResult.set(date, dayCount);
+				result += dayCount;
+			}
+
+		return { count: result, days: !timespan ? this.getWordsWritten(author, weeks(1)).days || daysResult : daysResult };
+	}
+
+	@Command(["words today", "words day", "words days"])
+	protected async onCommandWordsToday (message: CommandMessage, countStr: string) {
+		const count = +countStr || 1;
+		return this.replyWordsHistory(message, days(count), `${count} day(s)`);
+	}
+
+	@Command(["words week", "words weeks"])
+	protected async onCommandWordsWeek (message: CommandMessage, countStr: string) {
+		const count = +countStr || 1;
+		return this.replyWordsHistory(message, weeks(count), `${count} week(s)`);
+	}
+
+	@Command(["words month", "words months"])
+	protected async onCommandWordsMonth (message: CommandMessage, countStr: string) {
+		const count = +countStr || 1;
+		return this.replyWordsHistory(message, months(count), `${count} month(s)`);
+	}
+
+	@Command("words year")
+	protected async onCommandWordsYear (message: CommandMessage) {
+		return this.replyWordsHistory(message, years(1), "year");
+	}
+
+	protected async replyWordsHistory (message: CommandMessage, ms?: number, timescaleMessage?: string) {
+		const written = this.getWordsWritten(message.author, ms);
+		if (written.error)
+			return this.reply(message, written.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const writingDays = written.days!.entries()
+			.toArray(([date, count]) => ({
+				name: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+				value: Intl.NumberFormat().format(count),
+				inline: true,
+			}) as IField);
+
+		Paginator.create(writingDays)
+			.setPageHeader(`${written.count} words${timescaleMessage ? ` in the past ${timescaleMessage}` : ""}`)
+			.setNoContentMessage("...no history found. 😭")
+			.setStartOnLastPage()
+			.reply(message);
+
+		return CommandResult.pass();
+	}
+
+	@Command("words")
+	protected async onCommandWords (message: CommandMessage, countOrWhen?: string, ...counts: string[]) {
+		if (!isNaN(Math.floor(+countOrWhen!)) || countOrWhen === "clear" || countOrWhen === "remove" || countOrWhen === "delete")
+			counts.unshift(countOrWhen!), countOrWhen = undefined;
+
+		const clear = counts.length === 1 && (counts[0] === "clear" || counts[0] === "remove" || counts[0] === "delete");
+		if (counts.length === 0)
+			return this.replyWordsHistory(message);
+
+		let wordCount = 0;
+		for (let count of counts)
+			wordCount += Math.floor(+count);
+
+		if (!clear && isNaN(wordCount))
+			return this.reply(message, "those word counts are invalid.")
+				.then(reply => CommandResult.fail(message, reply));
+
+		const author: Partial<IAuthor> = { ...this.data.authors[message.author.id] };
+		if (!author.wordTracker)
+			author.wordTracker = {};
+
+		const date = countOrWhen === undefined ? new Date()
+			: countOrWhen === "yesterday" ? new Date(Date.now() - days(1))
+				: new Date(`${countOrWhen}`);
+
+		if (date.getFullYear() === 2001)
+			date.setFullYear(new Date().getFullYear());
+
+		const today = getISODate(date);
+		if (clear)
+			delete author.wordTracker[today];
+		else
+			author.wordTracker[today] = wordCount + (author.wordTracker[today] || 0);
+
+		await this.saveAuthor(message.author, author);
+
+		const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+		return this.reply(message, `${wordCount && wordCount > 0 ? "added" : "removed"} **${clear ? "all" : Math.abs(wordCount)}** words ${wordCount && wordCount > 0 ? "to" : "from"} **${dateStr}**. (${this.getWordsWritten(message.author).count || "0"} total)`)
+			.then(() => CommandResult.pass());
 	}
 
 	@Command(["author register", "author edit"])
@@ -523,12 +668,12 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		// Save
 		//
 
-		await this.registerAuthor(message.author, author);
+		await this.saveAuthor(message.author, author);
 
 		return this.reply(message, "Author registration created/updated. Thanks!");
 	}
 
-	private async registerAuthor (user: User | GuildMember, author: IAuthor) {
+	private async saveAuthor (user: User | GuildMember, author: IAuthor) {
 		this.data.authors[user.id] = author;
 		await this.save();
 		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} profile`);
