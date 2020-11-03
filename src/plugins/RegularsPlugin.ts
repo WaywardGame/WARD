@@ -417,7 +417,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const multiplier = this.getMultiplier(days);
 		const multiplierFloored = Math.floor(multiplier);
 		const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
-		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.xp)}**. (Days chatted: ${days}. Multiplier: ${Intl.NumberFormat().format(multiplier)}x. Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
+		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.xp)}**.  (Days chatted: ${days}  ·  Multiplier: ${Intl.NumberFormat().format(multiplier)}x  ·  Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
 		this.reply(message, queryMember ?
 			`the ${this.getScoreName()} of ${memberName} ${resultIs}` :
 			`your ${this.getScoreName()} ${resultIs}`,
