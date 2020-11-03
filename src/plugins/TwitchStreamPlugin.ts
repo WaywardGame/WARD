@@ -2,17 +2,34 @@ import { MessageEmbed, TextChannel } from "discord.js";
 import { ImportApi } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import { minutes } from "../util/Time";
-import { IStream, Twitch } from "../util/Twitch";
+import { IStream, IUser, Twitch } from "../util/Twitch";
+
+interface IEmbedDescription {
+	author?: string;
+	title?: string;
+	description?: string;
+}
 
 export interface IStreamDetector {
 	game?: string;
 	streamer?: string;
 	channel: string;
+	message?: string;
+	embed?: IEmbedDescription;
+}
+
+interface IStreamDetectorMessage extends IStreamDetector {
 	message: string;
 }
 
+interface IStreamDetectorEmbed extends IStreamDetector {
+	embed: IEmbedDescription;
+}
+
+type StreamDetector = IStreamDetectorMessage | IStreamDetectorEmbed;
+
 export interface ITwitchStreamPluginConfig {
-	streamDetectors: IStreamDetector[];
+	streamDetectors: StreamDetector[];
 	warningChannel?: string;
 }
 
@@ -89,21 +106,33 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			this.data.markDirty();
 	}
 
-	private async updateStream (streamDetector: IStreamDetector, stream: IStream, time: number) {
+	private async updateStream (streamDetector: StreamDetector, stream: IStream, time: number) {
 		if (!this.trackedStreams[stream.user_name]) {
 			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
 			const user = await this.twitch.getUser(stream.user_id);
+			const channel = this.guild.channels.cache.get(streamDetector.channel) as TextChannel;
 
-			(this.guild.channels.cache.get(streamDetector.channel) as TextChannel)
-				.send(streamDetector.message
-					.replace("{name}", escape(stream.user_name))
-					.replace("{title}", escape(stream.title))
-					.replace("{link}", user ? `https://twitch.tv/${user.login}` : "(No link found. Twitch API pls)"));
+			if (streamDetector.message)
+				channel.send(interpolateStreamInfo(streamDetector.message, stream, user));
+
+			if (streamDetector.embed)
+				channel.send(new MessageEmbed()
+					.setAuthor(user?.display_name || stream.user_name)
+					.setURL(user && `https://twitch.tv/${user.login}`)
+					.setTitle(interpolateStreamInfo(streamDetector.embed.title, stream, user))
+					.setDescription(interpolateStreamInfo(streamDetector.embed.description, stream, user))
+					.setThumbnail(user?.profile_image_url));
 		}
 
 		return [stream.user_name, time] as const;
 	}
+}
+
+function interpolateStreamInfo (str: string | undefined, stream: IStream, user?: IUser) {
+	return str
+		?.replace("{name}", escape(user?.display_name || stream.user_name))
+		.replace("{title}", escape(stream.title));
 }
 
 function escape (text: string) {
