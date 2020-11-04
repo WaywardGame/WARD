@@ -16,6 +16,7 @@ enum PaginatorReaction {
 interface IPage<T = any> {
 	originalValue: T;
 	title?: string;
+	description?: string;
 	content: string;
 	fields: IField[];
 	embed?: MessageEmbed;
@@ -40,6 +41,7 @@ export class Paginator<T = any> {
 	private pages?: IPage<T>[];
 	private i = 0;
 	private pageHeader?: string;
+	private pageDescription?: string;
 	private autoMerge = true;
 	private cancelled = false;
 	private startOnLastPage = false;
@@ -52,6 +54,11 @@ export class Paginator<T = any> {
 
 	public setPageHeader (header: string) {
 		this.pageHeader = header;
+		return this;
+	}
+
+	public setPageDescription (description?: string) {
+		this.pageDescription = description;
 		return this;
 	}
 
@@ -165,7 +172,7 @@ export class Paginator<T = any> {
 					: currentPage.fields.length >= maxFields);
 
 			if (shouldMakeNewPage)
-				pages.push(currentPage = { title: this.pageHeader, content: "", fields: [], embed: messageEmbed, originalValue: value });
+				pages.push(currentPage = { title: this.pageHeader, description: this.pageDescription, content: "", fields: [], embed: messageEmbed, originalValue: value });
 
 			currentPage.content += newContent;
 			if (newField)
@@ -173,7 +180,7 @@ export class Paginator<T = any> {
 		}
 
 		if (pages.length === 0)
-			pages.push({ title: this.pageHeader, content: this.noContentMessage, fields: [], originalValue: undefined! });
+			pages.push({ title: this.pageHeader, description: this.pageDescription, content: this.noContentMessage, fields: [], originalValue: undefined! });
 
 		this.i = this.startOnLastPage ? pages.length - 1 : 0;
 		return this.pages = pages;
@@ -186,7 +193,7 @@ export class Paginator<T = any> {
 			let currentText: string;
 			let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 				.setTitle(currentContent.title)
-				.setDescription(currentContent.content)
+				.setDescription(currentContent.content || currentContent.description)
 				.addFields(...currentContent.fields))
 				.setFooter(this.getPageNumberText());
 
@@ -230,7 +237,7 @@ export class Paginator<T = any> {
 				currentContent = this.get();
 				currentEmbed = (currentContent.embed ?? new MessageEmbed()
 					.setTitle(currentContent.title)
-					.setDescription(currentContent.content)
+					.setDescription(currentContent.content || currentContent.description)
 					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 
@@ -250,7 +257,7 @@ export class Paginator<T = any> {
 				let currentText: string;
 				let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 					.setTitle(currentContent.title)
-					.setDescription(currentContent.content)
+					.setDescription(currentContent.content || currentContent.description)
 					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 

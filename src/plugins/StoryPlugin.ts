@@ -214,6 +214,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		Paginator.create(writingDays)
 			.setPageHeader(`${written.count} words${timescaleMessage ? ` in the past ${timescaleMessage}` : ""}`)
+			.setPageDescription(timescaleMessage ? undefined : "History in the past week:")
 			.setNoContentMessage("...no history found. 😭")
 			.setStartOnLastPage()
 			.reply(message);
@@ -258,7 +259,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		await this.saveAuthor(message.author, author);
 
 		const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-		return this.reply(message, `${wordCount === undefined || wordCount < 0 ? "removed" : "added"} **${clear ? "all" : Math.abs(wordCount)}** words ${wordCount === undefined || wordCount < 0 ? "from" : "to"} **${dateStr}**.  (${dateStr}: ${author.wordTracker[today]}  ·  Overall: ${this.getWordsWritten(message.author).count || "0"})`)
+		return this.reply(message, `${isNaN(wordCount) || wordCount < 0 ? "removed" : "added"} **${clear ? "all" : Math.abs(wordCount)}** words ${isNaN(wordCount) || wordCount < 0 ? "from" : "to"} **${dateStr}**.  (${dateStr}: ${author.wordTracker[today] || 0}  ·  Overall: ${this.getWordsWritten(message.author).count || 0})`)
 			.then(() => CommandResult.pass());
 	}
 
