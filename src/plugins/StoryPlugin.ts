@@ -8,7 +8,7 @@ import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
-import { days, getISODate, minutes, months, weeks, years } from "../util/Time";
+import { days, getISODate, getWeekNumber, minutes, months, weeks, years } from "../util/Time";
 
 interface IStoryConfig {
 
@@ -210,7 +210,28 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				name: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
 				value: Intl.NumberFormat().format(count),
 				inline: true,
-			}) as IField);
+				date,
+				count,
+			}) as IField & { date?: Date; count?: number });
+
+		const thisWeek = getWeekNumber();
+		let weekCount = 0;
+		let touchWeek = thisWeek;
+		for (let d = writingDays.length - 1; d >= 0; d--) {
+			weekCount! += writingDays[d].count!;
+
+			const week = getWeekNumber(writingDays[d].date);
+			if (week !== touchWeek || d === 0) {
+				writingDays.splice(d, 0, {
+					name: `\u200b`,
+					value: `__**${Intl.NumberFormat().format(weekCount!)} words ${touchWeek === thisWeek ? "this week" : touchWeek === thisWeek - 1 ? "last week" : `${thisWeek - touchWeek} weeks ago`}**__`,
+					inline: false,
+				});
+
+				weekCount = 0;
+				touchWeek = week;
+			}
+		}
 
 		Paginator.create(writingDays)
 			.setPageHeader(`${written.count} words${timescaleMessage ? ` in the past ${timescaleMessage}` : ""}`)

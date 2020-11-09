@@ -97,3 +97,11 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 export function getISODate (date = new Date()) {
 	return date.toISOString().slice(0, 10);
 }
+
+export function getWeekNumber (date = new Date()) {
+	const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	const dayNum = d.getUTCDay() || 7;
+	d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+	const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+	return Math.ceil((((d as any - (yearStart as any)) / 86400000) + 1) / 7)
+};
