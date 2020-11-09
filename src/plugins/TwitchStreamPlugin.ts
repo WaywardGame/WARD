@@ -15,7 +15,7 @@ export interface IStreamDetector {
 	streamer?: string;
 	channel: string;
 	message?: string;
-	embed?: IEmbedDescription;
+	embed?: true | IEmbedDescription;
 }
 
 interface IStreamDetectorMessage extends IStreamDetector {
@@ -23,7 +23,7 @@ interface IStreamDetectorMessage extends IStreamDetector {
 }
 
 interface IStreamDetectorEmbed extends IStreamDetector {
-	embed: IEmbedDescription;
+	embed: true | IEmbedDescription;
 }
 
 type StreamDetector = IStreamDetectorMessage | IStreamDetectorEmbed;
@@ -111,18 +111,17 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
 			const user = await this.twitch.getUser(stream.user_id);
+			const game = await this.twitch.getGame(stream.game_id);
 			const channel = this.guild.channels.cache.get(streamDetector.channel) as TextChannel;
 
-			if (streamDetector.message)
-				channel.send(interpolateStreamInfo(streamDetector.message, stream, user));
-
-			if (streamDetector.embed)
-				channel.send(new MessageEmbed()
-					.setAuthor(user?.display_name || stream.user_name)
+			const embed = typeof streamDetector.embed === "object" ? streamDetector.embed : {};
+			channel.send(streamDetector.message ? interpolateStreamInfo(streamDetector.message, stream, user) : "",
+				streamDetector.embed ? new MessageEmbed()
+					.setAuthor(user?.display_name || stream.user_name, game ? user?.profile_image_url : undefined)
 					.setURL(user && `https://twitch.tv/${user.login}`)
-					.setTitle(interpolateStreamInfo(streamDetector.embed.title, stream, user))
-					.setDescription(interpolateStreamInfo(streamDetector.embed.description, stream, user))
-					.setThumbnail(user?.profile_image_url));
+					.setTitle(interpolateStreamInfo(embed.title || "{title}", stream, user))
+					.setDescription(game ? `Streaming **${game?.name}** on Twitch.tv` : undefined)
+					.setThumbnail(game ? game.box_art_url : user?.profile_image_url) : undefined);
 		}
 
 		return [stream.user_name, time] as const;

@@ -17,6 +17,7 @@ export interface IStream {
 	user_id: string;
 	user_name: string;
 	title: string;
+	game_id: string;
 }
 
 export interface IUser {
@@ -29,6 +30,12 @@ export interface IUser {
 	profile_image_url: string;
 	offline_image_url: string;
 	view_count: number;
+}
+
+export interface IGame {
+	id: string;
+	name: string;
+	box_art_url: string;
 }
 
 export interface IPaginatedResult {
@@ -60,6 +67,10 @@ export class Twitch extends Api<ITwitchConfig> {
 
 	public async getUser (id: string): Promise<IUser | undefined> {
 		return this.twitchRequest(`users?id=${id}`).then(result => result.data[0]);
+	}
+
+	public async getGame (id: string): Promise<IGame | undefined> {
+		return this.twitchRequest(`games?id=${id}`).then(result => result.data[0]);
 	}
 
 	private async paginationTwitchRequest (rq: string): Promise<any[]> {
