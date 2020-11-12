@@ -430,13 +430,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	protected commandTop (message: CommandMessage /*, offsetStr: string, quantityStr: string */) {
 
 		const members = this.topMembers
-			.map(member => ({
-				name: this.getMemberName(member.id),
+			.map((member, i) => ({
+				name: `${i + 1}. ${this.getMemberName(member.id)}`,
 				value: `${Intl.NumberFormat().format(member.xp)} _(${member.daysVisited} days)_`,
 				inline: true,
-			}) as Partial<IField>)
-			.filter(IField.is)
-			.map((field, i) => ({ ...field, name: `${i + 1}. ${field.name}` }));
+			}) as IField);
 
 		Paginator.create(members)
 			.setPageHeader(`${this.getScoreName()} Rankings!`)
