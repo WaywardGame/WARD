@@ -255,7 +255,7 @@ export class Ward {
 					await commandMessage.react("✏");
 					this.discord!.on("messageUpdate", handleMessageEdit);
 					await sleep(seconds(15));
-					await commandMessage.reactions.cache.get("✏")?.remove();
+					await commandMessage.reactions.cache.get("✏")?.users.remove(this.discord?.user!);
 					this.discord!.off("messageUpdate", handleMessageEdit);
 				});
 			return;
