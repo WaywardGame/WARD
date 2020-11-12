@@ -36,8 +36,8 @@ start();
 
 async function exitHandler (err?: NodeJS.Signals | Error) {
 	if (err && typeof err === "object" && "stack" in err) {
-		// tslint:disable-next-line no-console
-		Logger.info("main", err.stack);
+		// console.log(err);
+		Logger.error("main", err.stack);
 	}
 
 	await stop();
