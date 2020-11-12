@@ -94,6 +94,60 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 	}
 }
 
+const extractableTimes: [number, string, string?][] = [
+	[centuries(1), "century", "centuries"],
+	[decades(1), "decade"],
+	[years(1), "year"],
+	[months(1), "month"],
+	[weeks(1), "week"],
+	[days(1), "day"],
+	[hours(1), "hour"],
+	[minutes(1), "minute"],
+	[seconds(1), "second"],
+	[1, "millisecond"],
+];
+
+export function renderTime (ms: number, { lowest = "none", neverString = "never", zero: zeroString = undefined as string | undefined, prefix = "", suffix = "" } = {}) {
+	if (ms >= never())
+		return neverString;
+
+	if (zeroString === undefined)
+		zeroString = prefix + "0 milliseconds" + suffix;
+
+	if (ms < 0)
+		return zeroString;
+
+	let result = "";
+	for (const extractableTime of extractableTimes) {
+		const [extracted, text] = extractTime(ms, ...extractableTime);
+		if (extracted) {
+			ms -= extracted;
+			result += ` ${text},`;
+		}
+
+		if (extractableTime[1] === lowest && result)
+			break;
+	}
+
+	result = result.slice(1, -1);
+	if (!result)
+		return zeroString;
+
+	return prefix + result + suffix;
+}
+
+function extractTime (ms: number, extract: number, singular: string, plural?: string) {
+	const extracted = Math.floor(ms / extract);
+	if (!extracted)
+		return [];
+
+	return [extracted * extract, labelAmount(extracted, singular, plural)] as const;
+}
+
+function labelAmount (amount: number, singular: string, plural = `${singular}s`) {
+	return `${amount} ${amount === 1 ? singular : plural}`;
+}
+
 export function getISODate (date = new Date()) {
 	return date.toISOString().slice(0, 10);
 }

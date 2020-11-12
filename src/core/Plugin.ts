@@ -151,7 +151,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		if (typeof reply === "string") {
 			reply = reply.trim();
 			if (!message.guild)
-				reply = reply[0].toUpperCase() + reply.slice(1);
+				reply = reply ? reply[0].toUpperCase() + reply.slice(1) : reply;
 			else
 				reply = `<@${message.author.id}>, ${reply}`;
 		}
@@ -171,7 +171,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return message.channel.send(textContent, embedContent);
 	}
 
-	protected getName (user: User | GuildMember) {
+	protected getName (user: User | GuildMember | Message) {
+		if (user instanceof Message)
+			user = user.member ?? user.author;
+
 		const member = user instanceof GuildMember ? user : this.guild.members.cache.get(user.id);
 		user = user instanceof GuildMember ? user.user : user;
 		return member?.displayName ?? user.username;
@@ -379,7 +382,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		};
 	}
 
-	protected yesOrNo (text?: string, embed?: MessageEmbed) {
+	protected yesOrNo (text = "", embed?: MessageEmbed) {
 		if (!text && !embed)
 			throw new Error("No message content.");
 

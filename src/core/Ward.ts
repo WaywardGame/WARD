@@ -5,6 +5,7 @@ import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import { RegularsPlugin } from "../plugins/RegularsPlugin";
+import { RemindersPlugin } from "../plugins/ReminderPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
 import { SpamPlugin } from "../plugins/SpamPlugin";
 import StoryPlugin from "../plugins/StoryPlugin";
@@ -53,6 +54,7 @@ export class Ward {
 		this.addPlugin(new SpamPlugin());
 		this.addPlugin(new ColorsPlugin());
 		this.addPlugin(new StoryPlugin());
+		this.addPlugin(new RemindersPlugin());
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {

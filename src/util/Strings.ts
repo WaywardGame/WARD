@@ -3,6 +3,13 @@ module Strings {
 		return text[0].toUpperCase() + text.slice(1);
 	}
 
+	export function trailing (length: number, text: string) {
+		if (text.length < length)
+			return text;
+
+		return `${text.slice(0, length - 3)}...`;
+	}
+
 	const regexNewline = /\n/g;
 	export function indent (text: string, level = 1) {
 		const indent = level === 1 ? "\t" : "\t".repeat(level);
