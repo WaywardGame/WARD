@@ -42,7 +42,7 @@ export module IField {
 			&& typeof value === "object"
 			&& typeof (value as any).name === "string"
 			&& typeof (value as any).value === "string"
-			&& typeof (value as any).inline === "boolean";
+			&& (typeof (value as any).inline === "boolean" || (value as any).inline === undefined);
 	}
 }
 
