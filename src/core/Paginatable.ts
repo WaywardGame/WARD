@@ -337,7 +337,7 @@ export class Paginator<T = any> {
 
 		const reaction = collected.first();
 		if (!(message.channel instanceof DMChannel))
-			await reaction?.remove();
+			await reaction?.users.remove(inputUser);
 
 		return reaction?.emoji;
 	}
