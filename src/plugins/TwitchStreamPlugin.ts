@@ -121,7 +121,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 					.setURL(user && `https://twitch.tv/${user.login}`)
 					.setTitle(interpolateStreamInfo(embed.title || "{title}", stream, user))
 					.setDescription(game ? `Streaming **${game?.name}** on Twitch.tv` : undefined)
-					.setThumbnail(game ? game.box_art_url : user?.profile_image_url) : undefined);
+					.setThumbnail(game ? game.box_art_url.replace("{width}", "285").replace("{height}", "380") : user?.profile_image_url) : undefined);
 		}
 
 		return [stream.user_name, time] as const;
