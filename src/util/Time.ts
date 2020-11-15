@@ -107,7 +107,7 @@ const extractableTimes: [number, string, string?][] = [
 	[1, "millisecond"],
 ];
 
-export function renderTime (ms: number, { lowest = "none", neverString = "never", zero: zeroString = undefined as string | undefined, prefix = "", suffix = "" } = {}) {
+export function renderTime (ms: number, { lowest = "second", neverString = "never", zero: zeroString = undefined as string | undefined, prefix = "", suffix = "" } = {}) {
 	if (ms >= never())
 		return neverString;
 

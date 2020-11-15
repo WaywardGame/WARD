@@ -41,7 +41,7 @@ export class HelpContainerCommand {
 	public constructor (private readonly name: string, private readonly description: string) {
 	}
 
-	public addRawTextArgument (rawText: string): this;
+	public addRawTextArgument (rawText: string, defaultOptionDescription?: string): this;
 	public addRawTextArgument (defaultOption: string, defaultOptionDescription: string | undefined, initializer: (container: HelpContainerArgumentRaw) => any): this;
 	public addRawTextArgument (defaultOption: string, defaultOptionDescription?: string, initializer?: (container: HelpContainerArgumentRaw) => any) {
 		const container = new HelpContainerArgumentRaw(defaultOption, defaultOptionDescription);
@@ -155,19 +155,24 @@ export class HelpContainerArgumentRaw extends HelpContainerArgument {
 
 	public getDisplay () {
 		const optional = this.optional ? "?" : "";
-		return this.options.length === 0 || this.options.length > 4 ? `<${this.defaultOption[0]}${optional}>` : this.options
-			.map(([option]) => option)
-			.join("|")
-			+ optional;
+		return this.options.length > 4 ? `<${this.defaultOption[0]}${optional}>`
+			: this.options.length === 0 ? this.defaultOption[0] + optional
+				: this.options
+					.map(([option]) => option)
+					.join("|")
+				+ optional;
 	}
 
 	public shouldGiveHelp () {
-		return this.options.some(([, description]) => description);
+		const options = this.options.length === 0 ? [this.defaultOption] : this.options;
+		return options.some(([, description]) => description);
 	}
 
 	public getDescription () {
-		return this.options.length === 0 ? this.defaultOption[1] || "" : `${this.optional ? `_Optional_. ` : ""}Any of:\n${this.options
-			.map(([option, description]) => Strings.indent(`- \`${option}\`${description ? ` — ${description}` : ""}`))
-			.join("\n")}`;
+		const optional = this.optional ? `_Optional_. ` : "";
+		return this.options.length === 0 ? this.defaultOption[1] || ""
+			: `${optional}Any of:\n${this.options
+				.map(([option, description]) => Strings.indent(`- \`${option}\`${description ? ` — ${description}` : ""}`))
+				.join("\n")}`;
 	}
 }
