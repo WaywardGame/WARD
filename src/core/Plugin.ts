@@ -314,12 +314,24 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				await outputMessage?.reactions.removeAll();
 	}
 
-	protected promptReaction (prompt: string | MessageEmbed) {
+	protected promptReaction (prompt: string) {
 		let options: [string | GuildEmoji, string?][] = [];
 		let timeout = minutes(5);
 		const self = this;
+		let _title: string | undefined;
+		let _image: string | undefined;
+		let _description: string | undefined;
 
 		return {
+			setIdentity (title?: string, image?: string) {
+				_title = title;
+				_image = image;
+				return this;
+			},
+			setDescription (description?: string) {
+				_description = description;
+				return this;
+			},
 			addOption (option?: string | GuildEmoji | false | 0 | null, definition?: string) {
 				if (option)
 					options.push([option, definition]);
@@ -339,15 +351,13 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				return this;
 			},
 			async reply (message: CommandMessage): Promise<{ message: Message, response: GuildEmoji | ReactionEmoji | undefined }> {
-				const optionDefinitions = options.map(([emoji, definition]) => `\n  ${emoji} — ${definition}`);
+				const optionDefinitions = options.map(([emoji, definition]) => `${emoji} \u200b ${definition}`);
 
-				if (typeof prompt === "string")
-					prompt = `${prompt}${optionDefinitions}`;
-				// else
-				// 	prompt = prompt
-				// 		.setFooter(optionDefinitions);
-
-				const reply = await self.reply(message, prompt) as Message;
+				const reply = await self.reply(message, new MessageEmbed()
+					.setAuthor(_title, _image)
+					.setTitle(prompt)
+					.setDescription(_description)
+					.addField("\u200b", optionDefinitions.join(" \u200b · \u200b "))) as Message;
 
 				let ended = false;
 				(async () => {
@@ -424,8 +434,20 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let timeout = minutes(5);
 		let validator: ((value: Message) => true | string | undefined) | undefined;
 		const self = this;
+		let _title: string | undefined;
+		let _image: string | undefined;
+		let _description: string | undefined;
 
 		return {
+			setIdentity (title?: string, image?: string) {
+				_title = title;
+				_image = image;
+				return this;
+			},
+			setDescription (description?: string) {
+				_description = description;
+				return this;
+			},
 			setDefaultValue (d?: string) {
 				defaultValue = d;
 				return this;
@@ -449,10 +471,17 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				if (defaultValue === "")
 					deletable = false;
 
-				const currentValuePrompt = defaultValue !== undefined ? ` Currently:\n> ${defaultValue.replace(/\n/g, "\n> ")}` : "";
-				const defaultValuePrompt = defaultValue !== undefined ? `\n✅ — Use ${defaultValue ? `current` : "No"} value` : "";
-				const deletablePrompt = deletable ? "\n🗑 — Use no value" : "";
-				const reply = await self.reply(message, `${prompt}${currentValuePrompt}${defaultValuePrompt}${deletablePrompt}\n❌ — Cancel`) as Message;
+				const reply = await self.reply(message, new MessageEmbed()
+					.setAuthor(_title, _image)
+					.setTitle(prompt)
+					.setDescription(_description)
+					.addFields(defaultValue === undefined ? undefined : { name: "Current value", value: defaultValue })
+					.addField("\u200b", [
+						"Send a message with your new value",
+						defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} value`,
+						!deletable ? undefined : "🗑 \u200b Use no value",
+						"❌ \u200b Cancel",
+					].filterNullish().join(" \u200b · \u200b "))) as Message;
 
 				let ended = false;
 				(async () => {
