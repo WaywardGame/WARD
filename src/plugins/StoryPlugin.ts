@@ -320,15 +320,26 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return CommandResult.pass();
 	}
 
-	@Command(["story register", "story edit"])
+	@Command("story register")
 	protected async onCommandStoryRegister (message: CommandMessage, ...queryArgs: string[]) {
+		return this.commandStoryRegisterEditInternal(message, "register", queryArgs);
+	}
+
+	@Command("story edit")
+	protected async onCommandStoryEdit (message: CommandMessage, ...queryArgs: string[]) {
+		return this.commandStoryRegisterEditInternal(message, "edit", queryArgs);
+	}
+
+	private async commandStoryRegisterEditInternal (message: CommandMessage, type: "register" | "edit", queryArgs: string[]) {
 		if (!(message.channel instanceof DMChannel)) {
 			this.reply(message, "Please use this command in a DM with me so as to not spam the chat. Thanks!");
 			return CommandResult.pass();
 		}
 
-		const storyId = await this.handleStoryQuery(message, queryArgs);
-		if (typeof storyId !== "number")
+		const storyId = queryArgs.length === 0 && type === "register" ? undefined
+			: await this.handleStoryQuery(message, queryArgs);
+
+		if (typeof storyId !== "number" && storyId !== undefined)
 			return storyId;
 
 		this.logger.verbose(this.getName(message.author), `entered the story wizard`);
