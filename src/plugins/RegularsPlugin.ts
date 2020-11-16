@@ -1,4 +1,4 @@
-import { GuildMember, Message, Role, User } from "discord.js";
+import { GuildMember, Message, MessageEmbed, Role, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -10,6 +10,7 @@ export interface ITrackedMember {
 	id: string;
 	xp: number;
 	lastDay: number;
+	streak?: number;
 	daysVisited: number;
 	maxXpForMessageBlockStartTime: number;
 	maxXpForMessageBlockMessagesSent: number;
@@ -35,6 +36,7 @@ const baseCommands = {
 export interface IRegularsConfig {
 	scoreName?: string;
 	excludedChannels?: string[];
+	warningChannel?: string;
 	daysBeforeXpLoss: number;
 	xpLossAmount: number;
 	xpForNewDay: number;
@@ -74,6 +76,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public autosaveInterval = minutes(5);
 
 	private get members () { return this.data.trackedMembers; }
+	private warningChannel?: TextChannel;
 	private topMembers: ITrackedMember[];
 	private roleRegular: Role;
 	private roleMod: Role;
@@ -144,6 +147,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		for (const memberId in this.members) {
 			const trackedMember = this.members[memberId];
 
+			if (trackedMember.lastDay < today - 1) {
+				trackedMember.streak = 0;
+				this.data.markDirty();
+			}
+
 			if (trackedMember.lastDay < today - this.config.daysBeforeXpLoss) {
 				trackedMember.xp -= this.config.xpLossAmount;
 				this.data.markDirty();
@@ -153,10 +161,34 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				this.dropTrackedMember(trackedMember);
 		}
 
+		this.checkRegularUntracked();
+	}
+
+	@Command("regular remove confirm")
+	protected onRegularRemoveConfirm (message: CommandMessage) {
+		if (!this.isMod(message.member))
+			return CommandResult.pass();
+
+		this.checkRegularUntracked(true);
+		return CommandResult.pass();
+	}
+
+	private checkRegularUntracked (remove = false) {
 		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id))) {
 			if (!this.getTrackedMember(member.id, false)) {
-				this.logger.warning(`Member '${this.getMemberName(member)}' is regular but not tracked`);
-				// this.removeRegularFromMember(member);
+				const name = this.getMemberName(member);
+				this.logger.warning(`Member '${name}' is regular but not tracked`);
+
+				this.warningChannel = this.warningChannel ?? (!this.config.warningChannel ? undefined
+					: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel);
+
+				if (remove) {
+					this.removeRegularFromMember(member);
+					this.warningChannel?.send(`Removed regular from ${name}.`);
+
+				} else {
+					this.warningChannel?.send(`Member '${name}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
+				}
 			}
 		}
 	}
@@ -207,6 +239,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				xp: 0,
 				daysVisited: 1,
 				lastDay: today,
+				streak: 1,
 				maxXpForMessageBlockStartTime: Date.now(),
 				maxXpForMessageBlockMessagesSent: 0,
 				xpLossForMessageBlockStartTime: Date.now(),
@@ -330,6 +363,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (trackedMember.lastDay < today) {
 			trackedMember.daysVisited++;
 			trackedMember.lastDay = today;
+			trackedMember.streak = (trackedMember.streak ?? 0) + 1;
 			trackedMember.xp += Math.floor(this.config.xpForNewDay * multiplier);
 		}
 
@@ -417,10 +451,27 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const multiplier = this.getMultiplier(days);
 		const multiplierFloored = Math.floor(multiplier);
 		const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
-		const resultIs = `is **${Intl.NumberFormat().format(trackedMember.xp)}**.  (Days chatted: ${days}  ·  Multiplier: ${Intl.NumberFormat().format(multiplier)}x  ·  Days till ${multiplierFloored + 1}x: ${daysUntilMultiplierUp})`;
-		this.reply(message, queryMember ?
-			`the ${this.getScoreName()} of ${memberName} ${resultIs}` :
-			`your ${this.getScoreName()} ${resultIs}`,
+		const today = this.getToday();
+		const daysAway = today - trackedMember.lastDay;
+		const daysTillXpLoss = Math.max(0, this.config.daysBeforeXpLoss - daysAway);
+
+		this.reply(message, new MessageEmbed()
+			.setAuthor(memberName, member.user.avatarURL() ?? undefined)
+			.setTitle(`${Intl.NumberFormat().format(trackedMember.xp)} ${this.getScoreName()}`)
+			.addFields(
+				!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${daysAway} days` }
+					: trackedMember.lastDay < today ? { name: "Not chatted today!", value: "Come on... say something! We're fun!" } : undefined,
+				{ name: "Days chatted", value: `${days}${days === 69 ? " (nice)" : ""}`, inline: true },
+				...trackedMember.lastDay < today - 1
+					? (!daysTillXpLoss ? [] : [
+						{ name: "Days away", value: `${daysAway}`, inline: true },
+						{ name: `Days till ${this.getScoreName()} loss`, value: `${daysTillXpLoss}`, inline: true }
+					])
+					: [
+						{ name: "Streak", value: `${trackedMember.streak ?? 0}`, inline: true },
+						{ name: "Multiplier", value: `${Intl.NumberFormat().format(multiplier)}x`, inline: true },
+						{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: `${daysUntilMultiplierUp}`, inline: true },
+					])
 		);
 
 		return CommandResult.pass();
