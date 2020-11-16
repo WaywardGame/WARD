@@ -477,6 +477,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 							{ max: 1, time: timeout }),
 					]);
 
+					message.channel.clearAwaitingMessages();
+
 					const result = collected?.first();
 					if (result instanceof Message) {
 						const validationResult = validator?.(result);

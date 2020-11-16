@@ -249,7 +249,7 @@ export class Ward {
 							const newCommandMessage = new1 as CommandMessage;
 							newCommandMessage.previous = result;
 							this.onCommand(newCommandMessage);
-							await commandMessage.reactions.cache.get("✏")?.remove();
+							await commandMessage.reactions.cache.get("✏")?.users.remove(this.discord?.user!);
 							this.discord!.off("messageUpdate", handleMessageEdit);
 						}
 					};

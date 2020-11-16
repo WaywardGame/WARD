@@ -68,14 +68,17 @@ declare module "discord.js" {
 
 	interface TextChannel {
 		isAwaitingMessages (message?: Message): boolean;
+		clearAwaitingMessages (): void;
 	}
 
 	interface DMChannel {
 		isAwaitingMessages (message?: Message): boolean;
+		clearAwaitingMessages (): void;
 	}
 
 	interface NewsChannel {
 		isAwaitingMessages (message?: Message): boolean;
+		clearAwaitingMessages (): void;
 	}
 }
 
@@ -208,6 +211,10 @@ for (const cls of [TextChannel, DMChannel, NewsChannel]) {
 	cls.prototype.isAwaitingMessages = function (message?: Message) {
 		return message === undefined ? channelsAwaitingMessages.has(this.id)
 			: !!channelsAwaitingMessages.get(this.id)?.(message);
+	}
+
+	cls.prototype.clearAwaitingMessages = function () {
+		channelsAwaitingMessages.delete(this.id);
 	}
 }
 
