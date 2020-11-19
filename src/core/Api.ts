@@ -1,4 +1,4 @@
-import { CollectorFilter, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, TextChannel } from "discord.js";
+import { CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, TextChannel } from "discord.js";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
@@ -60,6 +60,7 @@ declare module "discord.js" {
 		setURL (url?: string): this;
 		setThumbnail (url?: string): this;
 		setAuthor (name?: string, thumbnail?: string, url?: string): this;
+		setColor (color?: ColorResolvable): this;
 		setPreferredReactions (...reactions: (string | Emoji)[]): this;
 		getPreferredReactions (): (string | Emoji)[];
 		inherit (embed: MessageEmbed): this;
@@ -152,6 +153,15 @@ MessageEmbed.prototype.setAuthor = function (name?: string, thumbnail?: string, 
 		return originalSetAuthor.call(this, name, thumbnail, url);
 
 	this.author = null;
+	return this;
+};
+
+const originalSetColor = MessageEmbed.prototype.setColor;
+MessageEmbed.prototype.setColor = function (color?: ColorResolvable) {
+	if (color)
+		return originalSetColor.call(this, color);
+
+	delete this.color;
 	return this;
 };
 

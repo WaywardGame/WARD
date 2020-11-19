@@ -1,4 +1,4 @@
-import { Collection, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
+import { Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import { IInjectionApi, Injector } from "../util/function/Inject";
@@ -114,6 +114,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 	public getDescription (): string | undefined {
 		return undefined;
+	}
+
+	public shouldExist (config: false | (CONFIG & IPluginConfig)) {
+		return config !== false;
 	}
 
 	public isHelpVisible (author: User) {
@@ -437,6 +441,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let _title: string | undefined;
 		let _image: string | undefined;
 		let _description: string | undefined;
+		let _maxLength: number | undefined;
+		let _color: ColorResolvable | undefined;
 
 		return {
 			setIdentity (title?: string, image?: string) {
@@ -456,6 +462,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				deletable = true;
 				return this;
 			},
+			setColor (color: ColorResolvable) {
+				_color = color;
+				return this;
+			},
+			setMaxLength (maxLength: number) {
+				_maxLength = maxLength;
+				return this;
+			},
 			setValidator (v: (value: Message) => true | string | undefined) {
 				validator = v;
 				return this;
@@ -472,10 +486,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					deletable = false;
 
 				const reply = await self.reply(message, new MessageEmbed()
+					.setColor(_color)
 					.setAuthor(_title, _image)
 					.setTitle(prompt)
 					.setDescription(_description)
-					.addFields(defaultValue === undefined ? undefined : { name: "Current value", value: defaultValue })
+					.addFields(
+						!_maxLength ? undefined : { name: "Max length", value: `${_maxLength} characters` },
+						!defaultValue ? undefined : { name: "Current value", value: defaultValue },
+					)
 					.addField("\u200b", [
 						"Send a message with your new value",
 						defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} value`,
@@ -510,6 +528,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 					const result = collected?.first();
 					if (result instanceof Message) {
+						if (_maxLength !== undefined && result.content.length > _maxLength) {
+							await message.reply(`Response too long by **${result.content.length - _maxLength} characters** — max length is **${_maxLength}**.`);
+							continue;
+						}
+
 						const validationResult = validator?.(result);
 						if (typeof validationResult === "string") {
 							await message.reply(`Invalid response. ${validationResult}`);

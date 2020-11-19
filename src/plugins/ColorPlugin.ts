@@ -118,6 +118,7 @@ I will not send any other notification messages, apologies for the interruption.
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
+		await this.guild.roles.fetch();
 		await this.guild.members.fetch();
 		if (!colorRoles)
 			colorRoles = this.guild.roles.cache;

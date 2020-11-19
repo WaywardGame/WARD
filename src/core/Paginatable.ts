@@ -1,4 +1,4 @@
-import { DMChannel, Emoji, GuildEmoji, Message, MessageEmbed, NewsChannel, ReactionEmoji, TextChannel, User } from "discord.js";
+import { ColorResolvable, DMChannel, Emoji, GuildEmoji, Message, MessageEmbed, NewsChannel, ReactionEmoji, TextChannel, User } from "discord.js";
 import { EventEmitterAsync } from "../util/Async";
 import { minutes } from "../util/Time";
 import { CommandMessage, IField } from "./Api";
@@ -17,6 +17,7 @@ interface IPage<T = any> {
 	originalValue: T;
 	title?: string;
 	description?: string;
+	color?: ColorResolvable;
 	content: string;
 	fields: IField[];
 	embed?: MessageEmbed;
@@ -46,6 +47,7 @@ export class Paginator<T = any> {
 	private cancelled = false;
 	private startOnLastPage = false;
 	private noContentMessage = "...there is nothing here. 😭";
+	private color?: ColorResolvable;
 
 	private constructor (values: Iterable<T>, handler?: (value: any) => string | IField | MessageEmbed | undefined) {
 		this.values = Array.from(values);
@@ -77,6 +79,11 @@ export class Paginator<T = any> {
 		return this;
 	}
 
+	public setColor (color: ColorResolvable) {
+		this.color = color;
+		return this;
+	}
+
 	public addOption (option?: GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, definition?: string) {
 		if (option)
 			this.otherOptions.push([option, definition]);
@@ -92,7 +99,7 @@ export class Paginator<T = any> {
 		return this.send(message.channel, message.author, message);
 	}
 
-	public async send (channel: TextChannel | DMChannel | NewsChannel, inputUser?: User, commandMessage?: CommandMessage) {
+	public async send (channel: TextChannel | DMChannel | NewsChannel | User, inputUser?: User, commandMessage?: CommandMessage) {
 		// if (this.getSize() === 1) {
 		// 	const currentContent = this.get();
 		// 	let currentText: string;
@@ -115,7 +122,7 @@ export class Paginator<T = any> {
 		// 	return channel.send(currentText, currentEmbed);
 		// }
 
-		return channel instanceof DMChannel ? this.sendDM(channel, inputUser, commandMessage)
+		return channel instanceof DMChannel || channel instanceof User ? this.sendDM(channel, inputUser, commandMessage)
 			: this.sendServer(channel, inputUser, commandMessage);
 	}
 
@@ -172,7 +179,15 @@ export class Paginator<T = any> {
 					: currentPage.fields.length >= maxFields);
 
 			if (shouldMakeNewPage)
-				pages.push(currentPage = { title: this.pageHeader, description: this.pageDescription, content: "", fields: [], embed: messageEmbed, originalValue: value });
+				pages.push(currentPage = {
+					title: this.pageHeader,
+					description: this.pageDescription,
+					color: this.color,
+					content: "",
+					fields: [],
+					embed: messageEmbed,
+					originalValue: value,
+				});
 
 			currentPage.content += newContent;
 			if (newField)
@@ -180,7 +195,14 @@ export class Paginator<T = any> {
 		}
 
 		if (pages.length === 0)
-			pages.push({ title: this.pageHeader, description: this.pageDescription, content: this.noContentMessage, fields: [], originalValue: undefined! });
+			pages.push({
+				title: this.pageHeader,
+				description: this.pageDescription,
+				color: this.color,
+				content: this.noContentMessage,
+				fields: [],
+				originalValue: undefined!,
+			});
 
 		this.i = this.startOnLastPage ? pages.length - 1 : 0;
 		return this.pages = pages;
@@ -194,6 +216,7 @@ export class Paginator<T = any> {
 			let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 				.setTitle(currentContent.title)
 				.setDescription(currentContent.content || currentContent.description)
+				.setColor(currentContent.color)
 				.addFields(...currentContent.fields))
 				.setFooter(this.getPageNumberText());
 
@@ -238,6 +261,7 @@ export class Paginator<T = any> {
 				currentEmbed = (currentContent.embed ?? new MessageEmbed()
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content || currentContent.description)
+					.setColor(currentContent.color)
 					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 
@@ -246,7 +270,7 @@ export class Paginator<T = any> {
 		});
 	}
 
-	private async sendDM (channel: TextChannel | DMChannel | NewsChannel, inputUser?: User, commandMessage?: CommandMessage) {
+	private async sendDM (channel: TextChannel | DMChannel | NewsChannel | User, inputUser?: User, commandMessage?: CommandMessage) {
 		for (const previousMessage of commandMessage?.previous?.output || [])
 			await previousMessage.delete();
 
@@ -258,10 +282,11 @@ export class Paginator<T = any> {
 				let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content || currentContent.description)
+					.setColor(currentContent.color)
 					.addFields(...currentContent.fields))
 					.setFooter(this.getPageNumberText());
 
-				currentText = inputUser && !(channel instanceof DMChannel) ? `<@${inputUser.id}>` : "";
+				currentText = inputUser && !(channel instanceof DMChannel) && !(channel instanceof User) ? `<@${inputUser.id}>` : "";
 
 				const messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
 				if (!resolved) {

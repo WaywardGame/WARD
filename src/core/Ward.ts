@@ -127,12 +127,13 @@ export class Ward {
 		const promises: Array<Promise<any>> = [];
 
 		for (const pluginName in this.plugins) {
-			if (this.config.plugins[pluginName] === false)
+			const plugin = this.plugins[pluginName];
+			const config = this.config.plugins[pluginName];
+			if (!plugin.shouldExist(config))
 				continue;
 
 			// this.logger.verbose("Loop plugin", pluginName);
 
-			const plugin = this.plugins[pluginName];
 			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval)
 				promises.push(this.updatePlugin(plugin)
 					.then(plugin.data.saveOpportunity));
@@ -270,6 +271,7 @@ export class Ward {
 	private async login () {
 		this.discord = new Client();
 		this.discord.on("error", console.error);
+		this.discord.on("disconnect", console.error);
 		await this.discord.login(this.config.apis.discord.token);
 	}
 	private async logout () {
@@ -283,7 +285,7 @@ export class Ward {
 			const config = this.config.plugins[pluginName];
 			(plugin as any).commandPrefix = this.commandPrefix;
 
-			if (config === false)
+			if (!plugin.shouldExist(config))
 				continue;
 
 			plugin.config = config ?? plugin.config ?? plugin.getDefaultConfig();
@@ -455,7 +457,7 @@ export class Ward {
 
 	private isDisabledPlugin (id: string) {
 		const plugin = this.plugins[id];
-		return !(plugin instanceof ExternalPlugin) && this.config.plugins[id] === false;
+		return !(plugin instanceof ExternalPlugin) && !plugin.shouldExist(this.config.plugins[id]);
 	}
 
 	// private async catastrophicCrash (...args: any[]) {

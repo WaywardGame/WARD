@@ -217,20 +217,21 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		const thisWeek = getWeekNumber();
 		let weekCount = 0;
 		let touchWeek = thisWeek;
-		for (let d = writingDays.length - 1; d >= 0; d--) {
-			weekCount! += writingDays[d].count!;
-
-			const week = getWeekNumber(writingDays[d].date);
-			if (week !== touchWeek || d === 0) {
-				writingDays.splice(d, 0, {
-					name: `\u200b`,
-					value: `__**${Intl.NumberFormat().format(weekCount!)} words ${touchWeek === thisWeek ? "this week" : touchWeek === thisWeek - 1 ? "last week" : `${thisWeek - touchWeek} weeks ago`}**__`,
-					inline: false,
-				});
+		for (let d = writingDays.length - 1; d >= -1; d--) {
+			const week = d === -1 ? -1 : getWeekNumber(writingDays[d].date);
+			if (week !== touchWeek || d === -1) {
+				if (weekCount)
+					writingDays.splice(d + 1, 0, {
+						name: `\u200b`,
+						value: `__**${Intl.NumberFormat().format(weekCount!)} words ${touchWeek === thisWeek ? "this week" : touchWeek === thisWeek - 1 ? "last week" : `${thisWeek - touchWeek} weeks ago`}**__`,
+						inline: false,
+					});
 
 				weekCount = 0;
 				touchWeek = week;
 			}
+
+			weekCount! += d === -1 ? 0 : writingDays[d].count!;
 		}
 
 		Paginator.create(writingDays)
