@@ -173,7 +173,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return CommandResult.pass();
 	}
 
-	private checkRegularUntracked (remove = false) {
+	private async checkRegularUntracked (remove = false) {
+		await this.guild.members.fetch();
 		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id))) {
 			if (!this.getTrackedMember(member.id, false)) {
 				const name = this.getMemberName(member);
