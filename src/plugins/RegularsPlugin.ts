@@ -127,7 +127,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public async onStart () {
 		this.updateTopMembers();
 
-		await this.guild.roles.fetch();
+		await this.guild.roles.fetch(undefined, undefined, true);
 		this.roleRegular = this.guild.roles.cache.find(role => role.name === "regular")!;
 		this.roleMod = this.guild.roles.cache.find(role => role.name === "mod")!;
 
@@ -174,7 +174,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private async checkRegularUntracked (remove = false) {
-		await this.guild.members.fetch();
+		await this.guild.members.fetch({ force: true });
 		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id))) {
 			if (!this.getTrackedMember(member.id, false)) {
 				const name = this.getMemberName(member);

@@ -197,7 +197,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		if (splitMatch)
 			[, member, tag] = splitMatch;
 
-		await this.guild.members.fetch();
+		await this.guild.members.fetch({ force: true });
 		let results = this.guild.members.cache.filter(m => m.id === member);
 		if (!results.size)
 			results = this.guild.members.cache.filter(m => m.user.username.toLowerCase().includes(member));
@@ -255,7 +255,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		if (!this.guild)
 			return;
 
-		await this.guild.members.fetch();
+		if (fetch)
+			await this.guild.roles.fetch(undefined, undefined, true);
 
 		return this.guild.roles.cache.find(r => r.id === role)
 			?? this.guild.roles.cache.find(r => r.name === role)

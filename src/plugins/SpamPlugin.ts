@@ -34,7 +34,7 @@ export class SpamPlugin extends Plugin<ISpamPluginConfig> {
 
 		await sleep(getTime(this.config.banIfLeaveWithin) || 5000);
 
-		await this.guild.members.fetch();
+		await this.guild.members.fetch({ force: true });
 
 		if (!this.guild.members.cache.get(message.author.id)) {
 			message.delete();
