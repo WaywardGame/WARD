@@ -142,7 +142,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			.forEach(([multiplier, day]) => this.xpMultiplierIncreaseDays.set(multiplier, day));
 	}
 
-	public onUpdate () {
+	public async onUpdate () {
 		const today = this.getToday();
 		for (const memberId in this.members) {
 			const trackedMember = this.members[memberId];
@@ -158,7 +158,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			}
 
 			if (trackedMember.xp <= 0)
-				this.dropTrackedMember(trackedMember);
+				await this.dropTrackedMember(trackedMember);
 		}
 
 		this.checkRegularUntracked();
@@ -184,7 +184,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 					: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel);
 
 				if (remove) {
-					this.removeRegularFromMember(member);
+					await this.removeRegularFromMember(member);
 					this.warningChannel?.send(`Removed regular from ${name}.`);
 
 				} else {
@@ -194,18 +194,18 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		}
 	}
 
-	private dropTrackedMember (trackedMember: ITrackedMember) {
+	private async dropTrackedMember (trackedMember: ITrackedMember) {
 		const member = this.guild.members.cache.get(trackedMember.id);
-		this.removeRegularFromMember(member);
+		await this.removeRegularFromMember(member);
 
 		delete this.members[trackedMember.id];
 		this.data.markDirty();
 		this.logger.info(`Dropped tracked member '${member ? this.getMemberName(member) : trackedMember.id}'`);
 	}
 
-	private removeRegularFromMember (member?: GuildMember) {
+	private async removeRegularFromMember (member?: GuildMember) {
 		if (member && !this.shouldUserBeRegular(member)) {
-			member.roles.remove(this.roleRegular);
+			await member.roles.remove(this.roleRegular);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
 			return true;
