@@ -27,17 +27,17 @@ export class Paginator<T = any> {
 
 	public static create<T extends string | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
 	public static create<T extends IField | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => string | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => IField | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T) => MessageEmbed | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler?: (value: T) => string | IField | MessageEmbed | undefined): Paginator<T> {
+	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => string | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => IField | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => MessageEmbed | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler?: (value: T, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined): Paginator<T> {
 		return new Paginator(values, handler);
 	}
 
 	public event = new EventEmitterAsync(this);
 
 	private readonly values: any[];
-	private readonly handler: ((value: any) => string | IField | MessageEmbed | undefined) | undefined;
+	private readonly handler: ((value: any, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined) | undefined;
 	private readonly otherOptions: [GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, string?][] = [];
 	private pages?: IPage<T>[];
 	private i = 0;
@@ -48,8 +48,13 @@ export class Paginator<T = any> {
 	private startOnLastPage = false;
 	private noContentMessage = "...there is nothing here. 😭";
 	private color?: ColorResolvable;
+	private shouldDeleteOnUseOption?: (option: GuildEmoji | ReactionEmoji) => boolean;
 
-	private constructor (values: Iterable<T>, handler?: (value: any) => string | IField | MessageEmbed | undefined) {
+	public get page () {
+		return this.i;
+	}
+
+	private constructor (values: Iterable<T>, handler?: (value: any, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined) {
 		this.values = Array.from(values);
 		this.handler = handler;
 	}
@@ -87,6 +92,11 @@ export class Paginator<T = any> {
 	public addOption (option?: GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, definition?: string) {
 		if (option)
 			this.otherOptions.push([option, definition]);
+		return this;
+	}
+
+	public setShouldDeleteOnUseOption (shouldDelete: (option: GuildEmoji | ReactionEmoji) => boolean) {
+		this.shouldDeleteOnUseOption = shouldDelete;
 		return this;
 	}
 
@@ -159,10 +169,13 @@ export class Paginator<T = any> {
 		const maxLength = 1400;
 		const maxFields = 24;
 		let pages: IPage<T>[] = [];
+		let index = 0;
 		for (const value of this.values) {
-			const content = this.handler ? this.handler(value) : value;
+			const content = this.handler ? this.handler(value, this, index) : value;
 			if (!content)
 				continue;
+
+			index++;
 
 			const newField = IField.is(content) ? content : undefined;
 			const messageEmbed = content instanceof MessageEmbed ? content : undefined;
@@ -250,12 +263,15 @@ export class Paginator<T = any> {
 					// message.delete();
 					// if (commandMessage?.deletable)
 					// 	commandMessage.delete();
+					this.event.emit("cancel", this);
 					return;
 				}
 
 				await this.handleReaction(reaction, message);
-				if (this.cancelled)
+				if (this.cancelled) {
+					this.event.emit("cancel", this);
 					return;
+				}
 
 				currentContent = this.get();
 				currentEmbed = (currentContent.embed ?? new MessageEmbed()
@@ -301,14 +317,18 @@ export class Paginator<T = any> {
 				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
 					this.cancelled = true;
 					await message.edit("", currentEmbed?.setFooter());
+					this.event.emit("cancel", this);
 					return;
 				}
 
-				await message.delete();
+				if (this.shouldDeleteOnUseOption?.(reaction) ?? true)
+					await message.delete();
 
 				await this.handleReaction(reaction, message);
-				if (this.cancelled)
+				if (this.cancelled) {
+					this.event.emit("cancel", this);
 					return;
+				}
 			}
 		});
 	}

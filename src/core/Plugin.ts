@@ -215,7 +215,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
-	protected getPronouns (member: User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
+	protected getPronouns (member: Message | User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
+		if (member instanceof Message)
+			member = member.member ?? member.author;
+
 		if (member instanceof User) {
 			member = this.guild.members.cache.get(member.id)!;
 			if (!member)
@@ -319,7 +322,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				await outputMessage?.reactions.removeAll();
 	}
 
-	protected promptReaction (prompt: string) {
+	protected promptReaction (reply: string | ArrayOr<Message>) {
 		let options: [string | GuildEmoji, string?][] = [];
 		let timeout = minutes(5);
 		const self = this;
@@ -358,9 +361,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			async reply (message: CommandMessage): Promise<{ message: Message, response: GuildEmoji | ReactionEmoji | undefined }> {
 				const optionDefinitions = options.map(([emoji, definition]) => `${emoji} \u200b ${definition}`);
 
-				const reply = await self.reply(message, new MessageEmbed()
+				if (Array.isArray(reply))
+					reply = reply[0];
+
+				reply = reply instanceof Message ? reply : await self.reply(message, new MessageEmbed()
 					.setAuthor(_title, _image)
-					.setTitle(prompt)
+					.setTitle(reply)
 					.setDescription(_description)
 					.addField("\u200b", optionDefinitions.join(" \u200b · \u200b "))) as Message;
 
@@ -493,12 +499,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					.setDescription(_description)
 					.addFields(
 						!_maxLength ? undefined : { name: "Max length", value: `${_maxLength} characters` },
-						!defaultValue ? undefined : { name: "Current value", value: defaultValue },
+						!defaultValue ? undefined : { name: "Current response", value: defaultValue },
 					)
 					.addField("\u200b", [
-						"Send a message with your new value",
-						defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} value`,
-						!deletable ? undefined : "🗑 \u200b Use no value",
+						"Send a message with your response",
+						defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} response`,
+						!deletable ? undefined : "🗑 \u200b Use no response",
 						"❌ \u200b Cancel",
 					].filterNullish().join(" \u200b · \u200b "))) as Message;
 

@@ -11,6 +11,7 @@ import { SpamPlugin } from "../plugins/SpamPlugin";
 import StoryPlugin from "../plugins/StoryPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import WelcomePlugin from "../plugins/WelcomePlugin";
+import WishPlugin from "../plugins/WishPlugin";
 import { sleep } from "../util/Async";
 import Bound from "../util/Bound";
 import Data from "../util/Data";
@@ -55,6 +56,7 @@ export class Ward {
 		this.addPlugin(new ColorsPlugin());
 		this.addPlugin(new StoryPlugin());
 		this.addPlugin(new RemindersPlugin());
+		this.addPlugin(new WishPlugin());
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
