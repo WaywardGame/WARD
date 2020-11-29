@@ -39,6 +39,39 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	public initData = () => ({ participants: {}, stage: "making" as const });
 
+	@Command("unwish")
+	protected async onUnwish (message: CommandMessage) {
+		if (this.data.stage !== "making") {
+			this.reply(message, "Wishes can no longer be taken back.");
+			return CommandResult.pass();
+		}
+
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		let participant = this.data.participants[message.author.id];
+		if (!participant)
+			return this.reply(message, "You do not currently have a wish.")
+				.then(() => CommandResult.pass());
+
+		const shouldUnwish = await this.yesOrNo(undefined, new MessageEmbed()
+			.addFields(...this.getWishParticipantFields(participant))
+			.setColor("00FF00")
+			.setAuthor(`${this.getName(message.author)}'s wish`, message.author.avatarURL() ?? undefined)
+			.setTitle("Would you like to take back your wish?")
+			.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+			.reply(message);
+
+		this.reply(message, shouldUnwish ? "your wish has been taken back!" : "your wish is safe.");
+
+		if (shouldUnwish) {
+			this.logger.info(`${this.getName(message)} has taken back ${this.getPronouns(message).their} wish!`);
+			delete this.data.participants[message.author.id];
+		}
+
+		return CommandResult.pass();
+	}
+
 	@Command("wish")
 	protected async onParticipate (message: CommandMessage) {
 		if (this.data.stage !== "making") {
@@ -72,11 +105,18 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				return CommandResult.pass();
 		}
 
+		this.logger.info(`${this.getName(message)} is making/updating ${this.getPronouns(message).their} wish!`);
+		const madeOrUpdated = await this.wishWizard(message, participant, isNewWish);
+		this.logger.info(`${this.getName(message)} has ${madeOrUpdated ? "made/updated" : "cancelled making/updating"} ${this.getPronouns(message).their} wish!`);
+
+		return CommandResult.pass();
+	}
+
+	private async wishWizard (message: CommandMessage, participant: IWishParticipant, isNewWish: boolean) {
+
 		const cancelMessage = isNewWish ? "Your wish has been cancelled." : "The changes to your wish have been cancelled.";
 
 		const wishMakingWizard = ["Make a wish!"] as [string, string?];
-
-		this.logger.info(`${this.getName(message)} is making/updating ${this.getPronouns(message).their} wish!`);
 
 		////////////////////////////////////
 		// wish for
@@ -91,7 +131,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 		if (response.cancelled)
 			return this.reply(message, cancelMessage)
-				.then(() => CommandResult.pass());
+				.then(() => false);
 
 		response.apply(participant, "wish");
 
@@ -110,7 +150,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 		if (response.cancelled)
 			return this.reply(message, cancelMessage)
-				.then(() => CommandResult.pass());
+				.then(() => false);
 
 		response.apply(participant, "wishGranting");
 
@@ -140,9 +180,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setColor("00FF00")
 			.addFields(...this.getWishParticipantFields(participant)));
 
-		this.logger.info(`${this.getName(message)} has made/updated ${this.getPronouns(message).their} wish!`);
-
-		return CommandResult.pass();
+		return true;
 	}
 
 	private getWishParticipantFields (participant: IWishParticipant): IField[] {
