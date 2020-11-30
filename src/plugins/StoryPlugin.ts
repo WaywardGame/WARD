@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageEmbed, ReactionEmoji, User } from "discord.js";
+import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageAttachment, MessageEmbed, ReactionEmoji, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -83,6 +83,7 @@ enum CommandLanguage {
 	WordTrackerQueryArgumentTimespanWeeks = "Gets words tracked in the past `{count}` weeks.",
 	WordTrackerQueryArgumentTimespanDay = "Gets words tracked today.",
 	WordTrackerQueryArgumentTimespanDays = "Gets words tracked in the past `{count}` days.",
+	WordTrackerGetCSV = "Exports a CSV file of your entire word tracker history.",
 }
 
 export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
@@ -140,7 +141,8 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				.addOption("weeks {count}", CommandLanguage.WordTrackerQueryArgumentTimespanWeeks)
 				.addOption("day", CommandLanguage.WordTrackerQueryArgumentTimespanDay)
 				.addOption("days {count}", CommandLanguage.WordTrackerQueryArgumentTimespanDays)
-				.setOptional()));
+				.setOptional()))
+		.addCommand("words csv", CommandLanguage.WordTrackerGetCSV);
 
 	@Command(["help stories", "stories help"])
 	protected async commandHelp (message: CommandMessage) {
@@ -197,6 +199,22 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	@Command("words year")
 	protected async onCommandWordsYear (message: CommandMessage) {
 		return this.replyWordsHistory(message, years(1), "year");
+	}
+
+	@Command("words csv")
+	protected async onWordsCsv (message: CommandMessage) {
+		const wordTracker = this.data.authors[message.author.id]?.wordTracker;
+		if (!wordTracker)
+			return this.reply(message, "no history found. 😭")
+				.then(reply => CommandResult.fail(message, reply));
+
+		const csv = Object.entries(wordTracker)
+			.map(columns => columns.join(","))
+			.sort()
+			.join("\n");
+
+		message.reply("", new MessageAttachment(Buffer.from(`Date,Words\n${csv}`, "utf8"), `words_${message.author.username.replace(/\W/g, "")}.csv`));
+		return CommandResult.pass();
 	}
 
 	protected async replyWordsHistory (message: CommandMessage, ms?: number, timescaleMessage?: string) {
