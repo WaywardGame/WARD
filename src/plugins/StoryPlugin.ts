@@ -213,7 +213,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.sort()
 			.join("\n");
 
-		message.reply("", new MessageAttachment(Buffer.from(`Date,Words\n${csv}`, "utf8"), `words_${message.author.username.replace(/\W/g, "")}.csv`));
+		message.reply(new MessageAttachment(Buffer.from(`Date,Words\n${csv}`, "utf8"), `words_${message.author.username.replace(/\W/g, "")}.csv`));
 		return CommandResult.pass();
 	}
 
