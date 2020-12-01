@@ -175,7 +175,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private async checkRegularUntracked (remove = false) {
 		await this.guild.members.fetch({ force: true });
-		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id))) {
+		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id) && !member.roles.cache.has(this.roleMod.id) && !member.permissions.has("ADMINISTRATOR"))) {
 			if (!this.getTrackedMember(member.id, false)) {
 				const name = this.getMemberName(member);
 				this.logger.warning(`Member '${name}' is regular but not tracked`);
