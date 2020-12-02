@@ -210,12 +210,16 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		type Wish = typeof wishes[number];
 
 		const wish = await new Promise<Wish | undefined>(resolve => {
-			Paginator.create(wishes, ([wishParticipantId, granter], paginator, i) => new MessageEmbed()
-				.setAuthor("Wishes to grant")
-				.setTitle(`Wish #${i + 1}`)
-				.setColor("0088FF")
-				.setDescription(this.data.participants[wishParticipantId]?.wish)
-				.addField("\u200b", ["◀ Previous", "▶ Next", "🪄 Grant this wish", "❌ Cancel"].join(" \u200b · \u200b ")))
+			Paginator.create(wishes, ([wishParticipantId, granter], paginator, i) => {
+				const member = this.guild.members.cache.get(wishParticipantId);
+				return new MessageEmbed()
+					.setAuthor("Wishes to grant")
+					.setTitle(`#${i + 1}: ${member?.displayName}'s Wish`)
+					.setThumbnail(member?.user.avatarURL() ?? undefined)
+					.setColor("0088FF")
+					.setDescription(this.data.participants[wishParticipantId]?.wish)
+					.addField("\u200b", ["◀ Previous", "▶ Next", "🪄 Grant this wish", "❌ Cancel"].join(" \u200b · \u200b "))
+			})
 				.addOption("🪄", "Grant this wish!")
 				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄")
 				.event.subscribe("reaction", (paginator: Paginator<Wish>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
