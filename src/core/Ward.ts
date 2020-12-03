@@ -1,3 +1,4 @@
+import Stream from "@wayward/goodstream";
 import chalk from "chalk";
 import { Client, Guild, Message, PartialMessage } from "discord.js";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
@@ -12,6 +13,7 @@ import StoryPlugin from "../plugins/StoryPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import WelcomePlugin from "../plugins/WelcomePlugin";
 import WishPlugin from "../plugins/WishPlugin";
+import { tuple } from "../util/Arrays";
 import { sleep } from "../util/Async";
 import Bound from "../util/Bound";
 import Data from "../util/Data";
@@ -373,16 +375,15 @@ export class Ward {
 
 	@Bound
 	private commandHelp (message: CommandMessage) {
-		const helpCommands = this.commands.get("help");
-		const paginator = Paginator.create(helpCommands?.subcommands || [], ([name, command]) => {
-			const plugin = this.plugins[command.plugin!] as Plugin | undefined;
-			if (!plugin?.isHelpVisible(message.author))
-				return undefined;
+		Stream.from(this.commands.get("help")?.subcommands)
+			.map(([name, command]) => tuple(name, command, this.plugins[command.plugin!] as Plugin | undefined))
+			.partition(([, , plugin]) => plugin)
+			.partitions()
+			.filter(([plugin]) => plugin?.isHelpVisible(message.author))
+			.map(([plugin, commands]) => `\`${this.commandPrefix}help ${commands.map(([name]) => name).toString("|")}\`\n${plugin!.getDescription() || ""}`.trim())
+			.collect(Paginator.create)
+			.reply(message);
 
-			return `\`${this.commandPrefix}help ${name}\`\n${plugin.getDescription() || ""}`.trim();
-		});
-
-		paginator.reply(message);
 		return CommandResult.pass();
 	}
 

@@ -2,6 +2,10 @@ declare global {
 	type ArrayOr<T> = T | T[];
 }
 
+export function tuple<A extends any[]> (...args: A) {
+	return args;
+}
+
 module Arrays {
 	export function or<T> (v: ArrayOr<T>) {
 		return Array.isArray(v) ? v : [v];
