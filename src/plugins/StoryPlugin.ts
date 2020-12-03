@@ -109,7 +109,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			.map(status => [status, this.guild.emojis.cache.find(emoji => emoji.name === status)!])) as Record<keyof typeof Status, GuildEmoji>;
 	}
 
-	private readonly help = () => new HelpContainerPlugin()
+	private readonly helpStories = () => new HelpContainerPlugin()
 		.addCommand("author register|edit", CommandLanguage.AuthorWizardDescription)
 		.addCommand("author unregister|delete", CommandLanguage.AuthorUnregisterDescription)
 		.addCommand("story register|edit", CommandLanguage.StoryWizardDescription)
@@ -124,6 +124,15 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		.addCommand("stories", CommandLanguage.StoriesListDescription, command => command
 			.addArgument("author", CommandLanguage.StoriesListArgumentAuthor, argument => argument
 				.setOptional()))
+		.addCommand("help words", "Get help with the `!words` command");
+
+	@Command(["help stories", "stories help", "help author", "author help", "help story", "story help"])
+	protected async commandHelp (message: CommandMessage) {
+		this.reply(message, this.helpStories());
+		return CommandResult.pass();
+	}
+
+	private readonly helpWords = () => new HelpContainerPlugin()
 		.addCommand("words", CommandLanguage.WordTrackerEditDescription, command => command
 			.addArgument("date", CommandLanguage.WordTrackerEditArgumentDate, argument => argument
 				.setDefaultValue("today"))
@@ -144,9 +153,9 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				.setOptional()))
 		.addCommand("words csv", CommandLanguage.WordTrackerGetCSV);
 
-	@Command(["help stories", "stories help"])
-	protected async commandHelp (message: CommandMessage) {
-		this.reply(message, this.help());
+	@Command(["help words", "words help"])
+	protected async commandHelpWords (message: CommandMessage) {
+		this.reply(message, this.helpWords());
 		return CommandResult.pass();
 	}
 
