@@ -143,6 +143,31 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 		return CommandResult.pass();
 	}
 
+	@Command("reminder remove")
+	protected async onReminderRemove (message: CommandMessage, ...query: string[]) {
+		const reminders = this.getReminders(message)
+			.map((reminder, i) => ({ data: reminder, id: i }));
+
+		const matchingReminders = Strings.searchOnKey(query, reminders, "message");
+		if (!matchingReminders)
+			return this.reply(message, "No matching reminders found to remove.")
+				.then(reply => CommandResult.fail(message, reply));
+
+		const { page } = await Paginator.create(matchingReminders, ({ data: reminder }) => new MessageEmbed()
+			.setTitle(Strings.trailing(255, Strings.sentence(`${reminder.message}!`)))
+			.setDescription(reminder.message.length > 255 ? Strings.sentence(`${reminder.message}!`) : undefined)
+			.setFooter(reminder.type === "after" ? `Will be sent ${renderTime(getTimeTill(reminder), { lowest: "second", zero: "any moment now", prefix: "in " })}.`
+				: `Currently sent every ${renderTime(reminder.time)}.`))
+			.addOption("🗑", "Remove this reminder")
+			.replyAndAwaitReaction(message, reaction => reaction.name === "🗑");
+
+		if (!page)
+			return this.reply(message, "No reminders were removed.")
+				.then(() => CommandResult.pass());
+
+		return this.removeReminder(message, page.originalValue.data);
+	}
+
 	@Command(["reminder remove last", "reminder remove previous"])
 	protected async onReminderRemovePrevious (message: CommandMessage) {
 		return this.removeReminder(message, this.getRecentReminders(message)[0]);
@@ -168,7 +193,8 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 			.reply(message);
 
 		if (!remove)
-			return CommandResult.pass();
+			return message.reply("No reminders were removed.")
+				.then(reply => CommandResult.pass(message, reply));
 
 		const index = this.data.reminders.indexOf(reminder);
 		if (index !== -1) {
@@ -183,6 +209,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 			.setDescription(reminder.message.length > 255 - 19 ? Strings.sentence(`${reminder.message}!`) : undefined)
 			.setFooter(reminder.type === "after" ? `This reminder's only occurrence, ${renderTime(getTimeTill(reminder), { lowest: "second", zero: "any moment now", prefix: "in " })}, is skipped.`
 				: `This reminder will no longer be sent every ${renderTime(reminder.time)}.`));
+
 		return CommandResult.pass();
 	}
 
@@ -203,16 +230,19 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 		return CommandResult.pass();
 	}
 
-	private getRecentReminders (author: GuildMember | User | Message) {
+	private getReminders (author: GuildMember | User | Message) {
 		return this.data.reminders
-			.filter(isOwnedBy(author))
+			.filter(isOwnedBy(author));
+	}
+
+	private getRecentReminders (author: GuildMember | User | Message) {
+		return this.getReminders(author)
 			.sort(({ last: lastA }, { last: lastB }) => lastB - lastA);
 	}
 
 	private getUpcomingReminders (author: GuildMember | User | Message) {
 		const now = Date.now();
-		return this.data.reminders
-			.filter(isOwnedBy(author))
+		return this.getReminders(author)
 			.sort((reminderA, reminderB) => getTimeTill(reminderA, now) - getTimeTill(reminderB, now))
 	}
 

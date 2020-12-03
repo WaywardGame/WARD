@@ -136,6 +136,43 @@ export class Paginator<T = any> {
 			: this.sendServer(channel, inputUser, commandMessage);
 	}
 
+	public async sendAndAwaitReaction (channel: TextChannel | DMChannel | NewsChannel | User, inputUser: User | undefined, commandMessage: CommandMessage | undefined, reactionFilter: (reaction: Emoji) => boolean) {
+		const { promise } = this.getReactionPromise(reactionFilter);
+		await this.send(channel, inputUser, commandMessage);
+		return promise;
+	}
+
+	public async replyAndAwaitReaction (message: CommandMessage, reactionFilter: (reaction: Emoji) => boolean) {
+		const { promise } = this.getReactionPromise(reactionFilter);
+		await this.reply(message);
+		return promise;
+	}
+
+	private getReactionPromise (reactionFilter: (reaction: Emoji) => boolean) {
+		type Result = {
+			cancelled: true;
+			reaction?: undefined;
+			page?: undefined;
+		}
+			| {
+				cancelled: false;
+				reaction: Emoji | ReactionEmoji;
+				page?: IPage<T>;
+			};
+
+		const promise = new Promise<Result>(resolve => {
+			this.event.subscribe("reaction", (paginator: this, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
+				if (reactionFilter(reaction)) {
+					resolve({ cancelled: false, reaction, page: this.get() });
+					this.cancelled = true;
+				}
+			});
+			this.event.subscribe("cancel", () => resolve({ cancelled: true }));
+		});
+
+		return { promise };
+	}
+
 	public cancel () {
 		this.cancelled = true;
 		return this;
@@ -230,8 +267,12 @@ export class Paginator<T = any> {
 				.setTitle(currentContent.title)
 				.setDescription(currentContent.content || currentContent.description)
 				.setColor(currentContent.color)
-				.addFields(...currentContent.fields))
-				.setFooter(this.getPageNumberText());
+				.addFields(...currentContent.fields));
+
+			if (!currentEmbed.footer || currentEmbed.author)
+				currentEmbed.setFooter(this.getPageNumberText());
+			else
+				currentEmbed.setAuthor(this.getPageNumberText());
 
 			currentText = inputUser ? `<@${inputUser.id}>` : "";
 
@@ -258,7 +299,7 @@ export class Paginator<T = any> {
 
 				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
 					this.cancelled = true;
-					await message.edit("", currentEmbed?.setFooter());
+					await message.edit("", currentEmbed);
 					await message.reactions.removeAll();
 					// message.delete();
 					// if (commandMessage?.deletable)
@@ -278,8 +319,12 @@ export class Paginator<T = any> {
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content || currentContent.description)
 					.setColor(currentContent.color)
-					.addFields(...currentContent.fields))
-					.setFooter(this.getPageNumberText());
+					.addFields(...currentContent.fields));
+
+				if (!currentEmbed.footer || currentEmbed.author)
+					currentEmbed.setFooter(this.getPageNumberText());
+				else
+					currentEmbed.setAuthor(this.getPageNumberText());
 
 				message.edit(currentText, currentEmbed);
 			}
@@ -299,8 +344,12 @@ export class Paginator<T = any> {
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content || currentContent.description)
 					.setColor(currentContent.color)
-					.addFields(...currentContent.fields))
-					.setFooter(this.getPageNumberText());
+					.addFields(...currentContent.fields));
+
+				if (!currentEmbed.footer || currentEmbed.author)
+					currentEmbed.setFooter(this.getPageNumberText());
+				else
+					currentEmbed.setAuthor(this.getPageNumberText());
 
 				currentText = inputUser && !(channel instanceof DMChannel) && !(channel instanceof User) ? `<@${inputUser.id}>` : "";
 
@@ -316,7 +365,6 @@ export class Paginator<T = any> {
 
 				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
 					this.cancelled = true;
-					await message.edit("", currentEmbed?.setFooter());
 					this.event.emit("cancel", this);
 					return;
 				}

@@ -405,7 +405,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 	@Command("story")
 	protected async onCommandStoryQuery (message: CommandMessage, ...queryArgs: string[]) {
-		Paginator.create(this.queryStories(queryArgs).map(({ story }) => story), this.generateStoryEmbed)
+		Paginator.create(this.queryStories(queryArgs).map(({ data }) => data), this.generateStoryEmbed)
 			.reply(message);
 
 		return CommandResult.pass();
@@ -772,48 +772,23 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 				.then(reply => CommandResult.fail(message, reply));
 
 		if (matchingStories.length > 1)
-			return this.reply(message, `I found multiple stories matching the given data. Can you be more specific? All matches:\n${matchingStories.map(({ story, id }) => `- **${story.name}**  ·  ID: \`${id}\``).join("\n")}`)
+			return this.reply(message, `I found multiple stories matching the given data. Can you be more specific? All matches:\n${matchingStories.map(({ data, id }) => `- **${data.name}**  ·  ID: \`${id}\``).join("\n")}`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		return this.data.stories[message.author.id].indexOf(matchingStories[0].story);
+		return this.data.stories[message.author.id].indexOf(matchingStories[0].data);
 	}
 
 	private queryStories (query: string[], user?: User | GuildMember) {
 		query = query.map(term => term.toLowerCase());
-		let stories: { story: IStory; id: string; }[];
+		let stories: { data: IStory; id: string; }[];
 		if (user)
 			stories = this.data.stories[user.id]
-				.map((story, id) => ({ story, id: `${user.id}/${id}` }));
+				.map((data, id) => ({ data, id: `${user.id}/${id}` }));
 		else
 			stories = Object.entries(this.data.stories)
-				.flatMap(([author, stories]) => stories.map((story, id) => ({ story, id: `${author}/${id}` })));
+				.flatMap(([author, stories]) => stories.map((data, id) => ({ data, id: `${author}/${id}` })));
 
-		return stories
-			.map(({ story, id }) => ({ story, id, value: this.getQueryValue(story, id, query) }))
-			.filter(({ value }) => value)
-			.sort(({ value: a }, { value: b }) => b - a);
-	}
-
-	private getQueryValue (story: IStory, id: string, query: string[]) {
-		const lowercase = story.name.toLowerCase();
-		const hash = Strings.hash(lowercase);
-
-		let nameSearch = story[SYMBOL_STORY_NAME_SEARCH_CACHE];
-		if (!nameSearch || nameSearch.hash !== hash) {
-			nameSearch = story[SYMBOL_STORY_NAME_SEARCH_CACHE] = {
-				hash,
-				terms: lowercase.split(/\s+/g),
-			};
-		}
-
-		let value = 0;
-		for (const queryTerm of query)
-			if (queryTerm === id)
-				value = 10000;
-			else if (!nameSearch.terms.includes(queryTerm))
-				return 0;
-
-		return value + nameSearch.terms.reduce((prev, curr) => prev + (query.includes(curr) ? 100 : -1), 0);
+		return Strings.searchOnKey(query, stories, "name");
 	}
 
 	@Bound
