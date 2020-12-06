@@ -40,7 +40,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 	public initData = () => ({ participants: {}, stage: "making" as const });
 
 	@Command("unwish")
-	protected async onUnwish (message: CommandMessage) {
+	protected async onUnwish (message: CommandMessage, force?: string) {
 		if (this.data.stage !== "making") {
 			this.reply(message, "Wishes can no longer be taken back.");
 			return CommandResult.pass();
@@ -54,13 +54,14 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return this.reply(message, "You do not currently have a wish.")
 				.then(() => CommandResult.pass());
 
-		const shouldUnwish = await this.yesOrNo(undefined, new MessageEmbed()
-			.addFields(...this.getWishParticipantFields(participant))
-			.setColor("00FF00")
-			.setAuthor(`${this.getName(message.author)}'s wish`, message.author.avatarURL() ?? undefined)
-			.setTitle("Would you like to take back your wish?")
-			.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
-			.reply(message);
+		const shouldUnwish = force === "force"
+			|| await this.yesOrNo(undefined, new MessageEmbed()
+				.addFields(...this.getWishParticipantFields(participant))
+				.setColor("00FF00")
+				.setAuthor(`${this.getName(message.author)}'s wish`, message.author.avatarURL() ?? undefined)
+				.setTitle("Would you like to take back your wish?")
+				.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+				.reply(message);
 
 		this.reply(message, shouldUnwish ? "your wish has been taken back!" : "your wish is safe.");
 
@@ -127,6 +128,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setColor("0088FF")
 			.setIdentity(...wishMakingWizard)
 			.setDefaultValue(participant.wish || undefined)
+			.setMaxLength(1024)
 			.reply(message);
 
 		if (response.cancelled)
@@ -146,6 +148,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setColor("FFAA00")
 			.setIdentity(...wishGrantingWizard)
 			.setDefaultValue(participant.wishGranting || undefined)
+			.setMaxLength(1024)
 			.reply(message);
 
 		if (response.cancelled)
