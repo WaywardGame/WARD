@@ -2,6 +2,7 @@ import { DMChannel, Emoji, Message, MessageEmbed, ReactionEmoji } from "discord.
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import { hours } from "../util/Time";
 
 export interface IWishParticipant {
 	wish: string;
@@ -13,6 +14,7 @@ export interface IWishParticipant {
 
 export interface IWishConfig {
 	organiser: string;
+	participant?: string;
 }
 
 export enum WishStage {
@@ -109,6 +111,9 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		this.logger.info(`${this.getName(message)} is making/updating ${this.getPronouns(message).their} wish!`);
 		const madeOrUpdated = await this.wishWizard(message, participant, isNewWish);
 		this.logger.info(`${this.getName(message)} has ${madeOrUpdated ? "made/updated" : "cancelled making/updating"} ${this.getPronouns(message).their} wish!`);
+
+		if (madeOrUpdated && this.config.participant)
+			await message.member?.roles.add(this.config.participant);
 
 		return CommandResult.pass();
 	}
@@ -317,6 +322,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 					.addField("\u200b", ["◀ Previous", "▶ Next", "✅ Select this wish-granter", "❌ Cancel"].join(" \u200b · \u200b ")))
 					.addOption("✅", "Match this wish-granter to the wish!")
 					.setShouldDeleteOnUseOption(reaction => reaction.name !== "✅")
+					.setTimeout(hours(2))
 					.event.subscribe("reaction", (paginator: Paginator<Participant>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
 						const granter = paginator.get().originalValue;
 						if (reaction.name === "✅") {
@@ -340,6 +346,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			// assign this wish granter to the wish
 			wish!.granter = granter[0];
 			this.data.markDirty();
+
+			await organiser.user.send("Thanks! Please wait a moment while (one of) your fellow organiser(s) makes the next match.");
 
 			cursor++;
 			cursor = cursor % organisers.length;

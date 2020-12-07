@@ -49,6 +49,7 @@ export class Paginator<T = any> {
 	private noContentMessage = "...there is nothing here. 😭";
 	private color?: ColorResolvable;
 	private shouldDeleteOnUseOption?: (option: GuildEmoji | ReactionEmoji) => boolean;
+	private timeout?: number;
 
 	public get page () {
 		return this.i;
@@ -102,6 +103,11 @@ export class Paginator<T = any> {
 
 	public addOptions (...options: [GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, string?][]) {
 		this.otherOptions.push(...options.filter(([option]) => option));
+		return this;
+	}
+
+	public setTimeout (timeout: number) {
+		this.timeout = timeout;
 		return this;
 	}
 
@@ -422,7 +428,7 @@ export class Paginator<T = any> {
 		// this is so ugly lol
 		const collected = await message.awaitReactions((r, user) =>
 			(!inputUser ? user.id !== message.author.id : user.id === inputUser.id) && reactions.includes(r.emoji.name),
-			{ max: 1, time: minutes(5) })
+			{ max: 1, time: this.timeout ?? minutes(5) })
 			.catch(() => { });
 
 		if (!collected || !collected.size)
