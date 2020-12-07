@@ -390,7 +390,7 @@ export class Ward {
 
 	@Bound
 	private commandUpdatePlugin (message: CommandMessage, pluginName: string) {
-		if (!message.member?.permissions.has("ADMINISTRATOR"))
+		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];
@@ -399,7 +399,7 @@ export class Ward {
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
-		plugin.logger.info(`Updating due to request from ${message.member.displayName}`);
+		plugin.logger.info(`Updating due to request from ${message.member?.displayName}`);
 		this.updatePlugin(plugin);
 		plugin.reply(message, `updated plugin ${pluginName}.`);
 		return CommandResult.pass();
