@@ -74,8 +74,13 @@ enum CommandLanguage {
 export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	public updateInterval = hours(1);
 
-	private channel: TextChannel;
-	private warningChannel?: TextChannel;
+	private get channel () {
+		return this.guild.channels.cache.get(this.config.reportingChannel) as TextChannel;
+	}
+	private get warningChannel () {
+		return !this.config.warningChannel ? undefined
+			: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel;
+	}
 	private isReporting = false;
 	private get reportedChanges () { return this.data.reportedChanges; }
 	private continueReport?: (report: boolean) => any;
@@ -93,9 +98,10 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 		if (this.isReporting)
 			return;
 
-		this.channel = this.guild.channels.cache.get(this.config.reportingChannel) as TextChannel;
-		this.warningChannel = !this.config.warningChannel ? undefined
-			: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel;
+		if (!this.channel) {
+			this.logger.warning("Cannot find reporting channel.");
+			return;
+		}
 
 		try {
 			const versions = await this.trello.getActiveVersions();
@@ -192,7 +198,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 				this.logger.info(`Updating change: ${change}`);
 
 				if (messageId) {
-					const message = await this.getMessage(this.channel, messageId);
+					const message = await this.getMessage(this.channel!, messageId);
 
 					if (message)
 						await message.edit("", await this.getChangeEmbed(version, card));
