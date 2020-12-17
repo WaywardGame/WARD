@@ -1,4 +1,5 @@
-import { GuildMember, Message, MessageEmbed, Role, TextChannel, User } from "discord.js";
+import chalk from "chalk";
+import { GuildMember, Message, MessageEmbed, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -49,6 +50,8 @@ export interface IRegularsConfig {
 	daysVisitedMultiplierReduction: number;
 	regularMilestoneXp: number;
 	commands?: false | Partial<typeof baseCommands>;
+	role: string;
+	removeRegularWarning?: number;
 }
 
 enum CommandLanguage {
@@ -78,10 +81,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private get members () { return this.data.trackedMembers; }
 	private warningChannel?: TextChannel;
 	private topMembers: ITrackedMember[];
-	private roleRegular: Role;
-	private roleMod: Role;
 	private readonly onRemoveMemberHandlers: ((member: GuildMember) => any)[] = [];
 	private readonly xpMultiplierIncreaseDays = new Map<number, number>();
+	private continueRemove?: (remove: boolean) => any;
 
 	public getDefaultId () {
 		return "regulars";
@@ -128,11 +130,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		this.updateTopMembers();
 
 		await this.guild.roles.fetch(undefined, undefined, true);
-		this.roleRegular = this.guild.roles.cache.find(role => role.name === "regular")!;
-		this.roleMod = this.guild.roles.cache.find(role => role.name === "mod")!;
-
-		if (!this.roleRegular || !this.roleMod)
-			throw new Error("Cannot find both regular and mod roles");
 
 		this.xpMultiplierIncreaseDays.clear();
 		const calculateDaysUpTill = 10000;
@@ -144,6 +141,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	public async onUpdate () {
 		const today = this.getToday();
+		const shouldDrop: ITrackedMember[] = [];
 		for (const memberId in this.members) {
 			const trackedMember = this.members[memberId];
 
@@ -158,7 +156,30 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			}
 
 			if (trackedMember.xp <= 0)
-				await this.dropTrackedMember(trackedMember);
+				shouldDrop.push(trackedMember);
+		}
+
+		if (shouldDrop.length > (this.config.removeRegularWarning ?? 10)) {
+			const dropUserNames = shouldDrop.map(userid =>
+				`${chalk.grey(`ID ${userid.id}`)} ${this.guild.members.cache.get(userid.id)?.displayName}`);
+
+			const warning = [
+				`Trying to remove regular from ${chalk.yellowBright(`${shouldDrop.length} users`)}. A user list exceeding ${chalk.yellowBright(`${this.config.removeRegularWarning} users`)} must be manually confirmed.\nTo proceed send command ${chalk.cyan(`${this.commandPrefix}regular remove confirm`)}`,
+				...dropUserNames,
+			];
+			this.logger.warning(warning.join("\n\t"));
+
+			if (this.warningChannel) {
+				this.sendAll(this.warningChannel,
+					`Trying to remove regular from **${shouldDrop.length} users**. A user list exceeding **${this.config.removeRegularWarning} users** must be manually confirmed.`,
+					`To proceed send command \`${this.commandPrefix}regular remove confirm\``,
+					...dropUserNames.map(username => `> ${username}`));
+			}
+
+			const remove = await new Promise<boolean>(resolve => this.continueRemove = resolve);
+			if (remove)
+				for (const trackedMember of shouldDrop)
+					await this.dropTrackedMember(trackedMember);
 		}
 
 		this.checkRegularUntracked();
@@ -169,27 +190,32 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (!this.isMod(message.member))
 			return CommandResult.pass();
 
+		if (this.continueRemove) {
+			this.continueRemove(true);
+			return CommandResult.pass();
+		}
+
 		this.checkRegularUntracked(true);
 		return CommandResult.pass();
 	}
 
 	private async checkRegularUntracked (remove = false) {
-		await this.guild.members.fetch({ force: true });
-		for (const [, member] of this.guild.members.cache.filter(member => member.roles.cache.has(this.roleRegular.id) && !member.roles.cache.has(this.roleMod.id) && !member.permissions.has("ADMINISTRATOR"))) {
-			if (!this.getTrackedMember(member.id, false)) {
-				const name = this.getMemberName(member);
-				this.logger.warning(`Member '${name}' is regular but not tracked`);
+		const membersRegularAndUntracked = (await this.guild.members.fetch({ force: true }))
+			.filter(member => !this.getTrackedMember(member.id, false) && member.roles.cache.has(this.config.role) && !this.isMod(member));
 
-				this.warningChannel = this.warningChannel ?? (!this.config.warningChannel ? undefined
-					: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel);
+		for (const [, member] of membersRegularAndUntracked) {
+			const name = this.getMemberName(member);
+			this.logger.warning(`Member '${name}' is regular but not tracked`);
 
-				if (remove) {
-					await this.removeRegularFromMember(member);
-					this.warningChannel?.send(`Removed regular from ${name}.`);
+			this.warningChannel = this.warningChannel ?? (!this.config.warningChannel ? undefined
+				: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel);
 
-				} else {
-					this.warningChannel?.send(`Member '${name}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
-				}
+			if (remove) {
+				await this.removeRegularFromMember(member);
+				this.warningChannel?.send(`Removed regular from ${name}.`);
+
+			} else {
+				this.warningChannel?.send(`Member '${name}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
 			}
 		}
 	}
@@ -205,7 +231,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private async removeRegularFromMember (member?: GuildMember) {
 		if (member && !this.shouldUserBeRegular(member)) {
-			await member.roles.remove(this.roleRegular);
+			await member.roles.remove(this.config.role);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
 			return true;
@@ -255,7 +281,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (user instanceof User)
 			user = this.guild.members.cache.get(user.id);
 
-		return !user ? false : user.roles.cache.has(this.roleRegular.id)
+		return !user ? false : user.roles.cache.has(this.config.role)
 			|| this.shouldUserBeRegular(user);
 	}
 
@@ -265,8 +291,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const trackedMember = user && this.getTrackedMember(user.id, false);
 
-		return !user ? false : user.roles.highest.position >= this.roleMod.position
-			|| user.permissions.has("ADMINISTRATOR")
+		return !user ? false : this.isMod(user)
 			|| (!trackedMember ? false : trackedMember.xp > this.config.regularMilestoneXp);
 	}
 
@@ -380,11 +405,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private checkMemberRegular (member: GuildMember) {
 		const trackedMember = this.getTrackedMember(member.id);
 		const shouldBeRegular = trackedMember.xp > this.config.regularMilestoneXp
-			|| member.roles.cache.has(this.roleMod.id)
-			|| member.permissions.has("ADMINISTRATOR");
+			|| this.isMod(member);
 
-		if (shouldBeRegular && !member.roles.cache.has(this.roleRegular.id)) {
-			member.roles.add(this.roleRegular);
+		if (shouldBeRegular && !member.roles.cache.has(this.config.role)) {
+			member.roles.add(this.config.role);
 			this.logger.info(`${this.getMemberName(member)} has become a regular!`);
 			this.event.emit("becomeRegular", member);
 		}
@@ -404,8 +428,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private isMod (member?: GuildMember | null): member is GuildMember {
-		return !!member && (member.roles.cache.has(this.roleMod.id)
-			|| member.permissions.has("ADMINISTRATOR"));
+		return !!member && member.permissions.has("MANAGE_ROLES");
 	}
 
 	private getCommandName (command: keyof Exclude<IRegularsConfig["commands"], false | undefined>) {
@@ -573,7 +596,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				.then(reply => CommandResult.fail(message, reply));
 
 		const trackedMember = this.members[message.member?.id!];
-		if (!message.member?.roles.cache.has(this.roleRegular.id)) {
+		if (!message.member?.roles.cache.has(this.config.role)) {
 			this.reply(message, `only regulars can donate ${this.getScoreName()}.`);
 			return CommandResult.pass();
 		}
@@ -591,7 +614,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
-		if (!member.roles.cache.has(this.roleRegular.id) && !this.isMod(message.member)) {
+		if (!member.roles.cache.has(this.config.role) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
 			return CommandResult.pass();
 		}
@@ -640,13 +663,13 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const member = queryMemberResult.member;
 
 		const updatingMember = this.getTrackedMember(member.id);
-		if (!member.roles.cache.has(this.roleRegular.id) && !this.isMod(message.member)) {
+		if (!member.roles.cache.has(this.config.role) && !this.isMod(message.member)) {
 			this.reply(message, `only mods can donate to non-regular users.`);
 			return CommandResult.pass();
 		}
 
 		if (trackedMember.id === updatingMember.id) {
-			this.reply(message, `You cannot set up auto-donation to yourself. That makes no sense, you big dumdum.`);
+			this.reply(message, `You set up auto-donation to yourself. It's almost like nothing happens at all!`);
 			return CommandResult.pass();
 		}
 
