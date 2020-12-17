@@ -79,11 +79,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	public autosaveInterval = minutes(5);
 
 	private get members () { return this.data.trackedMembers; }
-	private warningChannel?: TextChannel;
+	private get warningChannel () { return !this.config.warningChannel ? undefined : this.guild.channels.cache.get(this.config.warningChannel) as TextChannel; }
 	private topMembers: ITrackedMember[];
 	private readonly onRemoveMemberHandlers: ((member: GuildMember) => any)[] = [];
 	private readonly xpMultiplierIncreaseDays = new Map<number, number>();
-	private continueRemove?: (remove: boolean) => any;
 
 	public getDefaultId () {
 		return "regulars";
@@ -159,43 +158,49 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				shouldDrop.push(trackedMember);
 		}
 
-		if (shouldDrop.length > (this.config.removeRegularWarning ?? 10)) {
-			const dropUserNames = shouldDrop.map(userid =>
-				`${chalk.grey(`ID ${userid.id}`)} ${this.guild.members.cache.get(userid.id)?.displayName}`);
-
-			const warning = [
-				`Trying to remove regular from ${chalk.yellowBright(`${shouldDrop.length} users`)}. A user list exceeding ${chalk.yellowBright(`${this.config.removeRegularWarning} users`)} must be manually confirmed.\nTo proceed send command ${chalk.cyan(`${this.commandPrefix}regular remove confirm`)}`,
-				...dropUserNames,
-			];
-			this.logger.warning(warning.join("\n\t"));
-
-			if (this.warningChannel) {
-				this.sendAll(this.warningChannel,
-					`Trying to remove regular from **${shouldDrop.length} users**. A user list exceeding **${this.config.removeRegularWarning} users** must be manually confirmed.`,
-					`To proceed send command \`${this.commandPrefix}regular remove confirm\``,
-					...dropUserNames.map(username => `> ${username}`));
-			}
-
-			const remove = await new Promise<boolean>(resolve => this.continueRemove = resolve);
-			if (remove)
-				for (const trackedMember of shouldDrop)
-					await this.dropTrackedMember(trackedMember);
+		const regularRemoveWarning = this.config.removeRegularWarning ?? 10;
+		if (shouldDrop.length < regularRemoveWarning) {
+			this.checkRegularUntracked();
+			return;
 		}
 
-		this.checkRegularUntracked();
+		const dropUserNames = shouldDrop.map(userid =>
+			`${chalk.grey(`ID ${userid.id}`)} ${this.guild.members.cache.get(userid.id)?.displayName}`);
+
+		const warning = [
+			`Trying to drop (& potentially remove "regular") from ${chalk.yellowBright(`${shouldDrop.length} users`)}. A user list exceeding ${chalk.yellowBright(`${regularRemoveWarning} users`)} must be manually confirmed.\nTo proceed send command ${chalk.cyan(`${this.commandPrefix}regular remove confirm`)}`,
+			...dropUserNames,
+		];
+		this.logger.warning(warning.join("\n\t"));
+
+		if (this.warningChannel) {
+			this.sendAll(this.warningChannel,
+				`Trying to drop (& potentially remove "regular") from **${shouldDrop.length} users**. A user list exceeding **${regularRemoveWarning} users** must be manually confirmed.`,
+				`To proceed send command \`${this.commandPrefix}regular remove confirm\``,
+				...dropUserNames.map(username => `> ${chalk.reset(username)}`));
+		}
+	}
+
+	private async dropTrackedMembers () {
+		let removed = false;
+		for (const trackedMember of Object.values(this.members))
+			if (trackedMember.xp <= 0) {
+				removed = true;
+				await this.dropTrackedMember(trackedMember);
+			}
+
+		await this.checkRegularUntracked();
+		return removed;
 	}
 
 	@Command("regular remove confirm")
-	protected onRegularRemoveConfirm (message: CommandMessage) {
+	protected async onRegularRemoveConfirm (message: CommandMessage) {
 		if (!this.isMod(message.member))
 			return CommandResult.pass();
 
-		if (this.continueRemove) {
-			this.continueRemove(true);
-			return CommandResult.pass();
-		}
+		if (!await this.dropTrackedMembers())
+			this.checkRegularUntracked(true);
 
-		this.checkRegularUntracked(true);
 		return CommandResult.pass();
 	}
 
@@ -206,9 +211,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		for (const [, member] of membersRegularAndUntracked) {
 			const name = this.getMemberName(member);
 			this.logger.warning(`Member '${name}' is regular but not tracked`);
-
-			this.warningChannel = this.warningChannel ?? (!this.config.warningChannel ? undefined
-				: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel);
 
 			if (remove) {
 				await this.removeRegularFromMember(member);
