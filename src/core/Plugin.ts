@@ -215,7 +215,10 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
-	protected getPronouns (member: Message | User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
+	protected getPronouns (member?: Message | User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
+		if (!member)
+			return pronounLanguage["they/them"];
+
 		if (member instanceof Message)
 			member = member.member ?? member.author;
 

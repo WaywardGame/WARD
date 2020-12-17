@@ -300,6 +300,45 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		];
 	}
 
+	@Command("wish unassign")
+	protected async onWishUnassign (message: CommandMessage, userid: string) {
+		if (!(message.channel instanceof DMChannel)) {
+			this.reply(message, "This command can only be used in a DM.");
+			return CommandResult.pass();
+		}
+
+		const wishesToUnassign = Object.values(this.data.participants)
+			.filter(wish => wish?.granter === userid) as IWishParticipant[];
+
+		const granter = this.guild.members.cache.get(userid);
+		const granterName = granter?.displayName ?? "Unknown User";
+
+		if (!wishesToUnassign.length)
+			return this.reply(message, `${granterName} is not assigned any wishes.`)
+				.then(() => CommandResult.pass());
+
+		const pronouns = this.getPronouns(granter);
+		const confirm = await this.yesOrNo(undefined, new MessageEmbed()
+			.setColor("FF0000")
+			.setTitle(`Unassign **${granterName}** from the **${wishesToUnassign.length}** wish(es) ${pronouns.they} ${pronouns.are} assigned to?`))
+			.reply(message);
+
+		if (!confirm)
+			return this.reply(message, `${granterName} was not unassigned from any wishes.`)
+				.then(() => CommandResult.pass());
+
+		for (const wish of wishesToUnassign)
+			delete wish.granter;
+
+		this.data.markDirty();
+
+		const result = `${granterName} was unassigned from all ${wishesToUnassign.length} of ${pronouns.their} wishes.`;
+		this.logger.info(result);
+
+		return this.reply(message, result)
+			.then(() => CommandResult.pass());
+	}
+
 	@Command("wish grant")
 	protected async onWishGrant (message: CommandMessage) {
 		if (!(message.channel instanceof DMChannel)) {
@@ -307,9 +346,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return CommandResult.pass();
 		}
 
-		// TODO this should function differently for pinch-grant mode
-		if (this.data.stage !== "granting") {
-			this.reply(message, WishStage[this.data.stage] > WishStage.granting ? "Wishes can no longer be granted. 😭" : "Wishes cannot yet be granted.");
+		if (WishStage[this.data.stage] < WishStage.granting) {
+			this.reply(message, "Wishes cannot yet be granted.");
+			return CommandResult.pass();
+		}
+
+		if (WishStage[this.data.stage] > WishStage.pinchGranting) {
+			this.reply(message, "Wishes can no longer be granted. 😭");
 			return CommandResult.pass();
 		}
 
@@ -413,15 +456,63 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		return CommandResult.pass();
 	}
 
+	@Command("wish status")
+	protected async onWishStatus (message: CommandMessage) {
+		let organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		if (this.data.stage === "making")
+			return this.reply(message, new MessageEmbed()
+				.setTitle("Wishes are being made!")
+				.setDescription(`${Object.keys(this.data.participants).length} wishes so far`)
+				.setColor("0088FF"))
+				.then(() => CommandResult.pass());
+
+		if (this.data.stage === "granting" || this.data.stage === "pinchGranting") {
+			const wishGranters = Stream.values(this.data.participants)
+				.partition(wish => wish?.granter, wish => !!wish?.gift)
+				.partitions()
+				.map<IField>(([granter, wishes]) => ({
+					name: (granter && this.guild.members.cache.get(granter)?.displayName) ?? "No or unknown granter",
+					value: wishes.partition(g => g)
+						.toArrayMap()
+						.entries()
+						.map(([hasGift, arr]) => `${hasGift ? "✅ Gift submitted" : "❌ No gift submitted"} (${arr.length})`)
+						.sorted()
+						.toString(Strings.SPACER_DOT),
+				}))
+				.toArray();
+
+			const countCompleted = wishGranters.stream()
+				.partition(({ value }) => value.includes("❌"))
+				.get(false)
+				.count();
+
+			return Paginator.create(wishGranters)
+				.setPageHeader(`Wishes are being ${this.data.stage === "pinchGranting" ? "pinch-" : ""}granted!`)
+				.setPageDescription(`**${countCompleted}** out of **${wishGranters.length}** wish-granters have submitted gifts.\nHere's a list of the wish-granters and the status on their submissions:`)
+				.setColor("FFAA00")
+				.reply(message)
+				.then(() => CommandResult.pass());
+		}
+
+		return this.reply(message, new MessageEmbed()
+			.setTitle("I have no idea what's happening!")
+			.setDescription("Chiri didn't make me smart enough to figure it out on my own 😭"))
+			.then(() => CommandResult.pass());
+	}
+
 	@Command("wish match")
-	protected async onWishMatch (message: CommandMessage, pinch?: string) {
+	protected async onWishMatch (message: CommandMessage, mode?: string) {
 		let organiser = this.guild.members.cache.get(message.author.id);
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
 		this.logger.info(`${this.getName(message)} has started wish matching!`);
 
-		const isPinchMatch = pinch === "pinch";
+		const isUnassignedMatch = mode === "unassigned";
+		const isPinchMatch = mode === "pinch" || isUnassignedMatch;
 
 		const organisers = this.guild.roles.cache.get(this.config.organiser)?.members?.values().toArray() ?? [];
 		if (organisers.length < 2) {
@@ -451,9 +542,10 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		// start with the organiser cursor on the organiser that started wish matching
 		let cursor = organisers.findIndex(member => member.id === organiser!.id);
 
-		const wishes = !isPinchMatch ? participants.slice()
+		const wishes = isUnassignedMatch ? participants.filter(([, participant]) => participant?.granter === undefined)
 			// if this is pinch-matching, don't re-match any wishes that have already been granted
-			: participants.filter(([, participant]) => participant?.gift !== undefined);
+			: isPinchMatch ? participants.filter(([, participant]) => participant?.gift !== undefined)
+				: participants.slice();
 
 		for (let i = 0; i < wishes.length; i++) {
 			const [wishParticipantId, wish] = wishes[i];
@@ -479,12 +571,16 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			}
 
 			const granter = await new Promise<Participant | undefined>(resolve => {
-				Paginator.create(granters, ([, granter], paginator, i) => new MessageEmbed()
-					.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
-					.setTitle(`Candidate #${i + 1}`)
-					.setColor("FFAA00")
-					.setDescription(granter?.wishGranting)
-					.addField("\u200b", ["◀ Previous", "▶ Next", "✅ Select this wish-granter", "❌ Cancel"].join(" \u200b · \u200b ")))
+				Paginator.create(granters, ([granterId, granter], paginator, i) => {
+					const granterMember = this.guild.members.cache.get(granterId);
+					return new MessageEmbed()
+						.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
+						.setTitle(`Candidate #${i + 1}${isPinchMatch ? `: ${granterMember?.displayName ?? "Unknown granter"}` : ""}`)
+						.setThumbnail(isPinchMatch && granterMember?.user.avatarURL() || undefined)
+						.setColor("FFAA00")
+						.setDescription(granter?.wishGranting)
+						.addField("\u200b", ["◀ Previous", "▶ Next", "✅ Select this wish-granter", "❌ Cancel"].join(" \u200b · \u200b "))
+				})
 					.addOption("✅", "Match this wish-granter to the wish!")
 					.setShouldDeleteOnUseOption(reaction => reaction.name !== "✅")
 					.setTimeout(hours(2))
@@ -519,13 +615,46 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			organiser = organisers[cursor];
 		}
 
-		this.data.stage = "granting";
+		if (WishStage[this.data.stage] < WishStage.granting)
+			this.data.stage = "granting";
+
 		this.data.markDirty();
 
 		for (const organiser of organisers)
 			organiser.user.send("Wish-matching complete! It's time to grant some wishes! 🪄");
 
 		return CommandResult.pass();
+	}
+
+	@Command(["wish pinch", "wish unpinch"])
+	protected async onCommandWishPinch (message: CommandMessage) {
+		if (!(message.channel instanceof DMChannel))
+			return this.reply(message, "This command can only be used in a DM.")
+				.then(() => CommandResult.pass());
+
+		const participant = this.data.participants[message.author.id];
+		if (!participant)
+			return this.reply(message, "You aren't a participant, silly!")
+				.then(() => CommandResult.pass());
+
+		const confirm = await this.yesOrNo(undefined, new MessageEmbed()
+			.setTitle(`You are currently set ${participant.canPinch ? "as a pinch-wish-granter. Opt-out?" : "to not be a pinch-wish-granter. Opt-in?"}`)
+			.setColor(participant.canPinch ? "FF0000" : "00FF00"))
+			.reply(message);
+
+		if (!confirm)
+			return this.reply(message, `Okay! You are still **opted-${participant.canPinch ? "in to" : "out of"}** pinch-wish-granting.`)
+				.then(() => CommandResult.pass());
+
+		if (participant.canPinch)
+			delete participant.canPinch;
+		else
+			participant.canPinch = true;
+
+		this.data.markDirty();
+
+		return this.reply(message, `Okay! You are now **opted-${participant.canPinch ? "in to" : "out of"}** pinch-wish-granting.`)
+			.then(() => CommandResult.pass());
 	}
 
 	private isOrganiser (userId: string) {
