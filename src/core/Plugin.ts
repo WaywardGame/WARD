@@ -1,4 +1,4 @@
-import { Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
+import { Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, MessageReaction, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import { IInjectionApi, Injector } from "../util/function/Inject";
@@ -451,6 +451,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let _maxLength: number | undefined;
 		let _color: ColorResolvable | undefined;
 
+		type Result = { cancelled: true }
+			| {
+				cancelled: false;
+				message?: Message;
+				reaction?: MessageReaction;
+				apply<T extends { [key in K]?: string | undefined }, K extends keyof T> (to: T, prop: K): void;
+			};
+
 		return {
 			setIdentity (title?: string, image?: string) {
 				_title = title;
@@ -485,10 +493,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				timeout = t;
 				return this;
 			},
-			async reply (message: CommandMessage): Promise<
-				{ cancelled: true }
-				| { cancelled: false, apply<T extends { [key in K]?: string | undefined }, K extends keyof T> (to: T, prop: K): void }
-			> {
+			async reply (message: CommandMessage): Promise<Result> {
 				if (defaultValue === "")
 					deletable = false;
 
@@ -554,6 +559,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 					return {
 						cancelled: false,
+						message: result instanceof Message ? result : undefined,
+						reaction: result && !(result instanceof Message) ? result : undefined,
 						apply (to: any, prop) {
 							if (result instanceof Message)
 								to[prop] = result.content;

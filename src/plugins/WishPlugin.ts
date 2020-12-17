@@ -1,7 +1,9 @@
+import Stream from "@wayward/goodstream";
 import { DMChannel, Emoji, Message, MessageEmbed, ReactionEmoji } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import Strings from "../util/Strings";
 import { hours } from "../util/Time";
 
 export interface IWishParticipant {
@@ -9,7 +11,10 @@ export interface IWishParticipant {
 	wishGranting: string;
 	canPinch?: boolean;
 	granter?: string;
-	gift?: string;
+	gift?: {
+		message?: string;
+		url: string;
+	}
 }
 
 export interface IWishConfig {
@@ -40,6 +45,102 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 	}
 
 	public initData = () => ({ participants: {}, stage: "making" as const });
+
+	@Command("wish message wisher")
+	protected async onMessageWisher (message: CommandMessage, ...text: string[]) {
+		if (WishStage[this.data.stage] < WishStage.granting) {
+			this.reply(message, "Messages can not yet be sent.");
+			return CommandResult.pass();
+		}
+
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		const wishes = Object.entries(this.data.participants)
+			.filter(([, wish]) => wish?.granter === message.author.id);
+
+		if (!wishes.length)
+			return this.reply(message, "You have not been matched with a wisher.")
+				.then(() => CommandResult.pass());
+
+		if (wishes.length > 1)
+			return this.reply(message, "You are responsible for more than one wish. Messaging between more than one wisher is not currently supported.")
+				.then(() => CommandResult.pass());
+
+		const [wisherId] = wishes[0];
+		const wisher = this.guild.members.cache.get(wisherId);
+		if (!wisher) {
+			this.logger.warning("Could not find wish participant for messaging", wisherId);
+			return CommandResult.pass();
+		}
+
+		const shouldSend = await this.yesOrNo(undefined, new MessageEmbed()
+			.setTitle(`Send your wisher, **${wisher?.displayName}**, this message?`)
+			.setThumbnail(wisher.user.avatarURL() ?? undefined)
+			.setDescription(text.join(" ")))
+			.reply(message);
+
+		if (!shouldSend)
+			return this.reply(message, "No message was sent.")
+				.then(() => CommandResult.pass());
+
+		await wisher.send(new MessageEmbed()
+			.setColor("FFAA00")
+			.setTitle("Your wish-granter has sent you a message:")
+			.setDescription(text.join(" "))
+			.addField("\u200b", "To reply, use `!wish message granter <...message>`"));
+
+		this.logger.info("A wish-granter sent a message to their wisher.");
+
+		return this.reply(message, "Your message was sent!")
+			.then(() => CommandResult.pass());
+	}
+
+	@Command("wish message granter")
+	protected async onMessageGranter (message: CommandMessage, ...text: string[]) {
+		if (WishStage[this.data.stage] < WishStage.granting) {
+			this.reply(message, "Messages can not yet be sent.");
+			return CommandResult.pass();
+		}
+
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		const wish = this.data.participants[message.author.id];
+
+		if (!wish)
+			return this.reply(message, "You did not submit a wish.")
+				.then(() => CommandResult.pass());
+
+		const granterId = wish.granter;
+
+		const granter = this.guild.members.cache.get(granterId!);
+		if (!granter) {
+			this.logger.warning("Could not find wish participant for messaging", granterId, "— Wish participant id:", message.author.id);
+			return CommandResult.pass();
+		}
+
+		const shouldSend = await this.yesOrNo(undefined, new MessageEmbed()
+			.setTitle(`Send your wish-granter this message?`)
+			.setDescription(text.join(" ")))
+			.reply(message);
+
+		if (!shouldSend)
+			return this.reply(message, "No message was sent.")
+				.then(() => CommandResult.pass());
+
+		await granter.send(new MessageEmbed()
+			.setColor("0088FF")
+			.setTitle(`Your wisher, **${message.member?.displayName}**, has sent you a message:`)
+			.setThumbnail(message.author.avatarURL() ?? undefined)
+			.setDescription(text.join(" "))
+			.addField("\u200b", "To reply, use `!wish message wisher <...message>`"));
+
+		this.logger.info("A wisher sent a message to their wish-granter.");
+
+		return this.reply(message, "Your message was sent!")
+			.then(() => CommandResult.pass());
+	}
 
 	@Command("unwish")
 	protected async onUnwish (message: CommandMessage, force?: string) {
@@ -217,23 +318,34 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 		type Wish = typeof wishes[number];
 
-		const wish = await new Promise<Wish | undefined>(resolve => {
-			Paginator.create(wishes, ([wishParticipantId, granter], paginator, i) => {
+		let shouldDelete = false;
+		const wishEntry = await new Promise<Wish | undefined>(resolve => {
+			Paginator.create(wishes, ([wishParticipantId, wish], paginator, i) => {
 				const member = this.guild.members.cache.get(wishParticipantId);
 				return new MessageEmbed()
 					.setAuthor("Wishes to grant")
 					.setTitle(`#${i + 1}: ${member?.displayName}'s Wish`)
 					.setThumbnail(member?.user.avatarURL() ?? undefined)
 					.setColor("0088FF")
-					.setDescription(this.data.participants[wishParticipantId]?.wish)
-					.addField("\u200b", ["◀ Previous", "▶ Next", "🪄 Grant this wish", "❌ Cancel"].join(" \u200b · \u200b "))
+					.setDescription(wish?.wish)
+					.addField("Granted?", wish?.gift ? "✅ Has gift" : "❌ No gift submitted")
+					.addField("\u200b",
+						["◀ Previous", "▶ Next", "❌ Cancel"].join(Strings.SPACER_DOT) + "\n" +
+						["🪄 Grant wish", wish?.gift && "🗑 Remove gift"].filterNullish().join(Strings.SPACER_DOT));
 			})
 				.addOption("🪄", "Grant this wish!")
-				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄")
+				.addOption(page => page.originalValue[1]?.gift && "🗑" || null, "Remove gift")
+				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄" && reaction.name !== "🗑")
 				.event.subscribe("reaction", (paginator: Paginator<Wish>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
 					const wish = paginator.get().originalValue;
 					if (reaction.name === "🪄") {
 						paginator.cancel();
+						resolve(wish);
+					}
+
+					if (reaction.name === "🗑" && wish[1]?.gift) {
+						paginator.cancel();
+						shouldDelete = true;
 						resolve(wish);
 					}
 				})
@@ -241,10 +353,63 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.reply(message);
 		});
 
-		if (!wish)
+		const [wishParticipantId, wish] = wishEntry ?? [];
+		if (!wishParticipantId || !wish)
 			return CommandResult.pass();
 
-		this.reply(message, "This functionality has not been implemented yet. Stay tuned!");
+		const wisher = this.guild.members.cache.get(wishParticipantId);
+		if (wish?.gift) {
+			const confirm = await this.yesOrNo(undefined, new MessageEmbed()
+				.setTitle(`Are you sure you want to ${shouldDelete ? "remove" : "replace"} ${wisher?.displayName}'s gift?`)
+				.setColor(shouldDelete ? "FF0000" : "FF8800")
+				.addFields(
+					wish.gift.message ? { name: "Message", value: wish.gift.message } : undefined,
+					{ name: "File", value: wish.gift.url },
+				))
+				.reply(message);
+
+			if (!confirm)
+				return this.reply(message, `Okay, ${wisher?.displayName}'s ${shouldDelete ? `gift will not be removed` : "wish will be granted using the existing gift"}.`)
+					.then(() => CommandResult.pass());
+
+			if (shouldDelete) {
+				delete wish.gift;
+				this.data.markDirty();
+				this.logger.info(`${message.member?.displayName} removed ${this.getPronouns(message).their} gift for ${this.getPronouns(message).their} wisher.`);
+				return this.reply(message, `${wisher?.displayName}'s gift was removed.`)
+					.then(() => CommandResult.pass());
+			}
+		}
+
+		const validFileTypes = ["txt", "rtf", "docx", "odt"]
+
+		const result = await this.prompter("Please send an attachment containing your gift to grant the wish.")
+			.setDescription(`Valid file types: ${validFileTypes.map(t => `\`.${t}\``).join(", ")}. \n\nYou may include a message with the attachment, it will be sent to the wisher.`)
+			.setValidator(message => {
+				const [, attachment] = Stream.from(message.attachments).first() ?? [];
+				return (!!attachment && validFileTypes.some(fileType => attachment?.url.endsWith(fileType))) || undefined;
+			})
+			.reply(message);
+
+		if (result.cancelled || !result.message?.attachments.first())
+			return this.reply(message, "No gift was submitted, no wishes were granted.")
+				.then(() => CommandResult.pass());
+
+		const attachment = result.message?.attachments.first()!;
+		wish.gift = {
+			url: attachment.url,
+			message: result.message.content || undefined,
+		};
+		this.data.markDirty();
+
+		this.logger.info(`${message.member?.displayName} uploaded/updated the gift for ${this.getPronouns(message).their} wisher!`);
+		this.reply(message, new MessageEmbed()
+			.setTitle(`${wisher?.displayName}'s wish will be granted!`)
+			.addFields(
+				wish.gift.message ? { name: "Message", value: wish.gift.message } : undefined,
+				{ name: "File", value: wish.gift.url },
+			));
+
 		return CommandResult.pass();
 	}
 
