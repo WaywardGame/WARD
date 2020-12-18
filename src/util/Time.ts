@@ -45,14 +45,20 @@ export enum TimeUnit {
 	Minutes = "minutes",
 	Hours = "hours",
 	Days = "days",
+	Weeks = "weeks",
+	Months = "months",
+	Years = "years",
 }
 
 const timeAbbreviations: Record<string, TimeUnit> = Object.fromEntries(Object.entries({
 	[TimeUnit.Milliseconds]: ["ms"],
 	[TimeUnit.Seconds]: ["s", "sec"],
 	[TimeUnit.Minutes]: ["m", "min"],
-	[TimeUnit.Hours]: ["hr", "h"],
+	[TimeUnit.Hours]: ["h", "hr"],
 	[TimeUnit.Days]: ["d"],
+	[TimeUnit.Weeks]: ["w"],
+	[TimeUnit.Months]: ["mo"],
+	[TimeUnit.Years]: ["y", "yr"],
 }).flatMap(([unit, abbrs]) => abbrs.map(abbr => [abbr, unit as TimeUnit])));
 
 // tslint:disable cyclomatic-complexity
@@ -90,6 +96,9 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 		case TimeUnit.Minutes: return minutes(amt);
 		case TimeUnit.Hours: return hours(amt);
 		case TimeUnit.Days: return days(amt);
+		case TimeUnit.Weeks: return weeks(amt);
+		case TimeUnit.Months: return months(amt);
+		case TimeUnit.Years: return years(amt);
 		default: return amt;
 	}
 }
