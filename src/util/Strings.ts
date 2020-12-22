@@ -110,6 +110,23 @@ module Strings {
 
 		return value + nameSearch.terms.reduce((prev, curr) => prev + (query.includes(curr) ? 100 : -1), 0);
 	}
+
+	const uniqueChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+	export function* unique () {
+		const base = uniqueChars.length;
+		for (let i = 0; ; i++) {
+			let result = "";
+			let value = i;
+
+			do {
+				const index = value % base;
+				value = Math.floor(value / base);
+				result = uniqueChars[index] + result;
+			} while (value);
+
+			yield result;
+		}
+	}
 }
 
 export default Strings;

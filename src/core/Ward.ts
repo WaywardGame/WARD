@@ -1,6 +1,7 @@
 import Stream from "@wayward/goodstream";
 import chalk from "chalk";
 import { Client, Guild, Message, PartialMessage } from "discord.js";
+import { EventEmitter } from "events";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
@@ -32,6 +33,9 @@ type Command = { function?: CommandFunction, plugin?: string, subcommands: Comma
 type CommandMap = Map<string, Command>;
 
 export class Ward {
+
+	public readonly event = new EventEmitter();
+
 	private guild: Guild;
 	private discord?: Client;
 	private commandPrefix: string;
@@ -350,6 +354,8 @@ export class Ward {
 
 		this.registerCommand(["plugin", "update"], this.commandUpdatePlugin);
 		this.registerCommand(["help"], this.commandHelp);
+		this.registerCommand(["restart"], this.commandRestart);
+		this.registerCommand(["backup"], this.commandBackup);
 
 		for (const pluginName in this.plugins) {
 			if (this.isDisabledPlugin(pluginName)) continue;
@@ -372,6 +378,34 @@ export class Ward {
 				}
 			}
 		}
+	}
+
+	@Bound
+	private async commandBackup (message: CommandMessage) {
+		const canRunCommand = message.author.id === "92461141682307072" // Chiri is all-powerful
+			|| message.member?.permissions.has("ADMINISTRATOR");
+
+		if (canRunCommand) {
+			await message.author.send(`Making a backup...`);
+			const madebackup = await this.getApi<Data>("data")?.backup();
+			message.author.send(madebackup ? "Successfully backed-up save data." : "Failed to create a backup.");
+		}
+
+		return CommandResult.pass();
+	}
+
+	@Bound
+	private async commandRestart (message: CommandMessage, allStr?: string) {
+		const all = allStr === "all";
+		const canRunCommand = message.author.id === "92461141682307072" // Chiri is all-powerful
+			|| (!all && message.member?.permissions.has("ADMINISTRATOR"));
+
+		if (canRunCommand) {
+			await message.author.send(`Restarting${all ? " every instance" : ""}...`);
+			this.event.emit("restart", all);
+		}
+
+		return CommandResult.pass();
 	}
 
 	@Bound

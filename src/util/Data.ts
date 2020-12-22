@@ -4,6 +4,7 @@ import { EventEmitterAsync } from "./Async";
 import Bound from "./Bound";
 import FileSystem from "./FileSystem";
 import Logger from "./Log";
+import Strings from "./Strings";
 import { getISODate, minutes } from "./Time";
 import json5 = require("json5");
 
@@ -47,33 +48,53 @@ export default class Data extends Api<IDataConfig> {
 	}
 
 	public async load (plugin: Plugin) {
-		plugin.data.event.subscribe("save", this.tryMakeBackup);
+		plugin.data.event.subscribe("save", () => this.tryMakeBackup());
 		return plugin.data.load();
 	}
 
+	public async backup () {
+		return this.tryMakeBackup(true);
+	}
+
 	@Bound
-	private async tryMakeBackup () {
+	private async tryMakeBackup (forced = false) {
 		const now = Date.now();
-		if (now - this.lastBackupTime < minutes(10))
-			return;
+		if (now - this.lastBackupTime < minutes(10) && !forced)
+			return false;
 
 		this.lastBackupTime = now;
 
 		const today = getISODate();
-		const dirBackup = `${this.dirBackups}/${today}/${this.guild}`;
+		let backupAlreadyExists = true;
+		let dirBackup: string;
+		for (const uniqueExtension of Strings.unique()) {
+			dirBackup = `${this.dirBackups}/${today}${forced ? uniqueExtension : ""}/${this.guild}`;
 
-		const backupAlreadyExists = await FileSystem.exists(dirBackup);
-		if (backupAlreadyExists)
-			Logger.verbose("Data", "Backup already exists, skipping creation");
+			backupAlreadyExists = await FileSystem.exists(dirBackup);
+			if (!backupAlreadyExists || !forced)
+				break;
 
-		else await this.makeBackup(dirBackup)
-			.catch(err => Logger.error("Data", "Unable to make backup", err));
+			// the backup already exists and this backup is forced.
+			// when forcing an additional backup, generate a new unique extension repeatedly until finding one that hasn't been used yet
+			continue;
+		}
+
+		if (!backupAlreadyExists)
+			return await this.makeBackup(dirBackup!)
+				.catch(err => {
+					Logger.error("Data", "Unable to make backup", err)
+					return false;
+				});
+
+		Logger.verbose("Data", "Backup already exists, skipping creation");
+		return false;
 	}
 
 	private async makeBackup (dir: string) {
 		await FileSystem.mkdir(dir);
 		await FileSystem.copy(this.dirData, dir);
 		Logger.info("Data", "Backup made! Directory:", dir);
+		return true;
 	}
 }
 

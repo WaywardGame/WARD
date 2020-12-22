@@ -1,14 +1,14 @@
 // tslint:disable-next-line
 import "@wayward/goodstream/apply";
 import "reflect-metadata";
-import { Config } from "./core/Config";
+import { Config, IConfig, IGuildConfig } from "./core/Config";
 import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
 import Logger from "./util/Log";
 // @ts-ignore
 import Functions = require("./util/Functions");
 
-let wards: Ward[] = [];
+let wards = new Map<IGuildConfig, Ward>();
 
 async function start () {
 	const config = await new Config().get();
@@ -16,16 +16,28 @@ async function start () {
 
 	Logger.info(undefined, `Initialized at ${new Date().toLocaleString()}`);
 
-	wards = config.instances.map(instanceConfig =>
-		new Ward({ ...config, instances: [], ...instanceConfig }));
+	for (const guildConfig of config.instances)
+		createWardInstance(config, guildConfig);
+}
 
-	for (const ward of wards)
-		ward.start();
+function createWardInstance (config: IConfig, guildConfig: IGuildConfig) {
+	const ward = new Ward({ ...config, instances: [], ...guildConfig });
+	wards.set(guildConfig, ward);
+	ward.start();
+
+	ward.event.on("restart", async all => {
+		if (all)
+			return exitHandler(new Error("Restarting..."));
+
+		await ward.stop();
+		createWardInstance(config, guildConfig);
+	});
 }
 
 async function stop () {
 	await Promise.race([
-		Promise.all(wards.map(ward => ward?.stop())),
+		Promise.all(wards.values()
+			.map(ward => ward?.stop())),
 		sleep(2000),
 	]);
 }
