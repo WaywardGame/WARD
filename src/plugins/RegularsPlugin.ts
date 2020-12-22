@@ -139,9 +139,14 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	public async onUpdate () {
+		if (this.guild.members.cache.size < 3) {
+			this.logger.warning("Saw less than three members in guild, exiting early in case something is wrong.");
+			return;
+		}
+
 		const today = this.getToday();
-		const shouldDrop: ITrackedMember[] = [];
-		for (const memberId in this.members) {
+		const shouldDrop: GuildMember[] = [];
+		for (const memberId of Object.keys(this.members)) {
 			const trackedMember = this.members[memberId];
 
 			if (trackedMember.lastDay < today - 1) {
@@ -154,8 +159,16 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				this.data.markDirty();
 			}
 
-			if (trackedMember.xp <= 0)
-				shouldDrop.push(trackedMember);
+			if (trackedMember.xp <= 0) {
+				const member = this.guild.members.cache.get(trackedMember.id);
+				if (member)
+					shouldDrop.push(member);
+				else {
+					// if this member isn't part of the guild, delete them straightaway!!
+					delete this.members[memberId];
+					this.data.markDirty();
+				}
+			}
 		}
 
 		const regularRemoveWarning = this.config.removeRegularWarning ?? 10;
@@ -164,12 +177,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return;
 		}
 
-		const dropUserNames = shouldDrop.map(userid =>
-			`${chalk.grey(`ID ${userid.id}`)} ${this.guild.members.cache.get(userid.id)?.displayName}`);
-
 		const warning = [
 			`Trying to drop (& potentially remove "regular") from ${chalk.yellowBright(`${shouldDrop.length} users`)}. A user list exceeding ${chalk.yellowBright(`${regularRemoveWarning} users`)} must be manually confirmed.\nTo proceed send command ${chalk.cyan(`${this.commandPrefix}regular remove confirm`)}`,
-			...dropUserNames,
+			...shouldDrop.map(member => `${member.displayName} (ID: ${chalk.grey(member.id)})`),
 		];
 		this.logger.warning(warning.join("\n\t"));
 
@@ -177,7 +187,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			this.sendAll(this.warningChannel,
 				`Trying to drop (& potentially remove "regular") from **${shouldDrop.length} users**. A user list exceeding **${regularRemoveWarning} users** must be manually confirmed.`,
 				`To proceed send command \`${this.commandPrefix}regular remove confirm\``,
-				...dropUserNames.map(username => `> ${chalk.reset(username)}`));
+				...shouldDrop.map(member => `> ${member.displayName} (ID: ${member.id})`));
 		}
 	}
 
@@ -208,18 +218,21 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const membersRegularAndUntracked = (await this.guild.members.fetch({ force: true }))
 			.filter(member => !this.getTrackedMember(member.id, false) && member.roles.cache.has(this.config.role) && !this.isMod(member));
 
+		let removed: string[] = [];
 		for (const [, member] of membersRegularAndUntracked) {
-			const name = this.getMemberName(member);
-			this.logger.warning(`Member '${name}' is regular but not tracked`);
+			this.logger.warning(`Member '${member.displayName}' is regular but not tracked`);
 
 			if (remove) {
 				await this.removeRegularFromMember(member);
-				this.warningChannel?.send(`Removed regular from ${name}.`);
+				removed.push(member.displayName);
 
 			} else {
-				this.warningChannel?.send(`Member '${name}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
+				this.warningChannel?.send(`Member '${member.displayName}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
 			}
 		}
+
+		if (removed.length)
+			this.warningChannel?.send(`Removed regular from ${removed.join(", ")}.`);
 	}
 
 	private async dropTrackedMember (trackedMember: ITrackedMember) {
