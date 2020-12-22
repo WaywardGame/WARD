@@ -413,31 +413,39 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let timeout = minutes(5);
 		const self = this;
 
+		async function handleMessage (message: Message, whitelistedUser?: User) {
+			let ended = false;
+			(async () => {
+				await message.react("✅");
+				if (!ended)
+					await message.react("❌");
+			})();
+
+			const collected = await message.awaitReactions((react, user) =>
+				user.id !== message.author.id
+				&& (!whitelistedUser || user.id === whitelistedUser.id)
+				&& (react.emoji.name === "❌"
+					|| react.emoji.name === "✅"),
+				{ max: 1, time: timeout });
+
+			ended = true;
+
+			const result = collected?.first();
+			return result && result.emoji.name === "✅";
+		}
+
 		return {
 			setTimeout (t: number) {
 				timeout = t;
 				return this;
 			},
+			async send (to: User | GuildMember | TextChannel) {
+				const message = await to.send(text!, embed) as Message;
+				return handleMessage(message);
+			},
 			async reply (message: CommandMessage) {
 				const reply = await self.reply(message, text!, embed) as Message;
-
-				let ended = false;
-				(async () => {
-					await reply.react("✅");
-					if (!ended)
-						await reply.react("❌");
-				})();
-
-				const collected = await reply.awaitReactions((react, user) =>
-					user.id === message.author.id
-					&& (react.emoji.name === "❌"
-						|| react.emoji.name === "✅"),
-					{ max: 1, time: timeout });
-
-				ended = true;
-
-				const result = collected?.first();
-				return result && result.emoji.name === "✅";
+				return handleMessage(reply, message.author);
 			},
 		};
 	}

@@ -473,8 +473,9 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			const wishGranters = Stream.values(this.data.participants)
 				.partition(wish => wish?.granter, wish => !!wish?.gift)
 				.partitions()
-				.map<IField>(([granter, wishes]) => ({
-					name: (granter && this.guild.members.cache.get(granter)?.displayName) ?? "No or unknown granter",
+				.map<IField & { sortPos: number }>(([granter, wishes]) => ({
+					sortPos: (granter && this.guild.members.cache.get(granter)?.displayName) ? 1 : 0,
+					name: (granter && this.guild.members.cache.get(granter)?.displayName) ?? `⚠ No or unknown granter — reassign with \`${this.commandPrefix}wish match unassigned\``,
 					value: wishes.partition(g => g)
 						.toArrayMap()
 						.entries()
@@ -482,6 +483,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 						.sorted()
 						.toString(Strings.SPACER_DOT),
 				}))
+				.sorted((a, b) => a.sortPos - b.sortPos)
 				.toArray();
 
 			const countCompleted = wishGranters.stream()
@@ -533,9 +535,6 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		this.data.stage = "matching";
 		this.data.markDirty();
 
-		for (const organiser of organisers)
-			organiser.user.send(`Wish-matching has begun${organiser.id === message.author.id ? "" : " at the behest of a fellow organiser"}!`);
-
 		const wishGranters = !isPinchMatch ? participants.slice()
 			: participants.filter(([, participant]) => participant!.canPinch);
 
@@ -546,6 +545,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			// if this is pinch-matching, don't re-match any wishes that have already been granted
 			: isPinchMatch ? participants.filter(([, participant]) => participant?.gift !== undefined)
 				: participants.slice();
+
+		if (!wishes.length)
+			return this.reply(message, "There are no wishes to match!")
+				.then(() => CommandResult.pass());
+
+		for (const organiser of organisers)
+			organiser.user.send(`Wish-matching has begun${organiser.id === message.author.id ? "" : " at the behest of a fellow organiser"}!`);
 
 		for (let i = 0; i < wishes.length; i++) {
 			const [wishParticipantId, wish] = wishes[i];
@@ -562,7 +568,9 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.setDescription(wish?.wish)
 				.setColor("0088FF"));
 
-			const granters = wishGranters.filter(([id]) => id !== wishParticipantId && id !== organiser!.id);
+			const granters = wishGranters.filter(([id]) =>
+				id !== wishParticipantId
+				&& (isPinchMatch || id !== organiser!.id));
 
 			if (!granters.length) {
 				for (const organiser of organisers)
@@ -570,39 +578,76 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				return CommandResult.pass();
 			}
 
-			const granter = await new Promise<Participant | undefined>(resolve => {
-				Paginator.create(granters, ([granterId, granter], paginator, i) => {
-					const granterMember = this.guild.members.cache.get(granterId);
-					return new MessageEmbed()
-						.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
-						.setTitle(`Candidate #${i + 1}${isPinchMatch ? `: ${granterMember?.displayName ?? "Unknown granter"}` : ""}`)
-						.setThumbnail(isPinchMatch && granterMember?.user.avatarURL() || undefined)
-						.setColor("FFAA00")
-						.setDescription(granter?.wishGranting)
-						.addField("\u200b", ["◀ Previous", "▶ Next", "✅ Select this wish-granter", "❌ Cancel"].join(" \u200b · \u200b "))
-				})
-					.addOption("✅", "Match this wish-granter to the wish!")
-					.setShouldDeleteOnUseOption(reaction => reaction.name !== "✅")
-					.setTimeout(hours(2))
-					.event.subscribe("reaction", (paginator: Paginator<Participant>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
-						const granter = paginator.get().originalValue;
-						if (reaction.name === "✅") {
-							paginator.cancel();
-							resolve(granter);
-						}
+			let granter: Participant | undefined;
+			while (true) {
+				granter = await new Promise<Participant | undefined>(resolve => {
+					Paginator.create(granters, ([granterId, granter], paginator, i) => {
+						const granterMember = this.guild.members.cache.get(granterId);
+						return new MessageEmbed()
+							.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
+							.setTitle(`Candidate #${i + 1}${isPinchMatch ? `: ${granterMember?.displayName ?? "Unknown granter"}` : ""}`)
+							.setThumbnail(isPinchMatch && granterMember?.user.avatarURL() || undefined)
+							.setColor("FFAA00")
+							.setDescription(granter?.wishGranting)
+							.addField("Assigned wishes", Object.values(this.data.participants)
+								.filter(participant => participant?.granter === granterId)
+								.length)
+							.addField("\u200b", ["◀ Previous", "▶ Next", "✅ Select this wish-granter", "❌ Cancel"].join(" \u200b · \u200b "))
 					})
-					.event.subscribe("cancel", () => resolve(undefined))
-					.send(organiser!.user, organiser!.user);
-			});
+						.addOption("✅", "Match this wish-granter to the wish!")
+						.setShouldDeleteOnUseOption(reaction => reaction.name !== "✅")
+						.setTimeout(hours(5))
+						.event.subscribe("reaction", (paginator: Paginator<Participant>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
+							const granter = paginator.get().originalValue;
+							if (reaction.name === "✅") {
+								paginator.cancel();
+								resolve(granter);
+							}
+						})
+						.event.subscribe("cancel", () => resolve(undefined))
+						.send(organiser!.user, organiser!.user);
+				});
 
-			if (!granter) {
-				for (const organiser of organisers)
-					organiser.user.send("Whoops! Wish-matching was cancelled or timed out and will need to be restarted.");
-				return CommandResult.pass();
+				if (!granter) {
+					for (const organiser of organisers)
+						organiser.user.send("Whoops! Wish-matching was cancelled or timed out and will need to be restarted.");
+					return CommandResult.pass();
+				}
+
+				if (isPinchMatch) {
+					const [granterId] = granter;
+					const granterMember = this.guild.members.cache.get(granterId);
+					if (!granterMember) {
+						for (const organiser of organisers)
+							organiser.user.send("Whoops! I could not find a selected granter's profile. Wish matching will need to be restarted.");
+						return CommandResult.pass();
+					}
+
+					await organiser.user.send("Sending a request to the chosen wish-granter...");
+
+					const willPinch = await this.yesOrNo(undefined, new MessageEmbed()
+						.setTitle("Would you be willing to pinch-grant this wish?")
+						.setDescription("You are signed up as a pinch-wish-granter and have been selected as a candidate to pinch-grant the following wish:")
+						.addField("Wish", wish?.wish!)
+						.setColor("0088FF"))
+						.setTimeout(hours(5))
+						.send(granterMember);
+
+					if (!willPinch) {
+						await organiser.user.send("That granter denied to pinch-grant that wish, or let the request time out. Try another?");
+						continue;
+					}
+
+					await granterMember.send(`Thanks! Remember, you can use \`${this.commandPrefix}wish grant\` to see all of your assigned wishes and their wishers.`);
+					await organiser.user.send("That granter accepted the wish! May it be granted!");
+
+					break;
+				}
 			}
 
-			// remove this wish granter from the pool
-			wishGranters.splice(wishGranters.indexOf(granter), 1);
+			if (!isPinchMatch)
+				// remove this wish granter from the pool
+				wishGranters.splice(wishGranters.indexOf(granter), 1);
 
 			// assign this wish granter to the wish
 			wish!.granter = granter[0];
