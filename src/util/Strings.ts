@@ -1,5 +1,6 @@
 module Strings {
 	export const SPACER_DOT = " \u200b · \u200b ";
+	export const BLANK = "\u200b";
 
 	export function sentence (text: string) {
 		return text[0].toUpperCase() + text.slice(1);
@@ -112,7 +113,7 @@ module Strings {
 	}
 
 	const uniqueChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-	export function* unique () {
+	export function* unique (): Generator<string, never, unknown> {
 		const base = uniqueChars.length;
 		for (let i = 0; ; i++) {
 			let result = "";
@@ -130,3 +131,22 @@ module Strings {
 }
 
 export default Strings;
+
+declare global {
+	interface String {
+		newline (...content: string[]): string;
+		join (...content: string[]): string;
+	}
+}
+
+Object.defineProperty(String.prototype, "newline", {
+	value (this: string, ...content: string[]) {
+		return `${this}\n${content.join("\n")}`;
+	},
+})
+
+Object.defineProperty(String.prototype, "join", {
+	value (this: string, ...content: string[]) {
+		return `${this}${content.join("")}`;
+	},
+})

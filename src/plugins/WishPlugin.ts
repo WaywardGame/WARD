@@ -1,10 +1,10 @@
 import Stream from "@wayward/goodstream";
-import { DMChannel, Emoji, Message, MessageEmbed, ReactionEmoji } from "discord.js";
+import { DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
 import Strings from "../util/Strings";
-import { hours } from "../util/Time";
+import { getTime, hours, minutes, renderTime } from "../util/Time";
 
 export interface IWishParticipant {
 	wish: string;
@@ -26,16 +26,20 @@ export enum WishStage {
 	making,
 	matching,
 	granting,
-	pinchGranting,
+	// pinchGranting,
 	ended,
 }
 
 export interface IWishData {
+	distributeTime?: number;
 	stage: keyof typeof WishStage;
 	participants: Record<string, IWishParticipant | undefined>;
 }
 
 export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
+
+	public readonly updateInterval = minutes(1);
+
 	public getDefaultId () {
 		return "wish";
 	}
@@ -46,15 +50,45 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	public initData = () => ({ participants: {}, stage: "making" as const });
 
+	public async onUpdate () {
+		if (this.data.distributeTime && Date.now() > this.data.distributeTime) {
+			this.logger.info("Beginning gift distribution");
+			for (const participantId of Object.keys(this.data.participants))
+				await this.deliverGift(participantId);
+
+			this.logger.info("Distributed gifts");
+			delete this.data.distributeTime;
+			this.data.markDirty();
+		}
+	}
+
+	private async deliverGift (participantId: string) {
+		const participant = this.data.participants[participantId]!;
+		const member = this.guild.members.cache.get(participantId);
+		if (!participant?.gift || !member)
+			return false;
+
+		await member.send({
+			embed: new MessageEmbed()
+				.setTitle("Your wish has been granted!")
+				.setColor("AA00FF")
+				.addFields(!participant.gift.message ? undefined : { name: "A message from your wish-granter:", value: participant.gift.message }),
+			files: [new MessageAttachment(participant.gift.url)]
+		});
+		this.logger.info(`Sent gift to ${member.displayName}`);
+
+		return true;
+	}
+
 	@Command("wish message wisher")
 	protected async onMessageWisher (message: CommandMessage, ...text: string[]) {
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
 		if (WishStage[this.data.stage] < WishStage.granting) {
 			this.reply(message, "Messages can not yet be sent.");
 			return CommandResult.pass();
 		}
-
-		if (!(message.channel instanceof DMChannel))
-			return CommandResult.pass();
 
 		const wishes = Object.entries(this.data.participants)
 			.filter(([, wish]) => wish?.granter === message.author.id);
@@ -98,13 +132,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish message granter")
 	protected async onMessageGranter (message: CommandMessage, ...text: string[]) {
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
 		if (WishStage[this.data.stage] < WishStage.granting) {
 			this.reply(message, "Messages can not yet be sent.");
 			return CommandResult.pass();
 		}
-
-		if (!(message.channel instanceof DMChannel))
-			return CommandResult.pass();
 
 		const wish = this.data.participants[message.author.id];
 
@@ -351,10 +385,10 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return CommandResult.pass();
 		}
 
-		if (WishStage[this.data.stage] > WishStage.pinchGranting) {
-			this.reply(message, "Wishes can no longer be granted. 😭");
-			return CommandResult.pass();
-		}
+		// if (WishStage[this.data.stage] > WishStage.pinchGranting) {
+		// 	this.reply(message, "Wishes can no longer be granted. 😭");
+		// 	return CommandResult.pass();
+		// }
 
 		const wishes = Object.entries(this.data.participants)
 			.filter(([, wish]) => wish?.granter === message.author.id);
@@ -374,16 +408,26 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 					.addField("Granted?", wish?.gift ? "✅ Has gift" : "❌ No gift submitted")
 					.addField("\u200b",
 						["◀ Previous", "▶ Next", "❌ Cancel"].join(Strings.SPACER_DOT) + "\n" +
-						["🪄 Grant wish", wish?.gift && "🗑 Remove gift"].filterNullish().join(Strings.SPACER_DOT));
+						["🪄 Grant wish", wish?.gift && "🗑 Remove gift", wish?.gift && "💌 Deliver gift"].filterNullish().join(Strings.SPACER_DOT));
 			})
 				.addOption("🪄", "Grant this wish!")
 				.addOption(page => page.originalValue[1]?.gift && "🗑" || null, "Remove gift")
-				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄" && reaction.name !== "🗑")
+				.addOption(page => page.originalValue[1]?.gift && "💌" || null, "Deliver gift")
+				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄" && reaction.name !== "🗑" && reaction.name !== "💌")
 				.event.subscribe("reaction", (paginator: Paginator<Wish>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
 					const wish = paginator.get().originalValue;
 					if (reaction.name === "🪄") {
 						paginator.cancel();
 						resolve(wish);
+					}
+
+					if (reaction.name === "💌") {
+						paginator.cancel();
+						resolve(undefined);
+						this.deliverGift(wish[0])
+							.then(() => {
+								this.reply(message, "Gift delivered!");
+							});
 					}
 
 					if (reaction.name === "🗑" && wish[1]?.gift) {
@@ -446,12 +490,23 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		this.data.markDirty();
 
 		this.logger.info(`${message.member?.displayName} uploaded/updated the gift for ${this.getPronouns(message).their} wisher!`);
-		this.reply(message, new MessageEmbed()
+		const willBeGrantedMessage = await this.reply(message, new MessageEmbed()
 			.setTitle(`${wisher?.displayName}'s wish will be granted!`)
 			.addFields(
 				wish.gift.message ? { name: "Message", value: wish.gift.message } : undefined,
 				{ name: "File", value: wish.gift.url },
-			));
+			)
+			.addField(Strings.BLANK, "💌 Deliver to your wisher"));
+
+		const { response } = await this.promptReaction(willBeGrantedMessage)
+			.addOption("💌")
+			.reply(message);
+
+		if (response?.name === "💌")
+			this.deliverGift(wishParticipantId)
+				.then(() => {
+					this.reply(message, "Gift delivered!");
+				});
 
 		return CommandResult.pass();
 	}
@@ -469,7 +524,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.setColor("0088FF"))
 				.then(() => CommandResult.pass());
 
-		if (this.data.stage === "granting" || this.data.stage === "pinchGranting") {
+		if (this.data.stage === "granting") { //|| this.data.stage === "pinchGranting") {
 			const wishGranters = Stream.values(this.data.participants)
 				.partition(wish => wish?.granter, wish => !!wish?.gift)
 				.partitions()
@@ -492,7 +547,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.count();
 
 			return Paginator.create(wishGranters)
-				.setPageHeader(`Wishes are being ${this.data.stage === "pinchGranting" ? "pinch-" : ""}granted!`)
+				.setPageHeader(`Wishes are being ${/*this.data.stage === "pinchGranting" ? "pinch-" :*/ ""}granted!`)
 				.setPageDescription(`**${countCompleted}** out of **${wishGranters.length}** wish-granters have submitted gifts.\nHere's a list of the wish-granters and the status on their submissions:`)
 				.setColor("FFAA00")
 				.reply(message)
@@ -668,6 +723,43 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		for (const organiser of organisers)
 			organiser.user.send("Wish-matching complete! It's time to grant some wishes! 🪄");
 
+		return CommandResult.pass();
+	}
+
+	@Command("wish distribute cancel")
+	protected async onCommandWishDistributeCancel (message: CommandMessage) {
+		let organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		delete this.data.distributeTime;
+		this.data.markDirty();
+
+		this.logger.info("Cancelled gift distribution");
+		this.reply(message, new MessageEmbed()
+			.setTitle("Wish gift distribution has been cancelled.")
+			.setColor("FF0000"));
+		return CommandResult.pass();
+	}
+
+	@Command("wish distribute after")
+	protected async onCommandWishDistribute (message: CommandMessage, timeString: string) {
+		let organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		if (WishStage[this.data.stage] < WishStage.granting)
+			return this.reply(message, "It's too early to distribute wishes, it's not even the granting stage yet!")
+				.then(() => CommandResult.pass());
+
+		const time = getTime(timeString);
+		this.data.distributeTime = Date.now() + time;
+		this.data.markDirty();
+
+		this.logger.info(`Set gift distribution to occur after ${renderTime(time)}`);
+		this.reply(message, new MessageEmbed()
+			.setTitle(`Wish gift distribution is set to occur after ${renderTime(time)}`)
+			.setColor("00FF00"));
 		return CommandResult.pass();
 	}
 

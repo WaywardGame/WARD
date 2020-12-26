@@ -361,13 +361,13 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				timeout = t;
 				return this;
 			},
-			async reply (message: CommandMessage): Promise<{ message: Message, response: GuildEmoji | ReactionEmoji | undefined }> {
+			async reply (message: CommandMessage | User): Promise<{ message: Message, response: GuildEmoji | ReactionEmoji | undefined }> {
 				const optionDefinitions = options.map(([emoji, definition]) => `${emoji} \u200b ${definition}`);
 
 				if (Array.isArray(reply))
 					reply = reply[0];
 
-				reply = reply instanceof Message ? reply : await self.reply(message, new MessageEmbed()
+				reply = reply instanceof Message ? reply : await self.reply(message as CommandMessage, new MessageEmbed()
 					.setAuthor(_title, _image)
 					.setTitle(reply)
 					.setDescription(_description)
@@ -381,7 +381,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				})();
 
 				const collected = await reply.awaitReactions((react, user) =>
-					user.id === message.author.id
+					user.id === (message instanceof Message ? message.author : message).id
 					&& options.some(([emoji]) => emoji === (emoji instanceof Emoji ? react.emoji : react.emoji.name)),
 					{ max: 1, time: timeout });
 
@@ -397,7 +397,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					// 		.inherit(reply.embeds[0])
 					// 		.setFooter(cancelledMessage));
 
-					if (!(message.channel instanceof DMChannel))
+					if (!(reply.channel instanceof DMChannel))
 						await reply.reactions.removeAll();
 				}
 
@@ -431,7 +431,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			ended = true;
 
 			const result = collected?.first();
-			return result && result.emoji.name === "✅";
+			return result ? result.emoji.name === "✅" : false;
 		}
 
 		return {

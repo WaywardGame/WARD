@@ -1,5 +1,9 @@
+declare global {
+	type PromiseOr<T> = T | Promise<T>;
+}
+
 export async function sleep (ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
+	return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
 export async function never () {
