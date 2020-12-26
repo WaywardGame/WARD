@@ -44,7 +44,7 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 	@ImportPlugin("regulars")
 	private regularsPlugin: RegularsPlugin = undefined!;
 
-	private aboveRole?: Role;
+	private get aboveRole () { return this.config.aboveRole && this.guild.roles.cache.get(this.config.aboveRole); }
 
 	protected initData: undefined;
 
@@ -83,7 +83,6 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 			this.removeColor(member);
 		});
 
-		this.aboveRole = !this.config.aboveRole ? undefined : this.guild.roles.cache.find(role => role.name === this.config.aboveRole);
 		this.removeUnusedColorRoles();
 		if (this.config.mustBeRegular)
 			this.regularsPlugin.event.subscribe("becomeRegular", async (member: GuildMember) => {
@@ -155,7 +154,7 @@ I will not send any other notification messages, apologies for the interruption.
 				data: {
 					name: color,
 					color,
-					position: this.aboveRole && this.aboveRole.position + 1,
+					position: this.aboveRole && this.aboveRole.position + 1 || undefined,
 					permissions: [],
 				},
 			});
