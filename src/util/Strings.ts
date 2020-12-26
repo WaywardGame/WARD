@@ -1,6 +1,7 @@
 module Strings {
 	export const SPACER_DOT = " \u200b · \u200b ";
 	export const BLANK = "\u200b";
+	export const INDENT = "\u200b \u200b \u200b \u200b ";
 
 	export function sentence (text: string) {
 		return text[0].toUpperCase() + text.slice(1);

@@ -48,7 +48,7 @@ start();
 
 async function exitHandler (err?: NodeJS.Signals | Error) {
 	if (err && typeof err === "object" && "stack" in err) {
-		// console.log(err);
+		console.log(err);
 		Logger.error("main", err.stack);
 	}
 

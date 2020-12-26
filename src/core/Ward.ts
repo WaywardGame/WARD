@@ -6,6 +6,7 @@ import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
+import KingPlugin from "../plugins/KingPlugin";
 import { RegularsPlugin } from "../plugins/RegularsPlugin";
 import { RemindersPlugin } from "../plugins/ReminderPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
@@ -22,7 +23,7 @@ import Logger from "../util/Log";
 import { seconds } from "../util/Time";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
-import { Api, CommandFunction, CommandMessage, CommandMetadata, CommandResult, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
+import { Api, CommandFunction, CommandMessage, CommandMetadata, CommandResult, SYMBOL_COMMAND, SYMBOL_IMPORT_API_KEY, SYMBOL_IMPORT_PLUGINS_KEY, SYMBOL_IMPORT_PLUGIN_KEY } from "./Api";
 import { IConfig, IGuildConfig } from "./Config";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Importable } from "./Importable";
@@ -63,6 +64,7 @@ export class Ward {
 		this.addPlugin(new StoryPlugin());
 		this.addPlugin(new RemindersPlugin());
 		this.addPlugin(new WishPlugin());
+		this.addPlugin(new KingPlugin());
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
@@ -349,6 +351,12 @@ export class Ward {
 				metadata = Reflect.getMetadata(SYMBOL_IMPORT_PLUGIN_KEY, plugin, property);
 				if (metadata)
 					(plugin as any)[property] = this.plugins[metadata];
+
+				// import other plugins
+				const pluginFilter = Reflect.getMetadata(SYMBOL_IMPORT_PLUGINS_KEY, plugin, property);
+				if (pluginFilter)
+					Object.defineProperty(plugin, property, { get: () => Object.values(this.plugins).filter(pluginFilter) });
+
 			}
 		}
 
@@ -361,7 +369,14 @@ export class Ward {
 			if (this.isDisabledPlugin(pluginName)) continue;
 
 			const plugin = this.plugins[pluginName] as any;
-			for (const property of Object.getOwnPropertyNames(plugin.constructor.prototype)) {
+			let proto = plugin.__proto__;
+			const properties = new Set<string>();
+			while (proto !== ({}).constructor.prototype) {
+				properties.addFrom(Object.getOwnPropertyNames(proto));
+				proto = proto.__proto__;
+			}
+
+			for (const property of properties) {
 				let [commands, condition]: CommandMetadata = Reflect.getMetadata(SYMBOL_COMMAND, plugin, property) || [];
 				if (typeof commands === "function")
 					commands = commands(plugin);

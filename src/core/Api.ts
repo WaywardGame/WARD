@@ -18,6 +18,11 @@ export function ImportPlugin (toImport: string) {
 	return Reflect.metadata(SYMBOL_IMPORT_PLUGIN_KEY, toImport);
 }
 
+export const SYMBOL_IMPORT_PLUGINS_KEY = Symbol("import-plugins");
+export function ImportPlugins (filter: (plugin: Plugin) => boolean) {
+	return Reflect.metadata(SYMBOL_IMPORT_PLUGINS_KEY, filter);
+}
+
 export type CommandMessage = Message & {
 	command: string;
 	args: string[];
