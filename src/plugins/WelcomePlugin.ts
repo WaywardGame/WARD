@@ -27,7 +27,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 	protected initData: () => ({ welcomedUsers: [] });
 
-	private channel: TextChannel;
+	private get channel () { return this.guild.channels.cache.get(this.config.welcomeChannel) as TextChannel; }
 	private welcomeRoles: Role[];
 	private isWelcoming = false;
 	private get welcomedUsers () { return this.data.welcomedUsers; }
@@ -70,8 +70,6 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		if (this.isWelcoming) {
 			return;
 		}
-
-		this.channel = this.guild.channels.cache.get(this.config.welcomeChannel) as TextChannel;
 
 		this.isWelcoming = true;
 		await this.welcomeNewUsers();
