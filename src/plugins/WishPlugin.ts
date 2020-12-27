@@ -80,6 +80,29 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		return true;
 	}
 
+	@Command("wish csv")
+	protected async onCommandWishCSV (message: CommandMessage) {
+		let organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		const csv = `Wisher,Prompt,Wish-granter,Gift`
+			.newline(Object.entries(this.data.participants)
+				.filter(([, participant]) => participant!.gift)
+				.map(([participantId, participant]) => participant && [
+					this.guild.members.cache.get(participantId)?.displayName ?? "Unknown",
+					participant.wish,
+					this.guild.members.cache.get(participant.granter!)?.displayName ?? "Unknown",
+					participant.gift!.url]
+					.map(Strings.csvalue)
+					.join(","))
+				.filterNullish()
+				.join("\n"));
+
+		message.reply(new MessageAttachment(Buffer.from(csv, "utf8"), `wishes.csv`));
+		return CommandResult.pass();
+	}
+
 	@Command("wish message wisher")
 	protected async onMessageWisher (message: CommandMessage, ...text: string[]) {
 		if (!(message.channel instanceof DMChannel))
