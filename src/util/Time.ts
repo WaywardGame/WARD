@@ -162,5 +162,5 @@ export function getISODate (date = new Date()) {
 }
 
 export function getWeekNumber (date = new Date()) {
-	return Math.floor((date.getTime() - Date.UTC(date.getFullYear(), 0, 1)) / weeks(1));
+	return Math.floor(date.getTime() / weeks(1));
 }

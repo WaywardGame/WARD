@@ -238,7 +238,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		const writingDays = written.days!.entries()
 			.toArray(([date, count]) => ({
-				name: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+				name: date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" }),
 				value: Intl.NumberFormat().format(count),
 				inline: true,
 				date,
@@ -251,12 +251,14 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		for (let d = writingDays.length - 1; d >= -1; d--) {
 			const week = d === -1 ? -1 : getWeekNumber(writingDays[d].date);
 			if (week !== touchWeek || d === -1) {
-				if (weekCount)
+				if (weekCount) {
+					const weekName = touchWeek === thisWeek ? "this week" : touchWeek === thisWeek - 1 ? "last week" : `${thisWeek - touchWeek} weeks ago`;
 					writingDays.splice(d + 1, 0, {
 						name: `\u200b`,
-						value: `__**${Intl.NumberFormat().format(weekCount!)} words ${touchWeek === thisWeek ? "this week" : touchWeek === thisWeek - 1 ? "last week" : `${thisWeek - touchWeek} weeks ago`}**__`,
+						value: `__**${Intl.NumberFormat().format(weekCount!)} words ${weekName}**__`,
 						inline: false,
 					});
+				}
 
 				weekCount = 0;
 				touchWeek = week;
