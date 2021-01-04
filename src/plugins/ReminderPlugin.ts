@@ -4,6 +4,7 @@ import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Strings from "../util/Strings";
 import { days, getTime, minutes, renderTime } from "../util/Time";
 
@@ -135,7 +136,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 
 		this.logger.info(`${this.getName(message)} added a reminder for ${type} ${renderTime(time)}`);
 		this.reply(message, new MessageEmbed()
-			.setColor("00FF00")
+			.setColor(COLOR_GOOD)
 			.setTitle(Strings.trailing(255, Strings.sentence(`Added reminder: ${Strings.sentence(reminderMessage)}!`)))
 			.setDescription(reminderMessage.length > 255 - 17 ? Strings.sentence(`${reminderMessage}!`) : undefined)
 			.setFooter(type === "after" ? `This reminder will be sent once, after ${renderTime(time)}.`
@@ -184,7 +185,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 				.then(reply => CommandResult.fail(message, reply));
 
 		const remove = await this.yesOrNo("", new MessageEmbed()
-			.setColor("FF8800")
+			.setColor(COLOR_WARNING)
 			.setAuthor("Are you sure you want to remove this reminder?")
 			.setTitle(Strings.trailing(255, Strings.sentence(`${Strings.sentence(reminder.message)}!`)))
 			.setDescription(reminder.message.length > 254 ? Strings.sentence(`${reminder.message}!`) : undefined)
@@ -204,7 +205,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 
 		this.logger.info(`${this.getName(message)} removed a reminder for ${reminder.type} ${renderTime(reminder.time)}`);
 		this.reply(message, new MessageEmbed()
-			.setColor("FF0000")
+			.setColor(COLOR_BAD)
 			.setTitle(Strings.trailing(255, Strings.sentence(`Removed reminder: ${Strings.sentence(reminder.message)}!`)))
 			.setDescription(reminder.message.length > 255 - 19 ? Strings.sentence(`${reminder.message}!`) : undefined)
 			.setFooter(reminder.type === "after" ? `This reminder's only occurrence, ${renderTime(getTimeTill(reminder), { lowest: "second", zero: "any moment now", prefix: "in " })}, is skipped.`

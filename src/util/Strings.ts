@@ -49,7 +49,10 @@ module Strings {
 			return false;
 		}
 
-		return validProtocols.has(url.protocol);
+		if (!validProtocols.has(url.protocol))
+			return false;
+
+		return url;
 	}
 
 	const SYMBOL_SEARCH_TERMS = Symbol("SEARCH_TERMS");

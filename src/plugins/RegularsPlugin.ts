@@ -1,11 +1,12 @@
 import chalk from "chalk";
 import { GuildMember, Message, MessageEmbed, TextChannel, User } from "discord.js";
-import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
+import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
 import Strings from "../util/Strings";
 import { days, getTime, hours, minutes } from "../util/Time";
+import PronounsPlugin from "./PronounsPlugin";
 
 export interface ITrackedMember {
 	id: string;
@@ -75,6 +76,10 @@ enum CommandLanguage {
 }
 
 export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
+
+	@ImportPlugin("pronouns")
+	private pronouns: PronounsPlugin = undefined!;
+
 	public updateInterval = hours(12);
 	public autosaveInterval = minutes(5);
 
@@ -324,7 +329,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private async onMemberMessage (member: GuildMember) {
-		const pronouns = this.getPronouns(member);
+		const pronouns = this.pronouns.referTo(member);
 
 		const trackedMember = this.getTrackedMember(member.id);
 
@@ -551,7 +556,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const member = result.member;
 
-		const pronouns = this.getPronouns(member);
+		const pronouns = this.pronouns.referTo(member);
 
 		const trackedMember = this.getTrackedMember(member.id);
 		const amt = isNaN(+amtStr) ? 0 : +amtStr;
@@ -634,7 +639,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 			return CommandResult.pass();
 		}
 
-		const pronouns = this.getPronouns(member);
+		const pronouns = this.pronouns.referTo(member);
 
 		trackedMember.xp -= amt;
 		updatingMember.xp += amt;
@@ -694,7 +699,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		const donatedResult = this.autoDonate(trackedMember);
 		let result: string | undefined;
 		if (donatedResult) {
-			const pronouns = this.getPronouns(member);
+			const pronouns = this.pronouns.referTo(member);
 			const theirNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(updatingMember.xp)}`;
 			const yourNew = `new ${this.getScoreName()} is ${Intl.NumberFormat().format(trackedMember.xp)}`;
 			result = `To start with, you ${donatedResult}. ${Strings.sentence(pronouns.their)} ${theirNew}. Your ${yourNew}.`;

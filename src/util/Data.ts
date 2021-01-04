@@ -153,7 +153,7 @@ export class DataContainer<DATA extends {} = any> {
 	@Bound
 	public async load () {
 		if (!await FileSystem.exists(this.getPath())) {
-			this._data = this.host.initData();
+			this.reset();
 			return;
 		}
 
@@ -181,6 +181,11 @@ export class DataContainer<DATA extends {} = any> {
 	public async saveOpportunity () {
 		if (this.isDirty() || this.timeSinceLastSave > this.host.autosaveInterval)
 			return this.save();
+	}
+
+	public reset () {
+		this._data = this.host.initData();
+		this.markDirty();
 	}
 
 	private getPath () {

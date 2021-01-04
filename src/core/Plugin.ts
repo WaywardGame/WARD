@@ -1,27 +1,11 @@
 import { Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, MessageReaction, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
-import { IInjectionApi, Injector } from "../util/function/Inject";
 import Logger from "../util/Log";
 import { getTime, hours, minutes, never, seconds, TimeUnit } from "../util/Time";
 import { CommandMessage, ImportApi } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
 import { Importable } from "./Importable";
-
-enum Pronouns {
-	"she/her",
-	"he/him",
-	"they/them",
-	"it/its",
-}
-
-const pronounLanguage: Record<keyof typeof Pronouns, { they: string, are: string, them: string, their: string, theirs: string }> = {
-	"she/her": { they: "she", are: "is", them: "her", their: "her", theirs: "her" },
-	"he/him": { they: "he", are: "is", them: "him", their: "his", theirs: "his" },
-	"it/its": { they: "it", are: "is", them: "it", their: "its", theirs: "its" },
-	"they/them": { they: "they", are: "are", them: "them", their: "their", theirs: "theirs" },
-};
-
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
@@ -96,9 +80,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 	public constructor () {
 		super();
-		Injector.into<Plugin, "onStart", "pre">(null, "onStart", "pre")
-			.inject(this, this.onStartInternal);
-		Injector.register(this.constructor as Class<this>, this);
+		// Injector.into<Plugin, "onStart", "pre">(null, "onStart", "pre")
+		// 	.inject(this, this.onStartInternal);
+		// Injector.register(this.constructor as Class<this>, this);
 	}
 
 	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
@@ -130,16 +114,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public onStop () { }
 	public onMessage (message: Message) { }
 
-	private pronounRoles: Record<keyof typeof Pronouns, Role | undefined>;
-
-	private async onStartInternal (api: IInjectionApi<Plugin, "onStart", "pre">) {
-		this.pronounRoles = {
-			"she/her": await this.findRole("she/her"),
-			"he/him": await this.findRole("he/him", false),
-			"they/them": await this.findRole("they/them", false),
-			"it/its": await this.findRole("it/its", false),
-		};
-	}
+	// private async onStartInternal (api: IInjectionApi<Plugin, "onStart", "pre">) {
+	// 	this.pronounRoles = {
+	// 		"she/her": await this.findRole("she/her"),
+	// 		"he/him": await this.findRole("he/him", false),
+	// 		"they/them": await this.findRole("they/them", false),
+	// 		"it/its": await this.findRole("it/its", false),
+	// 	};
+	// }
 
 	public async reply (message: CommandMessage, reply: string | MessageEmbed | HelpContainerPlugin | HelpContainerCommand): Promise<ArrayOr<Message>>;
 	public async reply (message: CommandMessage, reply: string, embed?: MessageEmbed): Promise<ArrayOr<Message>>;
@@ -185,29 +167,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	}
 
 	/**
-	 * @param member Can be an ID, a tag, part of a display name, or part of a username
+	 * @param query Can be an ID, a tag, part of a display name, or part of a username
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected async findMember (member: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
-		member = member.toLowerCase();
-		let tag: string | undefined;
-
-		const splitMatch = member.match(/^(.*)(#\d{4})$/);
-		if (splitMatch)
-			[, member, tag] = splitMatch;
-
-		await this.guild.members.fetch({ force: true });
-		let results = this.guild.members.cache.filter(m => m.id === member);
-		if (!results.size)
-			results = this.guild.members.cache.filter(m => m.user.username.toLowerCase().includes(member));
-
-		if (!results.size)
-			results = this.guild.members.cache.filter(m => m.displayName.toLowerCase().includes(member));
-
-		if (tag)
-			results = results.filter(m => m.user.tag.endsWith(tag!));
-
+	protected async findMember (query: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
+		const results = await this.findMembers(query);
 		switch (results.size) {
 			case 0: return undefined;
 			case 1: return results.first();
@@ -215,41 +180,31 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		}
 	}
 
-	protected getPronouns (member?: Message | User | GuildMember): (typeof pronounLanguage)[keyof typeof Pronouns] {
-		if (!member)
-			return pronounLanguage["they/them"];
+	/**
+	 * @param query Can be an ID, a tag, part of a display name, or part of a username
+	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
+	 * and the matching member if one member matches
+	 */
+	protected async findMembers (query: string) {
+		query = query.toLowerCase();
+		let tag: string | undefined;
 
-		if (member instanceof Message)
-			member = member.member ?? member.author;
+		const splitMatch = query.match(/^(.*)(#\d{4})$/);
+		if (splitMatch)
+			[, query, tag] = splitMatch;
 
-		if (member instanceof User) {
-			member = this.guild.members.cache.get(member.id)!;
-			if (!member)
-				return pronounLanguage["they/them"];
-		}
+		await this.guild.members.fetch({ force: true });
+		let results = this.guild.members.cache.filter(m => m.id === query);
+		if (!results.size)
+			results = this.guild.members.cache.filter(m => m.user.username.toLowerCase().includes(query));
 
-		// const pronouns: (keyof typeof Pronouns)[] = [
-		// 	this.pronounRoles["she/her"]?.id && member.roles.has(this.pronounRoles["she/her"]?.id) && "she/her" as const,
-		// 	this.pronounRoles["he/him"]?.id && member.roles.has(this.pronounRoles["he/him"]?.id) && "he/him" as const,
-		// 	this.pronounRoles["it/its"]?.id && member.roles.has(this.pronounRoles["it/its"]?.id) && "it/its" as const,
-		// 	this.pronounRoles["they/them"]?.id && member.roles.has(this.pronounRoles["they/them"]?.id) && "they/them" as const,
-		// ].filterFalsey(true);
+		if (!results.size)
+			results = this.guild.members.cache.filter(m => m.displayName.toLowerCase().includes(query));
 
-		const pronouns: Record<keyof typeof Pronouns, boolean | "" | undefined> = {
-			"she/her": this.pronounRoles["she/her"]?.id && member.roles.cache.has(this.pronounRoles["she/her"]?.id),
-			"he/him": this.pronounRoles["he/him"]?.id && member.roles.cache.has(this.pronounRoles["he/him"]?.id),
-			"they/them": this.pronounRoles["they/them"]?.id && member.roles.cache.has(this.pronounRoles["they/them"]?.id),
-			"it/its": this.pronounRoles["it/its"]?.id && member.roles.cache.has(this.pronounRoles["it/its"]?.id),
-		};
+		if (tag)
+			results = results.filter(m => m.user.tag.endsWith(tag!));
 
-		const count = +Boolean(pronouns["she/her"]) + +Boolean(pronouns["he/him"]) + +Boolean(pronouns["it/its"]);
-		if (!count || (count > 1 && pronouns["they/them"]))
-			return pronounLanguage["they/them"];
-
-		return pronounLanguage[pronouns["she/her"] ? "she/her"
-			: pronouns["he/him"] ? "he/him"
-				: pronouns["it/its"] ? "it/its"
-					: "they/them"];
+		return results;
 	}
 
 	/**
@@ -332,11 +287,16 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let _title: string | undefined;
 		let _image: string | undefined;
 		let _description: string | undefined;
+		let _url: string | undefined;
 
 		return {
 			setIdentity (title?: string, image?: string) {
 				_title = title;
 				_image = image;
+				return this;
+			},
+			setURL (url?: string) {
+				_url = url;
 				return this;
 			},
 			setDescription (description?: string) {
@@ -370,6 +330,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 				reply = reply instanceof Message ? reply : await self.reply(message as CommandMessage, new MessageEmbed()
 					.setAuthor(_title, _image)
 					.setTitle(reply)
+					.setURL(_url)
 					.setDescription(_description)
 					.addField("\u200b", optionDefinitions.join(" \u200b · \u200b "))) as Message;
 
@@ -457,16 +418,19 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		let validator: ((value: Message) => true | string | undefined) | undefined;
 		const self = this;
 		let _title: string | undefined;
+		let _url: string | undefined;
 		let _image: string | undefined;
 		let _description: string | undefined;
 		let _maxLength: number | undefined;
 		let _color: ColorResolvable | undefined;
+		let _thumbnail: string | undefined;
 
 		type Result = { cancelled: true }
 			| {
 				cancelled: false;
 				message?: Message;
 				reaction?: MessageReaction;
+				value?: string;
 				apply<T extends { [key in K]?: string | undefined }, K extends keyof T> (to: T, prop: K): void;
 			};
 
@@ -474,6 +438,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			setIdentity (title?: string, image?: string) {
 				_title = title;
 				_image = image;
+				return this;
+			},
+			setURL (url?: string) {
+				_url = url;
+				return this;
+			},
+			setThumbnail (url?: string) {
+				_thumbnail = url;
 				return this;
 			},
 			setDescription (description?: string) {
@@ -510,6 +482,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 				const reply = await self.reply(message, new MessageEmbed()
 					.setColor(_color)
+					.setURL(_url)
+					.setThumbnail(_thumbnail)
 					.setAuthor(_title, _image)
 					.setTitle(prompt)
 					.setDescription(_description)
@@ -572,14 +546,21 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 						cancelled: false,
 						message: result instanceof Message ? result : undefined,
 						reaction: result && !(result instanceof Message) ? result : undefined,
-						apply (to: any, prop) {
+						get value () {
 							if (result instanceof Message)
-								to[prop] = result.content;
-							else if (result.emoji.name === "✅")
-								to[prop] = defaultValue;
+								return result.content;
+							else if (result?.emoji.name === "✅")
+								return defaultValue;
+							else
+								return undefined;
+						},
+						apply (to: any, prop) {
+							const value = this.value;
+							if (value)
+								to[prop] = value;
 							else
 								delete to[prop];
-						}
+						},
 					};
 				}
 			},

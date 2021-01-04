@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageAttachment, MessageEmbed, ReactionEmoji, User } from "discord.js";
-import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
+import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
@@ -9,6 +9,7 @@ import Bound from "../util/Bound";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
 import { days, getISODate, getWeekNumber, minutes, months, weeks, years } from "../util/Time";
+import PronounsPlugin from "./PronounsPlugin";
 
 interface IStoryConfig {
 
@@ -87,6 +88,9 @@ enum CommandLanguage {
 }
 
 export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
+
+	@ImportPlugin("pronouns")
+	private pronouns: PronounsPlugin = undefined!;
 
 	public getDefaultConfig () {
 		return {};
@@ -343,7 +347,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		}
 
 		delete this.data.authors[message.author.id];
-		this.logger.info(this.getName(message.author), `removed ${this.getPronouns(message.author).their} profile`);
+		this.logger.info(this.getName(message.author), `removed ${this.pronouns.referTo(message.author).their} profile`);
 		await this.reply(message, "Your author profile has been unregistered. 😭");
 		return CommandResult.pass();
 	}
@@ -759,7 +763,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 	private async saveAuthor (user: User | GuildMember, author: IAuthor) {
 		this.data.authors[user.id] = author;
 		await this.save();
-		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} profile`);
+		this.logger.info(this.getName(user), `updated ${this.pronouns.referTo(user).their} profile`);
 	}
 
 	private async registerStory (user: User | GuildMember, story: IStory) {
@@ -771,7 +775,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 			stories.push(story);
 
 		await this.save();
-		this.logger.info(this.getName(user), `updated ${this.getPronouns(user).their} story '${chalk.magentaBright(story.name)}'`);
+		this.logger.info(this.getName(user), `updated ${this.pronouns.referTo(user).their} story '${chalk.magentaBright(story.name)}'`);
 	}
 
 	private async handleStoryQuery (message: CommandMessage, queryArgs: string[]) {

@@ -7,6 +7,7 @@ import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import KingPlugin from "../plugins/KingPlugin";
+import PronounsPlugin from "../plugins/PronounsPlugin";
 import { RegularsPlugin } from "../plugins/RegularsPlugin";
 import { RemindersPlugin } from "../plugins/ReminderPlugin";
 import { RoleTogglePlugin } from "../plugins/RoleTogglePlugin";
@@ -65,6 +66,7 @@ export class Ward {
 		this.addPlugin(new RemindersPlugin());
 		this.addPlugin(new WishPlugin());
 		this.addPlugin(new KingPlugin());
+		this.addPlugin(new PronounsPlugin())
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
@@ -361,6 +363,7 @@ export class Ward {
 		}
 
 		this.registerCommand(["plugin", "update"], this.commandUpdatePlugin);
+		this.registerCommand(["plugin", "data", "reset"], this.commandResetPluginData);
 		this.registerCommand(["help"], this.commandHelp);
 		this.registerCommand(["restart"], this.commandRestart);
 		this.registerCommand(["backup"], this.commandBackup);
@@ -451,6 +454,23 @@ export class Ward {
 		plugin.logger.info(`Updating due to request from ${message.member?.displayName}`);
 		this.updatePlugin(plugin);
 		plugin.reply(message, `updated plugin ${pluginName}.`);
+		return CommandResult.pass();
+	}
+
+	@Bound
+	private commandResetPluginData (message: CommandMessage, pluginName: string) {
+		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
+			return CommandResult.pass();
+
+		const plugin = this.plugins[pluginName];
+		if (!plugin) {
+			return message.reply(`can't reset data for plugin ${pluginName}, not found.`)
+				.then(reply => CommandResult.fail(message, reply));
+		}
+
+		plugin.logger.info(`Resetting data due to request from ${message.member?.displayName}`);
+		plugin.data.reset();
+		plugin.reply(message, `reset data for plugin ${pluginName}.`);
 		return CommandResult.pass();
 	}
 

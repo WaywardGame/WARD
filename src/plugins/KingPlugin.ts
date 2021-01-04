@@ -1,11 +1,12 @@
 import { GuildMember, MessageEmbed } from "discord.js";
-import { CommandMessage, IField } from "../core/Api";
+import { CommandMessage, IField, ImportPlugin } from "../core/Api";
 import GamePlugin, { IGame, IGameBase } from "../core/GamePlugin";
 import { tuple } from "../util/Arrays";
 import { sleep } from "../util/Async";
 import Enums from "../util/Enums";
 import Strings from "../util/Strings";
 import { minutes } from "../util/Time";
+import PronounsPlugin from "./PronounsPlugin";
 
 enum Unit {
 	"🗡",
@@ -53,6 +54,9 @@ interface IKingGame extends IGame<IKingPlayer> {
 }
 
 export default class KingPlugin extends GamePlugin<IKingGame> {
+
+	@ImportPlugin("pronouns")
+	private pronouns: PronounsPlugin = undefined!;
 
 	public getDefaultId () {
 		return "king";
@@ -175,7 +179,7 @@ export default class KingPlugin extends GamePlugin<IKingGame> {
 		else if (livingPlayers.length === 1)
 			for (const player of players)
 				player.send(new MessageEmbed()
-					.setTitle(livingPlayers.includes(player) ? "All your enemies vanquished, your king still standing... you won!" : `${livingPlayers[0].displayName} vanquished all ${this.getPronouns(livingPlayers[0]).their} enemies and won!`)
+					.setTitle(livingPlayers.includes(player) ? "All your enemies vanquished, your king still standing... you won!" : `${livingPlayers[0].displayName} vanquished all ${this.pronouns.referTo(livingPlayers[0]).their} enemies and won!`)
 					.addField(Strings.BLANK, "**__Final Details__**")
 					.addFields(...playersSortedByCombatStrength));
 

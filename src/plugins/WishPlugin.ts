@@ -1,10 +1,11 @@
 import Stream from "@wayward/goodstream";
 import { DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
-import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
+import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
 import Strings from "../util/Strings";
 import { getTime, hours, minutes, renderTime } from "../util/Time";
+import PronounsPlugin from "./PronounsPlugin";
 
 export interface IWishParticipant {
 	wish: string;
@@ -37,6 +38,9 @@ export interface IWishData {
 }
 
 export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
+
+	@ImportPlugin("pronouns")
+	private pronouns: PronounsPlugin = undefined!;
 
 	public readonly updateInterval = minutes(1);
 
@@ -226,7 +230,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		this.reply(message, shouldUnwish ? "your wish has been taken back!" : "your wish is safe.");
 
 		if (shouldUnwish) {
-			this.logger.info(`${this.getName(message)} has taken back ${this.getPronouns(message).their} wish!`);
+			this.logger.info(`${this.getName(message)} has taken back ${this.pronouns.referTo(message).their} wish!`);
 			delete this.data.participants[message.author.id];
 		}
 
@@ -266,9 +270,9 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				return CommandResult.pass();
 		}
 
-		this.logger.info(`${this.getName(message)} is making/updating ${this.getPronouns(message).their} wish!`);
+		this.logger.info(`${this.getName(message)} is making/updating ${this.pronouns.referTo(message).their} wish!`);
 		const madeOrUpdated = await this.wishWizard(message, participant, isNewWish);
-		this.logger.info(`${this.getName(message)} has ${madeOrUpdated ? "made/updated" : "cancelled making/updating"} ${this.getPronouns(message).their} wish!`);
+		this.logger.info(`${this.getName(message)} has ${madeOrUpdated ? "made/updated" : "cancelled making/updating"} ${this.pronouns.referTo(message).their} wish!`);
 
 		if (madeOrUpdated && this.config.participant)
 			await message.member?.roles.add(this.config.participant);
@@ -374,7 +378,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return this.reply(message, `${granterName} is not assigned any wishes.`)
 				.then(() => CommandResult.pass());
 
-		const pronouns = this.getPronouns(granter);
+		const pronouns = this.pronouns.referTo(granter);
 		const confirm = await this.yesOrNo(undefined, new MessageEmbed()
 			.setColor("FF0000")
 			.setTitle(`Unassign **${granterName}** from the **${wishesToUnassign.length}** wish(es) ${pronouns.they} ${pronouns.are} assigned to?`))
@@ -485,7 +489,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			if (shouldDelete) {
 				delete wish.gift;
 				this.data.markDirty();
-				this.logger.info(`${message.member?.displayName} removed ${this.getPronouns(message).their} gift for ${this.getPronouns(message).their} wisher.`);
+				this.logger.info(`${message.member?.displayName} removed ${this.pronouns.referTo(message).their} gift for ${this.pronouns.referTo(message).their} wisher.`);
 				return this.reply(message, `${wisher?.displayName}'s gift was removed.`)
 					.then(() => CommandResult.pass());
 			}
@@ -512,7 +516,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		};
 		this.data.markDirty();
 
-		this.logger.info(`${message.member?.displayName} uploaded/updated the gift for ${this.getPronouns(message).their} wisher!`);
+		this.logger.info(`${message.member?.displayName} uploaded/updated the gift for ${this.pronouns.referTo(message).their} wisher!`);
 		const willBeGrantedMessage = await this.reply(message, new MessageEmbed()
 			.setTitle(`${wisher?.displayName}'s wish will be granted!`)
 			.addFields(
