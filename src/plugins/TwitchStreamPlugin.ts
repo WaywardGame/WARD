@@ -43,7 +43,9 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 
 	@ImportApi("twitch")
 	private twitch: Twitch = undefined!;
-	private warningChannel?: TextChannel;
+	private get warningChannel () {
+		return !this.config.warningChannel ? undefined : this.guild.channels.cache.get(this.config.warningChannel) as TextChannel;
+	};
 
 	private get trackedStreams () { return this.data.trackedStreams; }
 
@@ -54,9 +56,6 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	}
 
 	public async onUpdate () {
-		this.warningChannel = !this.config.warningChannel ? undefined
-			: this.guild.channels.cache.get(this.config.warningChannel) as TextChannel;
-
 		// this.log("Updating streams...");
 		const updateTime = Date.now();
 		try {
