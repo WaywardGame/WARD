@@ -285,7 +285,9 @@ export class Ward {
 		this.discord = new Client();
 		this.discord.on("error", console.error);
 		this.discord.on("disconnect", console.error);
+		const readyPromise = new Promise(resolve => this.discord!.once("ready", resolve));
 		await this.discord.login(this.config.apis.discord.token);
+		return readyPromise;
 	}
 	private async logout () {
 		await this.discord?.destroy();
