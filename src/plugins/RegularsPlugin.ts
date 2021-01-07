@@ -250,7 +250,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private async removeRegularFromMember (member?: GuildMember) {
-		if (member && !this.shouldUserBeRegular(member)) {
+		if (member && !this.shouldUserBeRegular(member) && member.roles.cache.has(this.config.role)) {
 			await member.roles.remove(this.config.role);
 			this.onRemoveMemberHandlers.forEach(handler => handler(member));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
