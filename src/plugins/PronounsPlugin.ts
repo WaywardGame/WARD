@@ -1,9 +1,11 @@
 import { DMChannel, GuildMember, Message, MessageEmbed, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
+import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import { tuple } from "../util/Arrays";
 import Bound from "../util/Bound";
-import { COLOR_WARNING } from "../util/Colors";
+import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Strings from "../util/Strings";
 
 export interface IPronounLanguage {
@@ -57,6 +59,15 @@ const PRONOUNS_GENERIC = {
 
 const pronounRoleRegex = /^[\w ]+\/[\w ]+$/;
 
+enum CommandLanguage {
+	PronounsDescription = "Gets your current pronouns, or if you have none, allows you to set them.",
+	PronounsQueryDescription = "Gets the pronouns of another member, or members.",
+	PronounsQueryArgumentUser = "A user's ID, partial username & tag, or partial display name.",
+	PronounsClearDescription = "Clears your pronouns.",
+	PronounsToggleDescription = "Toggles a set of generic pronouns.",
+	PronounsToggleArgumentPronouns = "Which pronouns to toggle.",
+}
+
 export default class PronounsPlugin extends Plugin<PronounsPluginConfig, PronounsPluginData> {
 	protected initData = () => ({ systems: {} });
 
@@ -84,8 +95,89 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		return this.getPronounLanguage(pronouns[0]);
 	}
 
+	private readonly help = new HelpContainerPlugin()
+		.addCommand("pronouns", CommandLanguage.PronounsDescription)
+		.addCommand("pronouns", CommandLanguage.PronounsToggleDescription, command => command
+			.addRawTextArgument("pronounsName", CommandLanguage.PronounsToggleArgumentPronouns, argument => argument
+				.addOptions(...Object.keys(PRONOUNS_GENERIC).map(pronounsId => tuple(pronounsId, `Toggle "${pronounsId}" pronouns.`)))))
+		.addCommand("pronouns clear", CommandLanguage.PronounsClearDescription)
+		.addCommand("pronouns", CommandLanguage.PronounsQueryDescription, command => command
+			.addArgument("user", CommandLanguage.PronounsQueryArgumentUser));
+
+	@Command(["help pronouns", "help pronoun", "pronoun help", "pronouns help"])
+	protected async commandHelp (message: CommandMessage) {
+		this.reply(message, this.help);
+		return CommandResult.pass();
+	}
+
+	@Command("pronouns clear")
+	protected async onCommandPronounsClear (message: CommandMessage) {
+		if (!this.data.systems[message.member?.id!])
+			return this.reply(message, "you have no pronouns set!")
+				.then(() => CommandResult.pass());
+
+		const confirmed = await this.yesOrNo(undefined, this.getPronounsEmbed(message.member!)
+			.setColor(COLOR_WARNING)
+			.setTitle("Are you sure you want to clear your pronouns?"))
+			.reply(message);
+
+		if (!confirmed)
+			return this.reply(message, "no changes were made!")
+				.then(() => CommandResult.pass());
+
+		delete this.data.systems[message.member!.id];
+		this.data.markDirty();
+
+		await this.updatePronouns(message.member!);
+
+		return this.reply(message, new MessageEmbed()
+			.setColor(COLOR_BAD)
+			.setTitle("Your pronouns have been reset!"))
+			.then(() => CommandResult.pass());
+	}
+
 	@Command("pronouns")
 	protected async onCommandPronouns (message: CommandMessage, query?: string) {
+		for (const [genericPronounsId, genericPronouns] of Object.entries(PRONOUNS_GENERIC)) {
+			if (query === genericPronounsId) {
+				let system = this.data.systems[message.author.id];
+				if (system?.members.length > 1)
+					break;
+
+				if (!system)
+					system = this.data.systems[message.author.id] = {
+						members: [
+							{
+								name: "",
+								pronouns: []
+							},
+						],
+					};
+
+				this.data.markDirty();
+
+				for (let i = 0; i < system.members[0].pronouns.length; i++) {
+					const pronouns = system.members[0].pronouns[i];
+					if ((Object.keys(pronouns) as (keyof IPronouns)[]).every(key => pronouns[key] === genericPronouns[key])) {
+						system.members[0].pronouns.splice(i, 1);
+						await this.updatePronouns(message.member!);
+						return this.reply(message, new MessageEmbed()
+							.setColor(COLOR_BAD)
+							.setTitle(`You have opted out of generic "${genericPronounsId}" pronouns.`)
+							.setDescription(`If you'd like to add custom pronouns, send the \`!pronouns\` command${message.channel instanceof DMChannel ? "" : " to me in a DM"}!`))
+							.then(() => CommandResult.pass());
+					}
+				}
+
+				system.members[0].pronouns.push(genericPronouns);
+				await this.updatePronouns(message.member!);
+				return this.reply(message, new MessageEmbed()
+					.setColor(COLOR_GOOD)
+					.setTitle(`You have opted into generic "${genericPronounsId}" pronouns.`))
+					.then(() => CommandResult.pass());
+			}
+		}
+
 		if (query)
 			return (await this.findMembers(query))
 				.values()
@@ -95,19 +187,27 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 				.reply(message)
 				.then(() => CommandResult.pass());
 
-		if (!(message.channel instanceof DMChannel) || !message.member)
-			return this.reply(message, this.getPronounsEmbed(message.member!)
-				.setFooter("If you want to change your pronouns, use this command in a DM with me!"))
-				.then(() => CommandResult.pass());
-
 		if (!message.member)
 			return CommandResult.pass();
 
 		const system = this.getSystem(message.member) ?? { members: [] };
-		if (!system.members.length)
-			await this.addNewOrEditSystemMember(message, system);
+		if ((!(message.channel instanceof DMChannel) || !message.member) && system.members.length && (system.members.length !== 1 || system.members[0].pronouns.length))
+			return this.reply(message, this.getPronounsEmbed(message.member!)
+				.setFooter("If you want to change your pronouns, use this command in a DM with me!"))
+				.then(() => CommandResult.pass());
 
-		while (true) {
+		let savedMessage = "Saved pronouns!";
+		let shouldDoFullConfiguration = true;
+		if (!system.members.length || (system.members.length === 1 && !system.members[0].pronouns.length)) {
+			await this.addNewOrEditSystemMember(message, system, system.members[0]);
+			if (!(message.channel instanceof DMChannel)) {
+				shouldDoFullConfiguration = false;
+				const pronouns = system.members[0].pronouns[0];
+				savedMessage = `You have opted into ${pronouns.subjective}/${pronouns.objective} pronouns!`;
+			}
+		}
+
+		while (shouldDoFullConfiguration) {
 			const response = await Paginator.create(system.members, (systemMember, p, i) => new MessageEmbed()
 				.setAuthor(`${system.members.length > 1 ? "System of " : ""}${message.member?.displayName}`, message.author.avatarURL() ?? undefined)
 				.setTitle(system.members.length <= 1 ? undefined : `#${i + 1}. ${systemMember.name}`)
@@ -160,7 +260,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 
 		await this.reply(message, new MessageEmbed()
 			.setColor("00FF00")
-			.setTitle("Saved pronouns!"));
+			.setTitle(savedMessage));
 
 		return CommandResult.pass();
 	}
@@ -172,7 +272,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		}
 
 		const system = this.getSystem(member)!;
-		for (const systemMember of system.members)
+		for (const systemMember of system?.members || [])
 			for (const pronouns of systemMember.pronouns) {
 				const roleName = `${pronouns.subjective}/${pronouns.objective}`;
 				let role = this.guild.roles.cache.find(role => role.name === roleName);
@@ -256,7 +356,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		if (isNewMember)
 			await this.addNewOrEditPronouns(message, system, systemMember); // add initial pronouns for member
 
-		if (system.members.length === 1 && !isNewMember && systemMember.pronouns.length === 1)
+		if (system.members.length === 1 && !isNewMember && systemMember.pronouns.length <= 1)
 			return this.addNewOrEditPronouns(message, system, systemMember, systemMember.pronouns[0]);
 
 		// prompt system member pronouns (link to pronoun dressing room)
@@ -406,6 +506,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 			return system.members.map(systemMember => ({
 				name: systemMember.name,
 				value: Strings.INDENT.join(this.getPronounFields(systemMember.pronouns, systemMember.name)
+					.filter(({ name }) => systemMember.pronouns.length < 4 ? true : !name.includes("Examples"))
 					.map(pronoun => `${pronoun.name}: **${pronoun.value}**`)
 					.join(`\n${Strings.INDENT}`)),
 			}));
@@ -414,6 +515,9 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 	}
 
 	private getPronounFields (pronouns: IPronouns[], name?: string): IField[] {
+		if (!pronouns.length)
+			return [];
+
 		return [
 			{ name: "Subjective", value: pronouns.map(pronoun => pronoun.subjective).join(", ") },
 			{ name: "Objective", value: pronouns.map(pronoun => pronoun.objective).join(", ") },
