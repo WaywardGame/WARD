@@ -421,7 +421,7 @@ export class Ward {
 			|| (!all && message.member?.permissions.has("ADMINISTRATOR"));
 
 		if (canRunCommand) {
-			await message.author.send(`Restarting${all ? " every instance" : ""}...`);
+			await message.reply(`restarting${all ? " every instance" : ""}...`);
 			this.event.emit("restart", all);
 		}
 
