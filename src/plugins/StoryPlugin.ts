@@ -313,7 +313,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		await this.saveAuthor(message.author, author);
 
-		const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+		const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
 		return this.reply(message, `${isNaN(wordCount) || wordCount < 0 ? "removed" : "added"} **${clear ? "all" : Math.abs(wordCount)}** words ${isNaN(wordCount) || wordCount < 0 ? "from" : "to"} **${dateStr}**.  (${dateStr}: ${author.wordTracker[today] || 0}  ·  Overall: ${this.getWordsWritten(message.author).count || 0})`)
 			.then(() => CommandResult.pass());
 	}
