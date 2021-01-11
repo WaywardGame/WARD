@@ -5,7 +5,7 @@ import { Plugin } from "../core/Plugin";
 import { RegularsPlugin } from "./RegularsPlugin";
 
 
-const colorRegex = /#[A-F0-9]{6}/;
+const colorRegex = /^#[A-F0-9]{6}$/;
 function parseColorInput (color: string) {
 	color = color.toUpperCase();
 
@@ -17,7 +17,12 @@ function parseColorInput (color: string) {
 			.map(v => `${v}${v}`)
 			.join("");
 
-	return `#${color}`;
+	color = `#${color}`;
+
+	if (!colorRegex.test(color))
+		return undefined;
+
+	return color;
 }
 
 export interface IColorsConfig {
@@ -134,6 +139,8 @@ I will not send any other notification messages, apologies for the interruption.
 
 	private async getColorRole (color: string) {
 		const colorParsed = parseColorInput(color);
+		if (!colorParsed)
+			return undefined;
 
 		if (this.config.anyColor && colorRegex.test(colorParsed)) {
 			color = colorParsed;
