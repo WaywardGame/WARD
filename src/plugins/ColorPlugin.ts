@@ -138,21 +138,25 @@ I will not send any other notification messages, apologies for the interruption.
 	}
 
 	private async getColorRole (color: string) {
-		const colorParsed = parseColorInput(color);
-		if (!colorParsed)
-			return undefined;
-
-		if (this.config.anyColor && colorRegex.test(colorParsed)) {
-			color = colorParsed;
-
-		} else if (this.config.colors) {
+		if (this.config.colors) {
 			const match = Object.entries(this.config.colors)
 				.find(([, aliases]) => aliases
 					.some(alias => alias.toLowerCase() === color.toLowerCase()));
 
-			if (!match) return undefined;
+			if (!match)
+				return undefined;
+
 			color = match[0];
-		}
+
+		} else if (this.config.anyColor) {
+			const colorParsed = parseColorInput(color);
+			if (!colorParsed)
+				return undefined;
+
+			color = colorParsed;
+
+		} else
+			return undefined;
 
 		let colorRole = this.guild.roles.cache.find(role => role.name.toLowerCase() === color.toLowerCase());
 		if (!colorRole && colorRegex.test(color)) {
