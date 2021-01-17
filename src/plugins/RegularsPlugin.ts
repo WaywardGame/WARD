@@ -178,7 +178,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const regularRemoveWarning = this.config.removeRegularWarning ?? 10;
 		if (shouldDrop.length < regularRemoveWarning) {
-			this.checkRegularUntracked();
+			await this.dropTrackedMembers();
 			return;
 		}
 
