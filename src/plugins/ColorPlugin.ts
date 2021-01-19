@@ -81,11 +81,11 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 	}
 
 	public async onStart () {
-		this.regularsPlugin.onRemoveMember(member => {
+		this.regularsPlugin.onRemoveMember(async member => {
 			if (!this.config.mustBeRegular)
 				return;
 
-			this.removeColor(member);
+			await this.removeColor(member);
 		});
 
 		this.removeUnusedColorRoles();

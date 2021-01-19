@@ -53,6 +53,7 @@ export interface IRegularsConfig {
 	commands?: false | Partial<typeof baseCommands>;
 	role: string;
 	removeRegularWarning?: number;
+	rolesWithRegular?: string[];
 }
 
 enum CommandLanguage {
@@ -221,7 +222,9 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private async checkRegularUntracked (remove = false) {
 		const membersRegularAndUntracked = (await this.guild.members.fetch({ force: true }))
-			.filter(member => !this.getTrackedMember(member.id, false) && member.roles.cache.has(this.config.role) && !this.isMod(member));
+			.filter(member => !this.getTrackedMember(member.id, false) // is untracked
+				&& member.roles.cache.has(this.config.role) // is regular
+				&& !this.shouldUserBeRegular(member)); // should not be regular
 
 		let removed: string[] = [];
 		for (const [, member] of membersRegularAndUntracked) {
@@ -252,7 +255,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	private async removeRegularFromMember (member?: GuildMember) {
 		if (member && !this.shouldUserBeRegular(member) && member.roles.cache.has(this.config.role)) {
 			await member.roles.remove(this.config.role);
-			this.onRemoveMemberHandlers.forEach(handler => handler(member));
+			await Promise.all(this.onRemoveMemberHandlers.map(handler => handler(member)));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
 			return true;
 		}
@@ -311,8 +314,10 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		const trackedMember = user && this.getTrackedMember(user.id, false);
 
-		return !user ? false : this.isMod(user)
-			|| (!trackedMember ? false : trackedMember.xp > this.config.regularMilestoneXp);
+		return !user ? false
+			: this.isMod(user)
+			|| (!trackedMember ? false : trackedMember.xp > this.config.regularMilestoneXp)
+			|| this.doesMemberHaveRegularFromOtherRole(user);
 	}
 
 	public onRemoveMember (handler: (member: GuildMember) => any) {
@@ -449,6 +454,11 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	private isMod (member?: GuildMember | null): member is GuildMember {
 		return !!member && member.permissions.has("MANAGE_ROLES");
+	}
+
+	private doesMemberHaveRegularFromOtherRole (member?: GuildMember | null) {
+		return !this.config.rolesWithRegular ? false
+			: !!member && this.config.rolesWithRegular.some(role => member.roles.cache.has(role));
 	}
 
 	private getCommandName (command: keyof Exclude<IRegularsConfig["commands"], false | undefined>) {
