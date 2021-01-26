@@ -1,10 +1,11 @@
 import Stream from "@wayward/goodstream";
 import chalk from "chalk";
-import { Client, Guild, Message, PartialMessage } from "discord.js";
+import { Client, Guild, GuildMember, Message, MessageReaction, PartialMessage, User } from "discord.js";
 import { EventEmitter } from "events";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
+import { CrossPostPlugin } from "../plugins/CrossPostPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import KingPlugin from "../plugins/KingPlugin";
 import PronounsPlugin from "../plugins/PronounsPlugin";
@@ -66,7 +67,8 @@ export class Ward {
 		this.addPlugin(new RemindersPlugin());
 		this.addPlugin(new WishPlugin());
 		this.addPlugin(new KingPlugin());
-		this.addPlugin(new PronounsPlugin())
+		this.addPlugin(new PronounsPlugin());
+		this.addPlugin(new CrossPostPlugin());
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
@@ -104,6 +106,9 @@ export class Ward {
 		await this.pluginHookStart();
 
 		this.discord!.addListener("message", m => this.onMessage(m));
+		this.discord!.addListener("messageUpdate", (o, n) => this.onEdit(o, n));
+		this.discord!.addListener("messageDelete", m => this.onDelete(m));
+		this.discord!.addListener("messageReactionAdd", (r, u) => this.onReaction(r, u));
 		// this.discord.addListener("guildMemberUpdate", member => this.onMemberUpdate(member));
 
 		this.logger.verbose("Entering main process");
@@ -215,6 +220,46 @@ export class Ward {
 
 		else
 			this.pluginHookMessage(message);
+	}
+
+	private onEdit (oldMessage: Message, message: Message) {
+		if (message.author.bot)
+			return;
+
+		if (!oldMessage.member)
+			Object.defineProperty(oldMessage, "member", { value: this.guild.members.cache.get(message.author.id) });
+
+		if (!message.member)
+			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });
+
+		if (!message.member)
+			return;
+
+		this.pluginHookEdit(oldMessage, message);
+	}
+
+	private onReaction (reaction: MessageReaction, user: User) {
+		if (user.bot)
+			return;
+
+		const member = this.guild.members.cache.get(user.id);
+		if (!member)
+			return;
+
+		this.pluginHookReaction(reaction, member);
+	}
+
+	private onDelete (message: Message) {
+		if (message.author.bot)
+			return;
+
+		if (!message.member)
+			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });;
+
+		if (!message.member)
+			return;
+
+		this.pluginHookDelete(message);
 	}
 
 	private onCommand (message: Message) {
@@ -525,6 +570,42 @@ export class Ward {
 			const plugin = this.plugins[pluginName];
 			if (plugin.onMessage)
 				plugin.onMessage(message);
+
+			plugin.data.saveOpportunity();
+		}
+	}
+
+	private async pluginHookEdit (oldMessage: Message, message: Message) {
+		for (const pluginName in this.plugins) {
+			if (this.isDisabledPlugin(pluginName)) continue;
+
+			const plugin = this.plugins[pluginName];
+			if (plugin.onEdit)
+				plugin.onEdit(message, oldMessage);
+
+			plugin.data.saveOpportunity();
+		}
+	}
+
+	private async pluginHookReaction (reaction: MessageReaction, member: GuildMember) {
+		for (const pluginName in this.plugins) {
+			if (this.isDisabledPlugin(pluginName)) continue;
+
+			const plugin = this.plugins[pluginName];
+			if (plugin.onReaction)
+				plugin.onReaction(reaction, member);
+
+			plugin.data.saveOpportunity();
+		}
+	}
+
+	private async pluginHookDelete (message: Message) {
+		for (const pluginName in this.plugins) {
+			if (this.isDisabledPlugin(pluginName)) continue;
+
+			const plugin = this.plugins[pluginName];
+			if (plugin.onDelete)
+				plugin.onDelete(message);
 
 			plugin.data.saveOpportunity();
 		}

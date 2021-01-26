@@ -113,6 +113,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	public onStart () { }
 	public onStop () { }
 	public onMessage (message: Message) { }
+	public onEdit (message: Message, oldMessage: Message) { }
+	public onDelete (message: Message) { }
+	public onReaction (messageReaction: MessageReaction, member: GuildMember) { }
 
 	// private async onStartInternal (api: IInjectionApi<Plugin, "onStart", "pre">) {
 	// 	this.pronounRoles = {
