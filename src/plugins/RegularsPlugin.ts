@@ -4,6 +4,7 @@ import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "..
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
 import { Plugin } from "../core/Plugin";
+import Random from "../util/Random";
 import Strings from "../util/Strings";
 import { days, getTime, hours, minutes } from "../util/Time";
 import PronounsPlugin from "./PronounsPlugin";
@@ -473,63 +474,82 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		let member = message.member;
 
 		if (queryMember) {
-			const result = this.validateFindResult(await this.findMember(queryMember));
-			if (result.error !== undefined)
-				return this.reply(message, result.error)
+			const result = await this.findMember(queryMember);
+			if (!result)
+				return this.reply(message, `I couldn't find a member matching "${queryMember}"`)
 					.then(reply => CommandResult.fail(message, reply));
 
-			member = result.member;
+			if (!(result instanceof GuildMember))
+				return Paginator.create(result.values(), this.getXPEmbed(message))
+					.reply(message)
+					.then(() => CommandResult.pass());
+
+			member = result;
 		}
 
-		if (!member)
-			return CommandResult.pass();
-
-		const memberName = member.displayName;
-
-		if (member.user.bot) {
-			const who = member.id == this.user.id ? `my ${this.getScoreName()}` : `the ${this.getScoreName()} of ${memberName}`;
-			this.reply(message, `having existed since before the beginning of time itself, ${who} cannot be represented in a number system of mortals.`);
-			return CommandResult.pass();
-		}
-
-		const trackedMember = this.members[member.id];
-		if (!trackedMember) {
-			this.reply(message, queryMember ?
-				`${memberName} has not gained ${this.getScoreName()} yet.` :
-				`you have not gained ${this.getScoreName()} yet.`,
-			);
-
-			return CommandResult.pass();
-		}
-
-		const days = this.members[member.id].daysVisited;
-		const multiplier = this.getMultiplier(days);
-		const multiplierFloored = Math.floor(multiplier);
-		const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
-		const today = this.getToday();
-		const daysAway = today - trackedMember.lastDay;
-		const daysTillXpLoss = Math.max(0, this.config.daysBeforeXpLoss - daysAway);
-
-		this.reply(message, new MessageEmbed()
-			.setAuthor(memberName, member.user.avatarURL() ?? undefined)
-			.setTitle(`${Intl.NumberFormat().format(trackedMember.xp)} ${this.getScoreName()}`)
-			.addFields(
-				!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${daysAway} days` }
-					: trackedMember.lastDay < today ? { name: "Not chatted today!", value: "Come on... say something! We're fun!" } : undefined,
-				{ name: "Days chatted", value: `${days}${days === 69 ? " (nice)" : ""}`, inline: true },
-				...trackedMember.lastDay < today - 1
-					? (!daysTillXpLoss ? [] : [
-						{ name: "Days away", value: `${daysAway}`, inline: true },
-						{ name: `Days till ${this.getScoreName()} loss`, value: `${daysTillXpLoss}`, inline: true }
-					])
-					: [
-						{ name: "Streak", value: `${trackedMember.streak ?? 0}${trackedMember.streak === 69 ? " (nice)" : ""}`, inline: true },
-						{ name: "Multiplier", value: `${Intl.NumberFormat().format(multiplier)}x`, inline: true },
-						{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: `${daysUntilMultiplierUp}`, inline: true },
-					])
-		);
+		if (member)
+			await this.reply(message, this.getXPEmbed(message)(member));
 
 		return CommandResult.pass();
+	}
+
+	private getXPEmbed (message: Message) {
+		return (member: GuildMember) => {
+			const you = member.id === message.member!.id;
+			const memberName = member.displayName;
+
+			if (member.user.bot)
+				return new MessageEmbed()
+					.setAuthor(memberName, member.user.avatarURL() ?? undefined)
+					.setTitle(`${Strings.corrupted(3 + Math.floor(Math.random() * 8))} ${this.getScoreName()}`)
+					.addFields(
+						{ name: "Days chatted", value: Strings.corrupted(1 + Math.floor(Math.random() * 5)), inline: true },
+						{ name: "Streak", value: Strings.corrupted(1 + Math.floor(Math.random() * 5)), inline: true },
+						{ name: "Multiplier", value: `${Strings.corrupted(1 + Math.floor(Math.random() * 3))}x`, inline: true },
+						{ name: `Days chatted till ${Strings.corrupted(1 + Math.floor(Math.random() * 3))}x multiplier`, value: `${Strings.corrupted(1 + Math.floor(Math.random() * 3))}`, inline: true },
+					)
+					.setFooter(Random.choice("If you thought you could understand an existence beyond your own, you were wrong.",
+						"Bow to me, mortal.",
+						">:3c",
+						"im powerful",
+						"ehehehe~",
+						`B E Y O N D ${Strings.NBSP} C O M P R E H E N S I O N`,
+						`An incomprehensible amount more ${this.getScoreName()} than the pitiful ${Intl.NumberFormat().format(this.getTrackedMember(message.member!.id).xp ?? 0)} ${this.getScoreName()} that you have.`));
+
+			const pronouns = this.pronouns.referTo(you ? "you" : member);
+			const trackedMember = this.members[member.id];
+			if (!trackedMember)
+				return new MessageEmbed()
+					.setAuthor(memberName, member.user.avatarURL() ?? undefined)
+					.setTitle(`No ${this.getScoreName()}`)
+					.setDescription(Strings.sentence(`${pronouns.they} ${pronouns.are} not currently tracked — either ${pronouns.they} ${pronouns.have} not sent a message or ${pronouns.their} ${this.getScoreName()} decayed below zero.`));
+
+			const days = this.members[member.id].daysVisited;
+			const multiplier = this.getMultiplier(days);
+			const multiplierFloored = Math.floor(multiplier);
+			const daysUntilMultiplierUp = this.xpMultiplierIncreaseDays.get(multiplierFloored + 1)! - days;
+			const today = this.getToday();
+			const daysAway = today - trackedMember.lastDay;
+			const daysTillXpLoss = Math.max(0, this.config.daysBeforeXpLoss - daysAway);
+
+			return new MessageEmbed()
+				.setAuthor(memberName, member.user.avatarURL() ?? undefined)
+				.setTitle(`${Intl.NumberFormat().format(trackedMember.xp)} ${this.getScoreName()}`)
+				.addFields(
+					!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${daysAway} days` }
+						: trackedMember.lastDay < today ? { name: "Not chatted today!", value: "Come on... say something! We're fun!" } : undefined,
+					{ name: "Days chatted", value: `${days}${days === 69 ? " (nice)" : ""}`, inline: true },
+					...trackedMember.lastDay < today - 1
+						? (!daysTillXpLoss ? [] : [
+							{ name: "Days away", value: `${daysAway}`, inline: true },
+							{ name: `Days till ${this.getScoreName()} loss`, value: `${daysTillXpLoss}`, inline: true }
+						])
+						: [
+							{ name: "Streak", value: `${trackedMember.streak ?? 0}${trackedMember.streak === 69 ? " (nice)" : ""}`, inline: true },
+							{ name: "Multiplier", value: `${Intl.NumberFormat().format(multiplier)}x`, inline: true },
+							{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: `${daysUntilMultiplierUp}`, inline: true },
+						]);
+		};
 	}
 
 	@Command<RegularsPlugin>(p => p.getCommandName("rankings"), p => p.config.commands !== false)

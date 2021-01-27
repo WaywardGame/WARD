@@ -1,7 +1,10 @@
+const zalgo = require("to-zalgo");
+
 module Strings {
 	export const SPACER_DOT = " \u200b · \u200b ";
 	export const BLANK = "\u200b";
 	export const INDENT = "\u200b \u200b \u200b \u200b ";
+	export const NBSP = "\u200b";
 
 	export function csvalue (text: string) {
 		return text.includes(",") || text.includes("\n") ? `"${text.replace(/"/g, '""')}"` : text;
@@ -135,6 +138,21 @@ module Strings {
 
 			yield result;
 		}
+	}
+
+	export function corrupted (length: number): string {
+		if (length <= 0)
+			return "";
+
+		let result = "";
+		while (!result) {
+			for (let i = 0; i < length; i++)
+				result += String.fromCharCode(Math.floor(Math.random() * 1000));
+
+			result = (zalgo(result) as string).trim();
+		}
+
+		return result;
 	}
 }
 
