@@ -523,7 +523,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 						{ name: `Days till ${this.getScoreName()} loss`, value: `${daysTillXpLoss}`, inline: true }
 					])
 					: [
-						{ name: "Streak", value: `${trackedMember.streak ?? 0}`, inline: true },
+						{ name: "Streak", value: `${trackedMember.streak ?? 0}${trackedMember.streak === 69 ? " (nice)" : ""}`, inline: true },
 						{ name: "Multiplier", value: `${Intl.NumberFormat().format(multiplier)}x`, inline: true },
 						{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: `${daysUntilMultiplierUp}`, inline: true },
 					])
