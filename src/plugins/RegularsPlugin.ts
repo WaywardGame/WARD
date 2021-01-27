@@ -256,8 +256,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		if (member && !this.shouldUserBeRegular(member) && member.roles.cache.has(this.config.role)) {
 			await member.roles.remove(this.config.role)
 				.catch(err => this.logger.warning("Could not remove regular from member", member.displayName, err.message));
-			await Promise.all(this.onRemoveMemberHandlers.map(handler => handler(member)));
 			this.logger.info(`Removed regular from member '${this.getMemberName(member)}'`);
+			await Promise.all(this.onRemoveMemberHandlers.map(handler => handler(member)));
 			return true;
 		}
 
