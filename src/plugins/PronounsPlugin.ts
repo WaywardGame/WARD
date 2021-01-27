@@ -52,9 +52,10 @@ function pronouns (subjective: string, objective: string, possessiveDeterminer: 
 
 const PRONOUNS_GENERIC = {
 	"she/her": pronouns("she", "her", "her", "hers", "herself"),
-	"they/them": pronouns("they", "them", "their", "theirs", "themself", undefined, "are"),
+	"they/them": pronouns("they", "them", "their", "theirs", "themself", undefined, "are", "have"),
 	"he/him": pronouns("he", "him", "his", "his", "himself"),
 	"it/its": pronouns("it", "it", "its", "its", "itself"),
+	"you/your": pronouns("you", "you", "your", "yours", "yourself", undefined, "are", "have"),
 };
 
 const pronounRoleRegex = /^[\w ]+\/[\w ]+$/;
@@ -81,7 +82,10 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		return {};
 	}
 
-	public referTo (member?: GuildMember | User | Message) {
+	public referTo (member?: GuildMember | User | Message | "you") {
+		if (member === "you")
+			return this.getPronounLanguage(PRONOUNS_GENERIC["you/your"]);
+
 		if (member instanceof User)
 			member = this.guild.members.cache.get(member.id);
 
@@ -89,10 +93,10 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 			member = member.member ?? undefined;
 
 		const pronouns = member && this.getSystem(member);
-		if (!Array.isArray(pronouns) || !pronouns.length)
+		if (!pronouns || pronouns.members.length > 1)
 			return this.getPronounLanguage(PRONOUNS_GENERIC["they/them"]);
 
-		return this.getPronounLanguage(pronouns[0]);
+		return this.getPronounLanguage(pronouns.members[0].pronouns[0]);
 	}
 
 	private readonly help = new HelpContainerPlugin()
@@ -566,7 +570,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 			their: pronouns.possessiveDeterminer,
 			theirs: pronouns.possessivePronoun,
 			are: pronouns.are ?? "is",
-			have: pronouns.have ?? "have",
+			have: pronouns.have ?? "has",
 		};
 	}
 }
