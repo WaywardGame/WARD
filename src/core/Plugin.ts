@@ -593,4 +593,19 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		return channel.messages.fetch(messageId)
 			.catch(() => undefined);
 	}
+
+	protected async ensureMember (message: Message) {
+		if (message.member)
+			return true;
+
+		let member = this.guild.members.cache.get(message.author.id);
+		if (!member)
+			member = await this.guild.members.fetch(message.author.id);
+
+		if (!member)
+			return false;
+
+		Object.defineProperty(message, "member", { value: member, configurable: true });
+		return true;
+	}
 }

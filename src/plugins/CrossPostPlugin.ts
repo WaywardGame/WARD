@@ -77,11 +77,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 					continue;
 				}
 
-				if (!message.member)
-					Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });
-
-				if (!message.member) {
-					this.logger.warning("Unable to find member", message.author.username);
+				if (!await this.ensureMember(message)) {
+					this.logger.warning("Message has no member", message.author.username);
 					continue;
 				}
 

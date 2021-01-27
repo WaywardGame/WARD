@@ -202,17 +202,14 @@ export class Ward {
 		return id;
 	}
 
-	private onMessage (message: Message) {
+	private async onMessage (message: Message) {
 		if (message.author.bot)
 			return;
 
 		if (message.channel.isAwaitingMessages(message))
 			return;
 
-		if (!message.member)
-			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });;
-
-		if (!message.member)
+		if (!await this.ensureMember(message))
 			return;
 
 		if (message.content.startsWith(this.commandPrefix))
@@ -222,17 +219,11 @@ export class Ward {
 			this.pluginHookMessage(message);
 	}
 
-	private onEdit (oldMessage: Message, message: Message) {
+	private async onEdit (oldMessage: Message, message: Message) {
 		if (message.author.bot)
 			return;
 
-		if (!oldMessage.member)
-			Object.defineProperty(oldMessage, "member", { value: this.guild.members.cache.get(message.author.id) });
-
-		if (!message.member)
-			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });
-
-		if (!message.member)
+		if (!await this.ensureMember(message) || !await this.ensureMember(oldMessage))
 			return;
 
 		this.pluginHookEdit(oldMessage, message);
@@ -249,14 +240,11 @@ export class Ward {
 		this.pluginHookReaction(reaction, member);
 	}
 
-	private onDelete (message: Message) {
+	private async onDelete (message: Message) {
 		if (message.author.bot)
 			return;
 
-		if (!message.member)
-			Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });;
-
-		if (!message.member)
+		if (!await this.ensureMember(message))
 			return;
 
 		this.pluginHookDelete(message);
@@ -623,4 +611,19 @@ export class Ward {
 	// 	while (true)
 	// 		await sleep(99999999);
 	// }
+
+	private async ensureMember (message: Message) {
+		if (message.member)
+			return true;
+
+		let member = this.guild.members.cache.get(message.author.id);
+		if (!member)
+			member = await this.guild.members.fetch(message.author.id);
+
+		if (!member)
+			return false;
+
+		Object.defineProperty(message, "member", { value: member, configurable: true });
+		return true;
+	}
 }
