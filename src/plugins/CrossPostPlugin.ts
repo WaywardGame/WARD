@@ -6,6 +6,8 @@ import Arrays from "../util/Arrays";
 import Strings from "../util/Strings";
 import ogs = require("open-graph-scraper");
 
+const version = 2;
+
 interface IWatch {
 	channel: string;
 	postChannel: string;
@@ -24,7 +26,7 @@ export interface ICrossPostPluginConfig {
 }
 
 interface ICrossPost {
-	source: string;
+	source: [string, string];
 	crosspost: [string, string];
 	hash: number;
 	author: string;
@@ -57,6 +59,37 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 	public shouldExist (config: unknown) {
 		return !!config;
+	}
+
+	public async onStart () {
+		for (const [sourceChannelId, crosspostList] of Object.entries(this.data.crossposts)) {
+			const channel = this.guild.channels.cache.get(sourceChannelId);
+			if (!(channel instanceof TextChannel)) {
+				this.logger.warning("Could not find channel by ID", sourceChannelId);
+				continue;
+			}
+
+			for (const crosspost of crosspostList.slice(-25).reverse()) {
+				const [, sourceMessageId] = crosspost.source;
+				const message = await channel.messages.fetch(sourceMessageId);
+				if (!message) {
+					this.logger.warning(`Could not find source message in #${channel.name} by ID`, sourceMessageId);
+					continue;
+				}
+
+				if (!message.member)
+					Object.defineProperty(message, "member", { value: this.guild.members.cache.get(message.author.id) });
+
+				if (!message.member) {
+					this.logger.warning("Unable to find member", message.author.username);
+					continue;
+				}
+
+				const hash = this.hash(message);
+				if (crosspost.hash !== hash)
+					await this.updateCrosspost(message, crosspost, hash);
+			}
+		}
 	}
 
 	@Command("crosspost")
@@ -115,43 +148,60 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 	public async onEdit (message: Message) {
 		for (const crosspost of this.data.crossposts[message.channel.id] ?? []) {
-			const { crosspost: [crosspostChannelId, crosspostMessageId], source, gdocs } = crosspost;
-			if (source !== message.id)
+			const { source: [, sourceMessageId] } = crosspost;
+			if (sourceMessageId !== message.id)
 				continue;
 
 			const hash = this.hash(message);
 			if (crosspost.hash === hash)
 				continue; // hash is the same, don't bother
 
-			const channel = this.guild.channels.cache.get(crosspostChannelId) as TextChannel;
-			if (!channel) {
-				this.logger.warning("Could not edit crosspost, could not get channel by ID", crosspostChannelId);
-				continue;
-			}
-
-			const crosspostMessage = await channel.messages.fetch(crosspostMessageId);
-			if (!crosspostMessage) {
-				this.logger.warning("Could not edit crosspost, could not get message by ID", crosspostMessageId);
-				continue;
-			}
-
-			let openGraph: IEmbedDetails = {};
-			if (gdocs)
-				openGraph = await this.extractGDocs(message) ?? {};
-
-			await crosspostMessage.edit(this.createCrosspostEmbed(message, openGraph))
-				.catch(err => this.logger.warning("Could not edit crosspost", err.message));
-			crosspost.hash = hash;
-			this.data.markDirty();
+			await this.updateCrosspost(message, crosspost, hash);
 		}
+	}
+
+	private async updateCrosspost (message: Message, crosspost: ICrossPost, hash = this.hash(message)) {
+		const { crosspost: [crosspostChannelId, crosspostMessageId], gdocs } = crosspost;
+		const channel = this.guild.channels.cache.get(crosspostChannelId) as TextChannel;
+		if (!channel) {
+			this.logger.warning("Could not edit crosspost, could not get channel by ID", crosspostChannelId);
+			return;
+		}
+
+		const crosspostMessage = await channel.messages.fetch(crosspostMessageId);
+		if (!crosspostMessage) {
+			this.logger.warning("Could not edit crosspost, could not get message by ID", crosspostMessageId);
+			return;
+		}
+
+		let openGraph: IEmbedDetails = {};
+		if (gdocs)
+			openGraph = await this.extractGDocs(message) ?? {};
+
+		const watch = this.config.watch.find(watch => watch.channel === message.channel.id
+			&& watch.postChannel === channel.id);
+
+		if (watch?.og?.description === false)
+			delete openGraph.description;
+
+		if (watch?.og?.thumbnail === "avatar")
+			openGraph.thumbnail = message.author.avatarURL() ?? undefined;
+
+		await crosspostMessage.edit(this.createCrosspostEmbed(message, openGraph))
+			.catch(err => this.logger.warning("Could not edit crosspost", err.message));
+
+		this.logger.info("Updated crosspost:", message.content);
+
+		crosspost.hash = hash;
+		this.data.markDirty();
 	}
 
 	public async onDelete (message: Message) {
 		let toRemove: ICrossPost[] = [];
 		const crossposts = this.data.crossposts[message.channel.id] ?? [];
 		for (const crosspost of crossposts) {
-			const { crosspost: [crosspostChannelId, crosspostMessageId], source } = crosspost;
-			if (source !== message.id)
+			const { crosspost: [crosspostChannelId, crosspostMessageId], source: [, sourceMessageId] } = crosspost;
+			if (sourceMessageId !== message.id)
 				continue;
 
 			const channel = this.guild.channels.cache.get(crosspostChannelId) as TextChannel;
@@ -168,6 +218,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 			await crosspostMessage.delete()
 				.catch(err => this.logger.warning("Could not delete crosspost", err.message));
+			this.logger.info(`Deleted crosspost in #${channel.name}:`, message.content);
 			toRemove.push(crosspost);
 		}
 
@@ -213,11 +264,14 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		if (!crossposts)
 			crossposts = this.data.crossposts[message.channel.id] = [];
 
-		if (crossposts.some(crosspost => crosspost.source === message.id && crosspost.crosspost[0] === watch.postChannel))
+		const alreadyPosted = crossposts.some(({ crosspost: [crosspostChannelId], source: [, sourceMessageId] }) =>
+			sourceMessageId === message.id && crosspostChannelId === watch.postChannel);
+		if (alreadyPosted)
 			return false; // already cross-posted
 
+		this.logger.info(`Crossposted message to #${postChannel.name}:`, message.content);
 		crossposts.push({
-			source: message.id,
+			source: [message.channel.id, message.id],
 			crosspost: [watch.postChannel, crosspostMessage.id],
 			hash: this.hash(message),
 			author: message.author.id,
@@ -256,7 +310,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	private hash (message: Message) {
-		return Strings.hash(`${message.member!.displayName}%${message.content}`);
+		return Strings.hash(`${version}%${message.member?.displayName}%${message.content}`);
 	}
 
 	private reformatOpenGraphDescription (description?: string) {
