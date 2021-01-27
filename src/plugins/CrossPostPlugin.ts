@@ -13,6 +13,10 @@ interface IWatch {
 		text?: string[];
 		gdocs?: true;
 	};
+	og?: {
+		description?: false;
+		thumbnail?: "avatar";
+	}
 }
 
 export interface ICrossPostPluginConfig {
@@ -197,6 +201,12 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			return false;
 		}
 
+		if (watch.og?.description === false)
+			delete openGraph.description;
+
+		if (watch.og?.thumbnail === "avatar")
+			openGraph.thumbnail = message.author.avatarURL() ?? undefined;
+
 		const crosspostMessage = await postChannel.send(this.createCrosspostEmbed(message, openGraph));
 
 		let crossposts = this.data.crossposts[message.channel.id];
@@ -231,8 +241,9 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	private createCrosspostEmbed (message: Message, openGraph: IEmbedDetails) {
+		const avatarURL = message.author.avatarURL() ?? undefined;
 		return new MessageEmbed()
-			.setAuthor(message.member!.displayName, message.author.avatarURL() ?? undefined)
+			.setAuthor(message.member!.displayName, avatarURL === openGraph.thumbnail ? undefined : avatarURL)
 			.setColor(message.member!.displayHexColor)
 			.setURL(openGraph.link)
 			.setTitle(openGraph.title)
