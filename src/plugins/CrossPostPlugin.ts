@@ -6,7 +6,7 @@ import Arrays from "../util/Arrays";
 import Strings from "../util/Strings";
 import ogs = require("open-graph-scraper");
 
-const version = 2;
+const version = 3;
 
 interface IWatch {
 	channel: string;
@@ -318,7 +318,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	private async extractGDocs (message: Message): Promise<IEmbedDetails | undefined> {
-		const match = message.content.match(/\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(usp=sharing)?|#)?/);
+		const match = message.content.match(/\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=sharing|pli=1))*)?(#(heading=h\.\w+)?)?/);
 		if (!match)
 			return;
 
