@@ -157,6 +157,32 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		}
 	}
 
+	@Command("crosspost update")
+	protected async onCrosspostUpdate (message: CommandMessage, findCrosspostChannelId: string, findCrosspostMessageId: string) {
+		const crosspost = Object.values(this.data.crossposts)
+			.flat()
+			.find(({ crosspost: [crosspostChannelId, crosspostMessageId] }) =>
+				findCrosspostChannelId === crosspostChannelId && findCrosspostMessageId === crosspostMessageId);
+
+		if (!crosspost)
+			return this.reply(message, "could not find a crosspost message with the given crosspost channel id and message id.")
+				.then(reply => CommandResult.fail(message, reply));
+
+		const [sourceChannelId, sourceMessageId] = crosspost.source;
+		const sourceMessage = await (this.guild.channels.cache.get(sourceChannelId) as TextChannel)
+			?.messages.fetch(sourceMessageId);
+
+		if (!sourceMessage)
+			return this.reply(message, "it seems as though the crosspost source message has been deleted.")
+				.then(() => CommandResult.pass());
+
+		if (sourceMessage.author.id !== message.author.id && !message.member?.permissions.has("MANAGE_MESSAGES"))
+			return CommandResult.pass();
+
+		await this.updateCrosspost(sourceMessage, crosspost);
+		return CommandResult.pass();
+	}
+
 	private async updateCrosspost (message: Message, crosspost: ICrossPost, hash = this.hash(message)) {
 		const { crosspost: [crosspostChannelId, crosspostMessageId], gdocs } = crosspost;
 		const channel = this.guild.channels.cache.get(crosspostChannelId) as TextChannel;
@@ -318,7 +344,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	private async extractGDocs (message: Message): Promise<IEmbedDetails | undefined> {
-		const match = message.content.match(/\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=sharing|pli=1))*)?(#(heading=h\.\w+)?)?/);
+		const match = message.content.match(/\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/);
 		if (!match)
 			return;
 
