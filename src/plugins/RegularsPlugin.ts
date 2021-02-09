@@ -55,6 +55,7 @@ export interface IRegularsConfig {
 	role: string;
 	removeRegularWarning?: number;
 	rolesWithRegular?: string[];
+	notChattedMessages?: string[];
 }
 
 enum CommandLanguage {
@@ -537,7 +538,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				.setTitle(`${Intl.NumberFormat().format(trackedMember.xp)} ${this.getScoreName()}`)
 				.addFields(
 					!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${daysAway} days` }
-						: trackedMember.lastDay < today ? { name: "Not chatted today!", value: "Come on... say something! We're fun!" } : undefined,
+						: trackedMember.lastDay < today ? { name: "Not chatted today!", value: Random.choice(...this.config.notChattedMessages ?? ["Come on... say something! We're fun!"]).replace(/\{name\}/g, memberName) } : undefined,
 					{ name: "Days chatted", value: `${days}${days === 69 ? " (nice)" : ""}`, inline: true },
 					...trackedMember.lastDay < today - 1
 						? (!daysTillXpLoss ? [] : [
