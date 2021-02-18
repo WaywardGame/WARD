@@ -300,7 +300,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 
 		const date = countOrWhen === undefined ? new Date()
 			: countOrWhen === "yesterday" ? new Date(Date.now() - days(1))
-				: new Date(`${countOrWhen}`);
+				: new Date(`${countOrWhen} utc`);
 
 		if (date.getFullYear() === 2001)
 			date.setFullYear(new Date().getFullYear());
