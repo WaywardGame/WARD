@@ -254,12 +254,12 @@ export class Ward {
 		if (!message.content.startsWith(this.commandPrefix))
 			return;
 
-		const args = message.content.slice(this.commandPrefix.length)
+		const args = (message.content.slice(this.commandPrefix.length)
 			.trim()
 			.replace(/\n/g, " \n")
 			.replace(/[ \t]+/g, " ")
-			.split(" ")
-			.filter(v => v);
+			.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [])
+			.map(v => v[0] === '"' ? v.slice(1, -1) : v);
 
 		const commandMessage = message as CommandMessage;
 		let commandName = "";
