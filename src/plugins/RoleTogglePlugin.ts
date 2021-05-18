@@ -1,11 +1,19 @@
-import { Permissions } from "discord.js";
-import { Command, CommandMessage, CommandResult } from "../core/Api";
+import { GuildMember, Permissions } from "discord.js";
+import { Command, CommandMessage, CommandResult, RoleMatcher } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
+import Arrays from "../util/Arrays";
 
+interface IToggleableRoles {
+	unaliasRoleName?: true;
+	aliases: ArrayOr<string>;
+	rules?: ArrayOr<string>;
+}
+
+type ToggleableRoles = ArrayOr<string> | IToggleableRoles;
 
 export interface IRoleTogglePluginConfig {
-	toggleableRoles: { [key: string]: string[] };
+	toggleableRoles: Record<string, ToggleableRoles>;
 }
 
 enum CommandLanguage {
@@ -30,7 +38,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 		.addCommand("role", CommandLanguage.RoleDescription, command => command
 			.addRawTextArgument("role", CommandLanguage.RoleArgumentRole, argument => argument
 				.addOptions(...Object.entries(this.config.toggleableRoles)
-					.map(([role, aliases]) => [aliases.join("|"), `Adds the role "${role}"`] as [string, string])))
+					.map(([role, config]) => [this.getAliases(role, config).join("|"), `Adds the role "${role}"`] as [string, string])))
 			.addArgument("user", CommandLanguage.RoleArgumentUser, argument => argument
 				.setOptional()));
 
@@ -47,19 +55,11 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			return this.reply(message, "you must provide a role to toggle.")
 				.then(reply => CommandResult.fail(message, reply));
 
-		roleName = roleName.toLowerCase();
+		////////////////////////////////////
+		// Resolve the member to toggle a role of
+		//
 
-		const role = this.guild.roles.cache.find(r => {
-			const pingRole = r.name.toLowerCase();
-			return Object.entries(this.config.toggleableRoles)
-				.some(([toggleableRole, aliases]) => pingRole === toggleableRole.toLowerCase() && aliases.some(alias => alias === roleName));
-		});
-
-		if (!role)
-			return this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`)
-				.then(reply => CommandResult.fail(message, reply));
-
-		let toggleMember = message.member;
+		let toggleMember = message.member!;
 		if (queryMember) {
 			if (!message.member?.permissions.has(Permissions.FLAGS.MANAGE_ROLES!)) {
 				this.reply(message, "only mods can toggle the roles of other members.");
@@ -74,19 +74,75 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			toggleMember = queryMemberResult.member;
 		}
 
-		if (toggleMember) {
-			if (toggleMember.roles.cache.has(role.id)) {
-				toggleMember.roles.remove(role);
-				this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
-				this.reply(message, toggleMember === message.member ? `you no longer have the role "${role.name}".` : `Removed role "${role.name}" from ${toggleMember.displayName}.`);
+		////////////////////////////////////
+		// Resolve the role to toggle
+		//
 
-			} else {
-				toggleMember.roles.add(role);
-				this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
-				this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
-			}
+		const role = this.findToggleRole(roleName, toggleMember);
+		if (!role)
+			return this.reply(message, `sorry, I couldn't find a toggleable role by the name "${roleName}".`)
+				.then(reply => CommandResult.fail(message, reply));
+
+		if (toggleMember.roles.cache.has(role.id)) {
+			toggleMember.roles.remove(role);
+			this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
+			this.reply(message, toggleMember === message.member ? `you no longer have the role "${role.name}".` : `Removed role "${role.name}" from ${toggleMember.displayName}.`);
+
+		} else {
+			toggleMember.roles.add(role);
+			this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
+			this.reply(message, toggleMember === message.member ? `you have been given the role "${role.name}".` : `Added role "${role.name}" to ${toggleMember.displayName}.`);
 		}
 
 		return CommandResult.pass();
+	}
+
+	private findToggleRole (query: string, member: GuildMember) {
+		query = query.toLowerCase();
+		let role = this.guild.roles.cache.get(query);
+		if (role)
+			return role;
+
+		// find toggleableRoles that match the query
+		for (const [toggleableRole, config] of Object.entries(this.config.toggleableRoles)) {
+			if (!this.getAliases(toggleableRole, config).includes(query))
+				continue;
+
+			const rules = this.getRules(config);
+			if (rules.length) {
+				const matcher = new RoleMatcher(rules);
+				const memberHasRole = member.roles.cache.find(matcher.matches);
+
+				if (!memberHasRole)
+					continue;
+			}
+
+			return this.findRole(toggleableRole, false);
+		}
+
+		return undefined;
+	}
+
+	private getRules (config: ToggleableRoles) {
+		if (typeof config === "object" && !Array.isArray(config))
+			return config.rules ? Arrays.or(config.rules) : [];
+
+		return [];
+	}
+
+	private getAliases (roleQuery: string, config: ToggleableRoles) {
+		let unaliasRoleName = false;
+		if (typeof config === "object" && "aliases" in config) {
+			unaliasRoleName = config.unaliasRoleName ?? false;
+			config = config.aliases;
+		}
+
+		const aliases = Arrays.or(config);
+		if (!unaliasRoleName) { // the name of the role should be included as an alias for adding the role
+			const role = this.findRole(roleQuery, false);
+			if (role) aliases.push(role.name);
+		}
+
+		return aliases;
 	}
 }

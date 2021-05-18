@@ -215,14 +215,17 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected async findRole (role: string, fetch = true): Promise<Role | undefined> {
+	protected findRole (role: string): Promise<Role | undefined>;
+	protected findRole (role: string, fetch: false): Role | undefined;
+	protected findRole (role: string, fetch = true): Role | undefined | Promise<Role | undefined> {
 		if (!this.guild)
 			return;
 
 		if (fetch)
-			await this.guild.roles.fetch(undefined, undefined, true);
+			return this.guild.roles.fetch(undefined, undefined, true)
+				.then(() => this.findRole(role, false));
 
-		return this.guild.roles.cache.find(r => r.id === role)
+		return this.guild.roles.cache.get(role)
 			?? this.guild.roles.cache.find(r => r.name === role)
 			?? this.guild.roles.cache.find(r => r.name.toLowerCase() === role.toLowerCase());
 	}

@@ -1,7 +1,7 @@
 import { Role } from "discord.js";
+import { RoleMatcher } from "../core/Api";
 import { Plugin } from "../core/Plugin";
 import Arrays from "../util/Arrays";
-import Regex from "../util/Regex";
 import { minutes } from "../util/Time";
 
 export interface IAutoRoleConfig {
@@ -10,31 +10,14 @@ export interface IAutoRoleConfig {
 
 interface IAutoRoleRuleConfig {
 	match: ArrayOr<string>;
-	apply: ArrayOr<string>;
-}
-
-class RoleMatcher {
-
-	private matchers: (string | RegExp)[];
-
-	public constructor (config: ArrayOr<string>) {
-		this.matchers = Arrays.or(config)
-			.map(matcher => Regex.parse(matcher) ?? matcher);
-	}
-
-	public matches (role: Role) {
-		return this.matchers.some(matcher => {
-			if (typeof matcher === "string")
-				return role.id === matcher || role.name === matcher;
-
-			return matcher.test(role.name);
-		});
-	}
+	apply?: ArrayOr<string>;
+	remove?: ArrayOr<string>;
 }
 
 interface IAutoRoleRule {
 	match: RoleMatcher;
 	apply: Role[];
+	remove: Role[];
 }
 
 export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
@@ -51,7 +34,8 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 	public async onStart () {
 		this.rules = await Promise.all(this.config.rules.map(async ruleConfig => ({
 			match: new RoleMatcher(ruleConfig.match),
-			apply: await Promise.all(Arrays.or(ruleConfig.apply).map(role => this.findRole(role))),
+			apply: await Promise.all(Arrays.or(ruleConfig.apply ?? []).map(role => this.findRole(role))),
+			remove: await Promise.all(Arrays.or(ruleConfig.remove ?? []).map(role => this.findRole(role))),
 		} as IAutoRoleRule)));
 	}
 
@@ -65,6 +49,12 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 				if (addRoles.length) {
 					user.roles.add(addRoles);
 					this.logger.info(`Added role(s) ${addRoles.map(role => `'${role.name}'`).join(", ")} to ${user.displayName}.`);
+				}
+
+				const removeRoles = rule.remove.filter(role => user.roles.cache.has(role.id));
+				if (removeRoles.length) {
+					user.roles.remove(removeRoles);
+					this.logger.info(`Removed role(s) ${removeRoles.map(role => `'${role.name}'`).join(", ")} from ${user.displayName}.`);
 				}
 			}
 		}
