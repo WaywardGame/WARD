@@ -2,6 +2,7 @@ import { GuildMember, Role, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
+import Arrays from "../util/Arrays";
 import { sleep } from "../util/Async";
 import { minutes, seconds } from "../util/Time";
 
@@ -11,7 +12,7 @@ export interface IWelcomeData {
 }
 
 export interface IWelcomeConfig {
-	welcomeChannel: string;
+	welcomeChannel: string | string[];
 	welcomeRoles: string[];
 	welcomeMessage: string | (string | string[])[];
 }
@@ -27,7 +28,11 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 	protected initData: () => ({ welcomedUsers: [] });
 
-	private get channel () { return this.guild.channels.cache.get(this.config.welcomeChannel) as TextChannel; }
+	private get channels () {
+		return Arrays.or(this.config.welcomeChannel)
+			.map(channel => this.guild.channels.cache.get(channel) as TextChannel);
+	}
+
 	private welcomeRoles: Role[];
 	private isWelcoming = false;
 	private get welcomedUsers () { return this.data.welcomedUsers; }
@@ -137,12 +142,16 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		this.logger.info(`${welcome ? "Welcoming" : "Skipping welcome for"}: ${user.displayName}`);
 
 		if (welcome) {
-			this.channel.send((Array.isArray(this.config.welcomeMessage) ? this.config.welcomeMessage : [this.config.welcomeMessage])
-				.map(part => Array.isArray(part) ? part[Math.floor(Math.random() * part.length)] : part)
-				.join(" ")
-				.replace("{user}", `<@${user.id}>`));
+			for (const channel of this.channels) {
+				await channel.send((Array.isArray(this.config.welcomeMessage) ? this.config.welcomeMessage : [this.config.welcomeMessage])
+					.map(part => Array.isArray(part) ? part[Math.floor(Math.random() * part.length)] : part)
+					.join(" ")
+					.replace("{user}", `<@${user.id}>`));
 
-			await sleep(seconds(5));
+				await sleep(seconds(1));
+			}
+
+			await sleep(seconds(4));
 		}
 	}
 }
