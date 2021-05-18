@@ -148,7 +148,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 	public async onUpdate () {
 		if (this.guild.members.cache.size < 3) {
-			this.logger.warning("Saw less than three members in guild, exiting early in case something is wrong.");
+			this.logger.warning("Saw less than three members in guild, skipping update in case something is wrong.");
 			return;
 		}
 
