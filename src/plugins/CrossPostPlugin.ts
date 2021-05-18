@@ -2,7 +2,7 @@
 import { GuildMember, Message, MessageEmbed, MessageReaction, TextChannel } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import { Plugin } from "../core/Plugin";
-import Arrays from "../util/Arrays";
+import Arrays, { tuple } from "../util/Arrays";
 import Strings from "../util/Strings";
 import ogs = require("open-graph-scraper");
 
@@ -90,16 +90,18 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	@Command("crosspost")
-	public async onCrosspost (message: CommandMessage, channelId: string, messageId: string) {
+	public async onCrosspost (message: CommandMessage, channelId?: string, messageId?: string) {
 		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
 			return CommandResult.pass();
 
-		const channel = this.guild.channels.cache.get(channelId);
+		[channelId, messageId] = resolveCrosspostID(channelId, messageId);
+
+		const channel = channelId && this.guild.channels.cache.get(channelId);
 		if (!(channel instanceof TextChannel))
 			return this.reply(message, `I could not find a channel by ID "${channelId}"`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		const sourceMessage = await channel.messages.fetch(messageId);
+		const sourceMessage = messageId && await channel.messages.fetch(messageId);
 		if (!sourceMessage)
 			return this.reply(message, `I could not find a message by ID "${messageId}" in <#${channel.id}>`)
 				.then(reply => CommandResult.fail(message, reply));
@@ -158,8 +160,9 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 	}
 
 	@Command("crosspost update")
-	protected async onCrosspostUpdate (message: CommandMessage, findCrosspostChannelId: string, findCrosspostMessageId: string) {
-		const crosspost = Object.values(this.data.crossposts)
+	protected async onCrosspostUpdate (message: CommandMessage, findCrosspostChannelId?: string, findCrosspostMessageId?: string) {
+		[findCrosspostChannelId, findCrosspostMessageId] = resolveCrosspostID(findCrosspostChannelId, findCrosspostMessageId);
+		const crosspost = findCrosspostChannelId && Object.values(this.data.crossposts)
 			.flat()
 			.find(({ crosspost: [crosspostChannelId, crosspostMessageId] }) =>
 				findCrosspostChannelId === crosspostChannelId && findCrosspostMessageId === crosspostMessageId);
@@ -376,4 +379,18 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		return { link, title, description, thumbnail };
 	}
 
+}
+
+function resolveCrosspostID (channelId?: string, messageId?: string): [string, string] | undefined[] {
+	if (channelId === undefined)
+		return [];
+
+	if (messageId !== undefined)
+		return tuple(channelId, messageId);
+
+	[channelId, messageId] = channelId.split("-");
+	if (!channelId || !messageId)
+		return [];
+
+	return tuple(channelId, messageId)
 }
