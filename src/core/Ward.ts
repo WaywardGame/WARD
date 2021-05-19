@@ -1,6 +1,6 @@
 import Stream from "@wayward/goodstream";
 import chalk from "chalk";
-import { Client, Guild, GuildMember, Message, MessageEmbed, MessageReaction, PartialMessage, TextChannel, User } from "discord.js";
+import { Client, DMChannel, Guild, GuildMember, Message, MessageEmbed, MessageReaction, PartialMessage, TextChannel, User } from "discord.js";
 import { EventEmitter } from "events";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
@@ -37,7 +37,7 @@ type Command = { function?: CommandFunction, plugin?: string, subcommands: Comma
 type CommandMap = Map<string, Command>;
 
 interface IMainData {
-	restartMessage?: [channel: string, message: string];
+	restartMessage?: [location: "guild" | "dm", channel: string, message: string];
 }
 
 const PLUGIN_MAIN = "main";
@@ -124,8 +124,10 @@ export class Ward {
 		await this.pluginHookStart();
 
 		if (this.plugins.main.data.restartMessage) {
-			const [channelId, messageId] = this.plugins.main.data.restartMessage;
-			const reply = await (this.guild.channels.cache.get(channelId) as TextChannel)?.messages.fetch(messageId);
+			const [location, channelId, messageId] = this.plugins.main.data.restartMessage;
+			const channel = location === "guild" ? this.guild.channels.cache.get(channelId) as TextChannel
+				: await (await this.guild.members.fetch(channelId).catch(() => undefined))?.createDM();
+			const reply = await channel?.messages.fetch(messageId);
 			reply?.edit(undefined, new MessageEmbed()
 				.setColor(COLOR_GOOD)
 				.setDescription("Restart complete."));
@@ -486,7 +488,8 @@ export class Ward {
 
 		if (canRunCommand) {
 			const reply = await this.reply(message, new MessageEmbed().setDescription(`Restarting${all ? " every instance" : ""}...`));
-			this.plugins.main.data.data!.restartMessage = [message.channel.id, Arrays.or(reply)[0].id];
+			const dm = message.channel instanceof DMChannel;
+			this.plugins.main.data.data!.restartMessage = [dm ? "dm" : "guild", dm ? message.author.id : message.channel.id, Arrays.or(reply)[0].id];
 			this.plugins.main.data.markDirty();
 			this.event.emit("restart", all);
 		}
