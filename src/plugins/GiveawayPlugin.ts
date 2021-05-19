@@ -127,7 +127,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		const giveawayMessage = await this.channel.send(`**A giveaway is starting for ${winnerCount} winner(s)!**\n${giveawayText.length ? `${giveawayText.join(" ")}\n` : ""}\n*To enter the giveaway, leave a reaction on this message. Reacting multiple times does not change your chances of winning. ${lockInfoText}*`) as Message;
 		this.logger.info(`${message.member.displayName} started a giveaway for ${winnerCount} winner(s). Text: ${giveawayText}`);
 
-		this.data.giveaway = {
+		this.data.data!.giveaway = {
 			message: giveawayMessage.id,
 			winnerCount
 		};
@@ -148,7 +148,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		this.channel.send("The giveaway has been cancelled!");
 		this.logger.info(`${message.member.displayName} cancelled the giveaway`);
 
-		delete this.data.giveaway;
+		delete this.data.data!.giveaway;
 		await this.save();
 		return CommandResult.pass();
 	}
@@ -196,7 +196,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!announcementMessage)
 			return CommandResult.pass();
 
-		delete this.data.giveaway;
+		delete this.data.data!.giveaway;
 		await this.save();
 
 		this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
@@ -259,7 +259,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 		if (!announcement) {
 			this.logger.warning("Giveaway announcement message inaccessible", this.data.giveaway);
-			delete this.data.giveaway;
+			delete this.data.data!.giveaway;
 			await this.save();
 			this.reply(message, "there is no giveaway running.");
 			return undefined;

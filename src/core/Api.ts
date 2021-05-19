@@ -244,15 +244,22 @@ for (const cls of [TextChannel, DMChannel, NewsChannel]) {
 export module CommandResult {
 
 	export function pass (commandMessage?: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
-		return { type: "pass", commandMessage, output: output.flat() };
+		return apply(commandMessage, { type: "pass", commandMessage, output: output.flat() });
 	}
 
 	export function fail (commandMessage: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
-		return { type: "fail", commandMessage, output: output.flat() };
+		return apply(commandMessage, { type: "fail", commandMessage, output: output.flat() });
 	}
 
 	export function mid (commandMessage?: CommandMessage, ...output: ArrayOr<Message>[]): CommandResult {
-		return { type: "mid", commandMessage, output: output.flat() };
+		return apply(commandMessage, { type: "mid", commandMessage, output: output.flat() });
+	}
+
+	function apply (commandMessage: CommandMessage | undefined, result: CommandResult) {
+		if (commandMessage)
+			commandMessage.previous = result;
+
+		return result;
 	}
 }
 

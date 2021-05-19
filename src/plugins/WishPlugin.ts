@@ -61,7 +61,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				await this.deliverGift(participantId);
 
 			this.logger.info("Distributed gifts");
-			delete this.data.distributeTime;
+			delete this.data.data!.distributeTime;
 			this.data.markDirty();
 		}
 	}
@@ -614,7 +614,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return CommandResult.pass();
 		}
 
-		this.data.stage = "matching";
+		this.data.data!.stage = "matching";
 		this.data.markDirty();
 
 		const wishGranters = !isPinchMatch ? participants.slice()
@@ -743,7 +743,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		}
 
 		if (WishStage[this.data.stage] < WishStage.granting)
-			this.data.stage = "granting";
+			this.data.data!.stage = "granting";
 
 		this.data.markDirty();
 
@@ -759,7 +759,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
-		delete this.data.distributeTime;
+		delete this.data.data!.distributeTime;
 		this.data.markDirty();
 
 		this.logger.info("Cancelled gift distribution");
@@ -780,7 +780,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.then(() => CommandResult.pass());
 
 		const time = getTime(timeString);
-		this.data.distributeTime = Date.now() + time;
+		this.data.data!.distributeTime = Date.now() + time;
 		this.data.markDirty();
 
 		this.logger.info(`Set gift distribution to occur after ${renderTime(time)}`);

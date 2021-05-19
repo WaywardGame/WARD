@@ -98,7 +98,7 @@ export default class Data extends Api<IDataConfig> {
 	}
 }
 
-export type FullDataContainer<DATA extends {} = any> = DataContainer<DATA> & { [K in keyof DATA]: DATA[K] };
+export type FullDataContainer<DATA extends {} = any> = DataContainer<DATA> & { readonly [K in keyof DATA]: DATA[K] };
 
 export interface IDataContainerHost<DATA extends {} = any> {
 	autosaveInterval: number;

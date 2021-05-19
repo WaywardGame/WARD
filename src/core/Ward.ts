@@ -1,6 +1,6 @@
 import Stream from "@wayward/goodstream";
 import chalk from "chalk";
-import { Client, Guild, GuildMember, Message, MessageReaction, PartialMessage, User } from "discord.js";
+import { Client, Guild, GuildMember, Message, MessageEmbed, MessageReaction, PartialMessage, TextChannel, User } from "discord.js";
 import { EventEmitter } from "events";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
@@ -17,9 +17,10 @@ import StoryPlugin from "../plugins/StoryPlugin";
 import { TwitchStreamPlugin } from "../plugins/TwitchStreamPlugin";
 import WelcomePlugin from "../plugins/WelcomePlugin";
 import WishPlugin from "../plugins/WishPlugin";
-import { tuple } from "../util/Arrays";
+import Arrays, { tuple } from "../util/Arrays";
 import { sleep } from "../util/Async";
 import Bound from "../util/Bound";
+import { COLOR_BAD, COLOR_GOOD } from "../util/Colors";
 import Data from "../util/Data";
 import Logger from "../util/Log";
 import { seconds } from "../util/Time";
@@ -35,6 +36,22 @@ import { IPluginConfig, Plugin } from "./Plugin";
 type Command = { function?: CommandFunction, plugin?: string, subcommands: CommandMap };
 type CommandMap = Map<string, Command>;
 
+interface IMainData {
+	restartMessage?: [channel: string, message: string];
+}
+
+const PLUGIN_MAIN = "main";
+
+class MainDataPlugin extends Plugin<{}, IMainData> {
+	public getDefaultId () {
+		return PLUGIN_MAIN;
+	}
+
+	protected initData = () => ({});
+
+	public getDefaultConfig () { return {}; };
+}
+
 export class Ward {
 
 	public readonly event = new EventEmitter();
@@ -42,8 +59,8 @@ export class Ward {
 	private guild: Guild;
 	private discord?: Client;
 	private commandPrefix: string;
-	private plugins: { [key: string]: Plugin } = {};
-	private apis: { [key: string]: Api } = {};
+	private plugins = {} as Record<string, Plugin> & { main: MainDataPlugin };
+	private apis: Record<string, Api> = {};
 	private stopped = true;
 	private onStop?: () => any;
 	private readonly commands: CommandMap = new Map();
@@ -54,6 +71,7 @@ export class Ward {
 		this.addApi(new Trello());
 		this.addApi(new Twitch());
 		this.addApi(new Data(this.config.apis.discord.guild));
+		this.addPlugin(new MainDataPlugin());
 		this.addPlugin(new ChangelogPlugin());
 		this.addPlugin(new WelcomePlugin());
 		this.addPlugin(new AutoRolePlugin());
@@ -104,6 +122,17 @@ export class Ward {
 
 		this.logger.verbose("Plugins start");
 		await this.pluginHookStart();
+
+		if (this.plugins.main.data.restartMessage) {
+			const [channelId, messageId] = this.plugins.main.data.restartMessage;
+			const reply = await (this.guild.channels.cache.get(channelId) as TextChannel)?.messages.fetch(messageId);
+			reply?.edit(undefined, new MessageEmbed()
+				.setColor(COLOR_GOOD)
+				.setDescription("Restart complete."));
+			delete this.plugins.main.data.data!.restartMessage;
+			this.plugins.main.data.markDirty();
+			this.plugins.main.data.save();
+		}
 
 		this.discord!.addListener("message", m => this.onMessage(m));
 		this.discord!.addListener("messageUpdate", (o, n) => this.onEdit(o, n));
@@ -293,7 +322,6 @@ export class Ward {
 					const handleMessageEdit = async (old1: Message | PartialMessage, new1: Message | PartialMessage) => {
 						if (old1.id === commandMessage.id) {
 							const newCommandMessage = new1 as CommandMessage;
-							newCommandMessage.previous = result;
 							this.onCommand(newCommandMessage);
 							await commandMessage.reactions.cache.get("✏")?.users.remove(this.discord?.user!);
 							this.discord!.off("messageUpdate", handleMessageEdit);
@@ -438,13 +466,16 @@ export class Ward {
 		const canRunCommand = message.author.id === "92461141682307072" // Chiri is all-powerful
 			|| message.member?.permissions.has("ADMINISTRATOR");
 
-		if (canRunCommand) {
-			await message.channel.send(`Making a backup...`, { replyTo: message });
-			const madebackup = await this.getApi<Data>("data")?.backup();
-			message.channel.send(madebackup ? "Successfully backed-up save data." : "Failed to create a backup.", { replyTo: message });
-		}
+		if (!canRunCommand)
+			return CommandResult.pass();
 
-		return CommandResult.pass();
+		const reply = await this.reply(message, new MessageEmbed().setDescription("Making a backup..."));
+		const madebackup = await this.getApi<Data>("data")?.backup();
+
+		return Arrays.or(reply)[0].edit(new MessageEmbed()
+			.setColor(madebackup ? COLOR_GOOD : COLOR_BAD)
+			.setDescription(madebackup ? "Successfully backed-up save data." : "Failed to create a backup."))
+			.then(reply => CommandResult.pass(message, reply));
 	}
 
 	@Bound
@@ -454,7 +485,9 @@ export class Ward {
 			|| (!all && message.member?.permissions.has("ADMINISTRATOR"));
 
 		if (canRunCommand) {
-			await message.channel.send(`Restarting${all ? " every instance" : ""}...`, { replyTo: message });
+			const reply = await this.reply(message, new MessageEmbed().setDescription(`Restarting${all ? " every instance" : ""}...`));
+			this.plugins.main.data.data!.restartMessage = [message.channel.id, Arrays.or(reply)[0].id];
+			this.plugins.main.data.markDirty();
 			this.event.emit("restart", all);
 		}
 
@@ -482,30 +515,40 @@ export class Ward {
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
-			return message.channel.send(`Can't update plugin \`${pluginName}\`, not found.`, { replyTo: message })
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't update plugin \`${pluginName}\`, not found.`))
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
 		plugin.logger.info(`Updating due to request from ${message.member?.displayName}`);
 		this.updatePlugin(plugin);
-		plugin.reply(message, `Updated plugin \`${pluginName}\`.`);
+		plugin.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setDescription(`Updated plugin \`${pluginName}\`.`));
 		return CommandResult.pass();
 	}
 
 	@Bound
-	private commandResetPluginData (message: CommandMessage, pluginName: string) {
+	private async commandResetPluginData (message: CommandMessage, pluginName: string) {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
-			return message.channel.send(`Can't reset data for plugin \`${pluginName}\`, not found.`, { replyTo: message })
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't reset data for plugin \`${pluginName}\`, not found.`))
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
+		await this.commandBackup(message);
+
 		plugin.logger.info(`Resetting data due to request from ${message.member?.displayName}`);
 		plugin.data.reset();
-		plugin.reply(message, `Reset data for plugin \`${pluginName}\`.`);
+		plugin.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setDescription(`Reset data for plugin \`${pluginName}\`.`));
 		return CommandResult.pass();
 	}
 
@@ -625,5 +668,23 @@ export class Ward {
 
 		Object.defineProperty(message, "member", { value: member, configurable: true });
 		return true;
+	}
+
+	private async reply (message: CommandMessage, reply: string | MessageEmbed): Promise<ArrayOr<Message>>;
+	private async reply (message: CommandMessage, reply: string, embed?: MessageEmbed): Promise<ArrayOr<Message>>;
+	private async reply (message: CommandMessage, reply?: string | MessageEmbed, embed?: MessageEmbed) {
+		let textContent = typeof reply === "string" ? reply : undefined; // message.channel instanceof DMChannel ? undefined : `<@${message.author.id}>`;
+		const embedContent = typeof reply === "string" ? embed : reply;
+
+		if (message.previous?.output[0])
+			return message.previous?.output[0].edit(textContent, { embed: embedContent })
+				.then(async result => {
+					for (let i = 1; i < (message.previous?.output.length || 0); i++)
+						message.previous?.output[i].delete();
+
+					return result;
+				});
+
+		return message.channel.send(textContent, { embed: embedContent, replyTo: message });
 	}
 }
