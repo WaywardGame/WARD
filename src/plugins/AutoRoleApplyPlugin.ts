@@ -9,7 +9,7 @@ export interface IAutoRoleConfig {
 }
 
 interface IAutoRoleRuleConfig {
-	match: ArrayOr<string>;
+	match: ArrayOr<string> | { not: ArrayOr<string> };
 	apply?: ArrayOr<string>;
 	remove?: ArrayOr<string>;
 }
@@ -43,7 +43,7 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 		await this.guild.members.fetch();
 
 		for (const rule of this.rules) {
-			const users = this.guild.members.cache.filter(member => member.roles.cache.some(role => rule.match.matches(role)));
+			const users = this.guild.members.cache.filter(member => rule.match.matchesRoles(member.roles.cache));
 			for (const [, user] of users) {
 				const addRoles = rule.apply.filter(role => !user.roles.cache.has(role.id));
 				if (addRoles.length) {

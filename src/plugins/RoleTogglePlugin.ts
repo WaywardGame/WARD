@@ -7,7 +7,7 @@ import Arrays from "../util/Arrays";
 interface IToggleableRoles {
 	unaliasRoleName?: true;
 	aliases: ArrayOr<string>;
-	rules?: ArrayOr<string>;
+	rules?: ArrayOr<string> | { not: ArrayOr<string> };
 }
 
 type ToggleableRoles = ArrayOr<string> | IToggleableRoles;
@@ -109,11 +109,8 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 				continue;
 
 			const rules = this.getRules(config);
-			if (rules.length) {
-				const matcher = new RoleMatcher(rules);
-				const memberHasRole = member.roles.cache.find(matcher.matches);
-
-				if (!memberHasRole)
+			if (rules) {
+				if (!new RoleMatcher(rules).matchesRoles(member.roles.cache))
 					continue;
 			}
 
@@ -125,9 +122,9 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 
 	private getRules (config: ToggleableRoles) {
 		if (typeof config === "object" && !Array.isArray(config))
-			return config.rules ? Arrays.or(config.rules) : [];
+			return config.rules;
 
-		return [];
+		return undefined;
 	}
 
 	private getAliases (roleQuery: string, config: ToggleableRoles) {

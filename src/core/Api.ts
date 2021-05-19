@@ -1,4 +1,4 @@
-import { CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, Role, TextChannel } from "discord.js";
+import { Collection, CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, Role, TextChannel } from "discord.js";
 import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Regex from "../util/Regex";
@@ -269,11 +269,19 @@ type ExcludeProperties<T, EXCLUDED_PROPERTIES extends PropertyKey> = { [K in Exc
 export class RoleMatcher {
 
 	private matchers: (string | RegExp | { not: string | RegExp })[];
+	private not = false;
 
-	public constructor (config: ArrayOr<string>) {
+	public constructor (config: ArrayOr<string> | { not: ArrayOr<string> }) {
+		if (typeof config === "object" && "not" in config)
+			this.not = true, config = config.not;
+
 		this.matchers = Arrays.or(config)
 			.map(matcher => matcher[0] === "!" ? { not: Regex.parse(matcher.slice(1)) ?? matcher.slice(1) }
 				: Regex.parse(matcher) ?? matcher);
+	}
+
+	public matchesRoles (roles: Collection<string, Role>) {
+		return roles.some(role => this.matches(role)) === !this.not;
 	}
 
 	@Bound public matches (role: Role) {
