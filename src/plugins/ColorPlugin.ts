@@ -1,7 +1,8 @@
-import { Collection, GuildMember, MessageEmbed, Permissions, Role } from "discord.js";
+import { Channel, Collection, GuildMember, MessageEmbed, Permissions, Role } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
+import PronounsPlugin from "./PronounsPlugin";
 import { RegularsPlugin } from "./RegularsPlugin";
 
 
@@ -48,6 +49,9 @@ export class ColorsPlugin extends Plugin<IColorsConfig> {
 
 	@ImportPlugin("regulars")
 	private regularsPlugin: RegularsPlugin = undefined!;
+
+	@ImportPlugin("pronouns")
+	private pronouns: PronounsPlugin = undefined!;
 
 	private get aboveRole () { return this.config.aboveRole && this.guild.roles.cache.get(this.config.aboveRole); }
 
@@ -180,7 +184,7 @@ I will not send any other notification messages, apologies for the interruption.
 			const colors = await this.getColorRoles(true);
 			this.reply(message, new MessageEmbed()
 				.setColor("RANDOM")
-				.setDescription(`<@${message.member?.id}>, there are currently **${colors.size} colors**, out of ${this.guild.roles.cache.size} roles total.`));
+				.setDescription(`There are currently **${colors.size} colors**, out of ${this.guild.roles.cache.size} roles total.`));
 			return CommandResult.pass();
 		}
 
@@ -192,7 +196,7 @@ I will not send any other notification messages, apologies for the interruption.
 			if (!currentColorRole) {
 				return this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member?.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
+					.setDescription(`You must provide a valid color.\nNeed help? Examples:\n${this.getValidColorExamples(message.channel)}`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 
@@ -203,7 +207,7 @@ I will not send any other notification messages, apologies for the interruption.
 		if (/list|all/.test(color)) {
 			this.reply(message, new MessageEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
-				.setDescription(`<@${message.member?.id}>, some examples include: ${this.getValidColorExamples()}`));
+				.setDescription(`${this.getValidColorExamples(message.channel)}`));
 			return CommandResult.pass();
 		}
 
@@ -211,7 +215,7 @@ I will not send any other notification messages, apologies for the interruption.
 			if (!isGetting && !message.member?.hasPermission(Permissions.FLAGS.MANAGE_ROLES!)) {
 				return this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member?.id}>, you must have the 'Manage Roles' permission to change someone else's color.`))
+					.setDescription(`You must have the 'Manage Roles' permission to change someone else's color.`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 
@@ -231,12 +235,12 @@ I will not send any other notification messages, apologies for the interruption.
 			if (currentColorRole)
 				this.reply(message, new MessageEmbed()
 					.setColor(currentColorRole.color)
-					.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member?.displayName}'s` : "your"} current color is **${currentColorRole.name}**.\nWant a change? Examples: ${this.getValidColorExamples()}`));
+					.setDescription(`${queryMember ? `<@${member?.id}>'s` : "Your"} current color is **${currentColorRole.name}**.\nWant a change? Examples: ${this.getSimpleValidColorExamples()}`));
 
 			else
 				this.reply(message, new MessageEmbed()
 					.setColor("RANDOM")
-					.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member?.displayName} does` : "you do"} not currently have a color.${!queryMember ? `\nWant a change? Examples: ${this.getValidColorExamples()}` : ""}`));
+					.setDescription(`${queryMember ? `<@${member?.id}> does` : "You do"} not currently have a color.${!queryMember ? `\nWant one? Examples:\n${this.getValidColorExamples(message.channel)}` : ""}`));
 
 			return CommandResult.pass();
 		}
@@ -244,7 +248,7 @@ I will not send any other notification messages, apologies for the interruption.
 		if (this.config.mustBeRegular && !this.regularsPlugin.isUserRegular(member)) {
 			this.reply(message, new MessageEmbed()
 				.setColor(currentColorRole?.color ?? "RANDOM")
-				.setDescription(`Sorry, <@${message.member?.id}>, ${queryMember ? `${member.displayName} is` : "you are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? "they" : "you"}'ll be able to have one soon!`));
+				.setDescription(`Sorry, ${queryMember ? `<@${member?.id}> is` : "You are"} not a regular of the server. Stick around, chat some more, and ${queryMember ? `${this.pronouns.referTo(member).they}` : "you"}'ll be able to have one soon!`));
 			return CommandResult.pass();
 		}
 
@@ -256,7 +260,7 @@ I will not send any other notification messages, apologies for the interruption.
 			if (!colorRole) {
 				return this.reply(message, new MessageEmbed()
 					.setColor(currentColorRole?.color ?? "RANDOM")
-					.setDescription(`<@${message.member?.id}>, you must provide a valid color.\nNeed help? Examples: ${this.getValidColorExamples()}`))
+					.setDescription(`You must provide a valid color.\nNeed help? Examples:\n${this.getValidColorExamples(message.channel)}`))
 					.then(reply => CommandResult.fail(message, reply));
 			}
 		}
@@ -265,8 +269,7 @@ I will not send any other notification messages, apologies for the interruption.
 
 		if (isRemoving) {
 			this.reply(message, new MessageEmbed()
-				.setColor("RANDOM")
-				.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
+				.setDescription(`${queryMember ? `<@${member?.id}>'s` : "Your"} color has been removed. ${currentColorRole ? `(Previously: **${currentColorRole.name}**)` : ""}`));
 			return CommandResult.pass();
 		}
 
@@ -275,20 +278,32 @@ I will not send any other notification messages, apologies for the interruption.
 
 		this.reply(message, new MessageEmbed()
 			.setColor(colorRole!.color)
-			.setDescription(`<@${message.member?.id}>, ${queryMember ? `${member.displayName}'s` : "your"} color has been changed to **${colorRole!.name}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getValidColorExamples()}`));
+			.setDescription(`${queryMember ? `<@${member?.id}>'s` : "Your"} color has been changed to **${this.mentionRole(colorRole!, message.channel)}**. ${currentColorRole ? `(Previously: ${currentColorRole.name})` : ""}\nNeed help? Examples: ${this.getSimpleValidColorExamples()}`));
 		return CommandResult.pass();
 	}
 
-	private getValidColorExamples () {
-		let examples = [];
-
+	private getValidColorExamples (channel: Channel) {
 		if (this.config.anyColor)
-			examples.push("`f00` is red", "`123456` is dark blue", "you can use Google's colour picker for more: https://www.google.com/search?q=color+picker");
+			return "`f00` is red, `123456` is dark blue, `#f0f0f0` is nearly white, etc. [Color Picker](https://www.google.com/search?q=color+picker)";
 
 		if (this.config.colors)
-			examples.push(...Object.values(this.config.colors).map(value => value[0]));
+			return Object.entries(this.config.colors)
+				.map(([color, aliases]) => `${this.mentionRole(this.guild.roles.cache.find(role => role.name.toLowerCase() === color.toLowerCase())!, channel)} — Use any of: ${aliases.map(alias => `\`${alias}\``).join(", ")}`)
+				.join("\n");
 
-		return examples.join(", ");
+		return "";
+	}
+
+	private getSimpleValidColorExamples () {
+		if (this.config.anyColor)
+			return "`f00`, `123456`, `#f0f0f0`, etc. [Color Picker](https://www.google.com/search?q=color+picker)";
+
+		if (this.config.colors)
+			return Object.values(this.config.colors)
+				.map(aliases => `\`${aliases[0]}\``)
+				.join(", ");
+
+		return "";
 	}
 
 	private isColorRole (role: string) {
