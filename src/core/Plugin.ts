@@ -1,4 +1,4 @@
-import { Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, MessageReaction, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
+import { Channel, Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, MessageReaction, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import Logger from "../util/Log";
@@ -137,19 +137,19 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 			reply = new MessageEmbed()
 				.setDescription(reply.getDisplay(this.commandPrefix));
 
-		if (typeof reply === "string") {
-			reply = reply.trim();
-			if (!message.guild)
-				reply = reply ? reply[0].toUpperCase() + reply.slice(1) : reply;
-			else
-				reply = `<@${message.author.id}>, ${reply}`;
-		}
+		// if (typeof reply === "string") {
+		// 	reply = reply.trim();
+		// 	if (!message.guild)
+		// 		reply = reply ? reply[0].toUpperCase() + reply.slice(1) : reply;
+		// else
+		// 	reply = `<@${message.author.id}>, ${reply}`;
+		// }
 
-		let textContent = typeof reply === "string" ? reply : message.channel instanceof DMChannel ? undefined : `<@${message.author.id}>`;
+		let textContent = typeof reply === "string" ? reply : undefined; // message.channel instanceof DMChannel ? undefined : `<@${message.author.id}>`;
 		const embedContent = typeof reply === "string" ? embed : reply;
 
 		if (message.previous?.output[0])
-			return message.previous?.output[0].edit(textContent, embedContent)
+			return message.previous?.output[0].edit(textContent, { embed: embedContent })
 				.then(async result => {
 					for (let i = 1; i < (message.previous?.output.length || 0); i++)
 						message.previous?.output[i].delete();
@@ -157,7 +157,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 					return result;
 				});
 
-		return message.channel.send(textContent, embedContent);
+		return message.channel.send(textContent, { embed: embedContent, replyTo: message });
 	}
 
 	protected getName (user: User | GuildMember | Message) {
@@ -610,5 +610,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 
 		Object.defineProperty(message, "member", { value: member, configurable: true });
 		return true;
+	}
+
+	public mentionRole (role: Role, channel?: Channel) {
+		if (channel instanceof DMChannel)
+			return `@${role.name}`;
+
+		return `<@&${role.id}>`;
 	}
 }

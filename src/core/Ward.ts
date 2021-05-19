@@ -439,9 +439,9 @@ export class Ward {
 			|| message.member?.permissions.has("ADMINISTRATOR");
 
 		if (canRunCommand) {
-			await message.author.send(`Making a backup...`);
+			await message.channel.send(`Making a backup...`, { replyTo: message });
 			const madebackup = await this.getApi<Data>("data")?.backup();
-			message.author.send(madebackup ? "Successfully backed-up save data." : "Failed to create a backup.");
+			message.channel.send(madebackup ? "Successfully backed-up save data." : "Failed to create a backup.", { replyTo: message });
 		}
 
 		return CommandResult.pass();
@@ -454,7 +454,7 @@ export class Ward {
 			|| (!all && message.member?.permissions.has("ADMINISTRATOR"));
 
 		if (canRunCommand) {
-			await message.reply(`restarting${all ? " every instance" : ""}...`);
+			await message.channel.send(`Restarting${all ? " every instance" : ""}...`, { replyTo: message });
 			this.event.emit("restart", all);
 		}
 
@@ -482,13 +482,13 @@ export class Ward {
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
-			return message.reply(`can't update plugin ${pluginName}, not found.`)
+			return message.channel.send(`Can't update plugin \`${pluginName}\`, not found.`, { replyTo: message })
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
 		plugin.logger.info(`Updating due to request from ${message.member?.displayName}`);
 		this.updatePlugin(plugin);
-		plugin.reply(message, `updated plugin ${pluginName}.`);
+		plugin.reply(message, `Updated plugin \`${pluginName}\`.`);
 		return CommandResult.pass();
 	}
 
@@ -499,13 +499,13 @@ export class Ward {
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin) {
-			return message.reply(`can't reset data for plugin ${pluginName}, not found.`)
+			return message.channel.send(`Can't reset data for plugin \`${pluginName}\`, not found.`, { replyTo: message })
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
 		plugin.logger.info(`Resetting data due to request from ${message.member?.displayName}`);
 		plugin.data.reset();
-		plugin.reply(message, `reset data for plugin ${pluginName}.`);
+		plugin.reply(message, `Reset data for plugin \`${pluginName}\`.`);
 		return CommandResult.pass();
 	}
 

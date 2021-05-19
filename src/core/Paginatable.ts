@@ -268,7 +268,6 @@ export class Paginator<T = any> {
 		let resolved = false;
 		return new Promise<Message>(async resolve => {
 			let currentContent = this.get();
-			let currentText: string;
 			let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 				.setTitle(currentContent.title)
 				.setDescription(currentContent.content || currentContent.description)
@@ -280,16 +279,14 @@ export class Paginator<T = any> {
 			else
 				currentEmbed.setAuthor(this.getPageNumberText());
 
-			currentText = inputUser ? `<@${inputUser.id}>` : "";
-
 			let messagePromise: Promise<Message>;
 			if (commandMessage?.previous?.output[0]) {
-				messagePromise = commandMessage.previous.output[0].edit(currentText, currentEmbed);
+				messagePromise = commandMessage.previous.output[0].edit(undefined, currentEmbed);
 				for (let i = 1; i < commandMessage.previous.output.length; i++)
 					commandMessage.previous.output[i].delete();
 
 			} else
-				messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
+				messagePromise = channel.send(undefined, { embed: currentEmbed, replyTo: commandMessage }) as Promise<Message>;
 
 			if (!resolved) {
 				resolved = true;
@@ -332,7 +329,7 @@ export class Paginator<T = any> {
 				else
 					currentEmbed.setAuthor(this.getPageNumberText());
 
-				message.edit(currentText, currentEmbed);
+				message.edit(undefined, currentEmbed);
 			}
 		});
 	}
@@ -345,7 +342,6 @@ export class Paginator<T = any> {
 		return new Promise<Message>(async resolve => {
 			while (true) {
 				let currentContent = this.get();
-				let currentText: string;
 				let currentEmbed = (currentContent.embed ?? new MessageEmbed()
 					.setTitle(currentContent.title)
 					.setDescription(currentContent.content || currentContent.description)
@@ -357,9 +353,7 @@ export class Paginator<T = any> {
 				else
 					currentEmbed.setAuthor(this.getPageNumberText());
 
-				currentText = inputUser && !(channel instanceof DMChannel) && !(channel instanceof User) ? `<@${inputUser.id}>` : "";
-
-				const messagePromise = channel.send(currentText, currentEmbed) as Promise<Message>;
+				const messagePromise = channel.send(undefined, { embed: currentEmbed, replyTo: commandMessage }) as Promise<Message>;
 				if (!resolved) {
 					resolved = true;
 					resolve(messagePromise);

@@ -1,4 +1,4 @@
-import { Collection, CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, NewsChannel, Role, TextChannel } from "discord.js";
+import { APIMessage, Collection, CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, MessageOptions, NewsChannel, Role, TextChannel } from "discord.js";
 import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Regex from "../util/Regex";
@@ -88,6 +88,11 @@ declare module "discord.js" {
 	interface NewsChannel {
 		isAwaitingMessages (message?: Message): boolean;
 		clearAwaitingMessages (): void;
+	}
+
+	interface MessageOptions {
+		replyTo?: Message;
+		ping?: true;
 	}
 }
 
@@ -297,3 +302,17 @@ export class RoleMatcher {
 		});
 	}
 }
+
+const originalResolveData = APIMessage.prototype.resolveData;
+Object.defineProperty(APIMessage.prototype, "resolveData", {
+	value (this: APIMessage) {
+		if (this.data) return this;
+		originalResolveData.call(this);
+		const options = this.options as MessageOptions;
+		if (options.replyTo !== undefined)
+			Object.assign(this.data, { message_reference: { message_id: options.replyTo.id } });
+		if (!options.ping)
+			Object.assign(this.data, { allowed_mentions: { parse: [] } });
+		return this;
+	}
+});
