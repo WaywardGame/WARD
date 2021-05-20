@@ -2,6 +2,7 @@ import { Channel, Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmo
 import { EventEmitterAsync, sleep } from "../util/Async";
 import Data, { FullDataContainer } from "../util/Data";
 import Logger from "../util/Log";
+import Objects from "../util/Objects";
 import { getTime, hours, minutes, never, seconds, TimeUnit } from "../util/Time";
 import { CommandMessage, ImportApi } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
@@ -18,6 +19,11 @@ export interface IExternalPluginConfig extends IPluginConfig {
 
 export interface IGetApi<T> {
 	(name: string): T;
+}
+
+interface IInherentData<CONFIG extends {}> {
+	_lastUpdate?: number;
+	_config?: Partial<Flatten<CONFIG>>;
 }
 
 export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
@@ -42,18 +48,18 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	@ImportApi("data")
 	protected dataApi: Data = undefined!;
 
-	private _data: FullDataContainer<DATA & { _lastUpdate?: number }>;
+	private _data: FullDataContainer<DATA & IInherentData<CONFIG>>;
 
 	public get data () {
 		if (!this._data)
-			this._data = this.dataApi.createContainer<DATA & { _lastUpdate?: number }>((self => ({
+			this._data = this.dataApi.createContainer<DATA & IInherentData<CONFIG>>((self => ({
 				get dataPath () { return self.getId(); },
 				get autosaveInterval () { return self.autosaveInterval; },
 				initData: () => ({ ...this.initData?.(), _lastUpdate: this.lastUpdate } as any),
 			}))(this))
 				.event.subscribe("save", () => this.logger.verbose("Saved"))!;
 
-		return this._data as FullDataContainer<DATA>;
+		return this._data;
 	};
 
 	// @ts-ignore
@@ -65,8 +71,14 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 	protected readonly commandPrefix: string;
 
 	private _config: CONFIG & IPluginConfig;
-	public get config () { return this._config; }
-	public set config (cfg: CONFIG & IPluginConfig) {
+	public get config (): Flatten<CONFIG & IPluginConfig> {
+		return new Proxy({}, {
+			get: (target, property) => {
+				return this.getConfig(property as any);
+			},
+		}) as any;
+	}
+	public setConfig (cfg: CONFIG & IPluginConfig) {
 		this._config = cfg;
 
 		if (cfg && cfg.updateInterval) {
@@ -83,6 +95,11 @@ export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
 		// Injector.into<Plugin, "onStart", "pre">(null, "onStart", "pre")
 		// 	.inject(this, this.onStartInternal);
 		// Injector.register(this.constructor as Class<this>, this);
+	}
+
+	public getConfig<P extends keyof Flatten<CONFIG>> (property: P): Flatten<CONFIG>[P] {
+		return this.data._config?.[property]
+			?? Objects.followKeys(this._config, property as any);
 	}
 
 	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;

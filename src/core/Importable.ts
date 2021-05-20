@@ -1,6 +1,6 @@
-export abstract class Importable<Config = {}> {
-	public abstract get config (): Config;
-	public abstract set config (value: Config);
+export abstract class Importable<CONFIG extends object = {}> {
+	public abstract get config (): Flatten<CONFIG>;
+	public abstract setConfig (value: CONFIG): any;
 
 	private id = this.getDefaultId();
 

@@ -23,6 +23,7 @@ import Bound from "../util/Bound";
 import { COLOR_BAD, COLOR_GOOD } from "../util/Colors";
 import Data from "../util/Data";
 import Logger from "../util/Log";
+import Objects from "../util/Objects";
 import { seconds } from "../util/Time";
 import { Trello } from "../util/Trello";
 import { Twitch } from "../util/Twitch";
@@ -62,7 +63,7 @@ export class Ward {
 	private plugins = {} as Record<string, Plugin> & { main: MainDataPlugin };
 	private apis: Record<string, Api> = {};
 	private stopped = true;
-	private onStop?: () => any;
+	private onStop?: AnyFunction;
 	private readonly commands: CommandMap = new Map();
 	private readonly anythingCommands = new Set<CommandFunction>();
 	private readonly logger = new Logger(this.config.apis.discord.guild);
@@ -182,7 +183,7 @@ export class Ward {
 
 			// this.logger.verbose("Loop plugin", pluginName);
 
-			if (plugin.onUpdate && Date.now() - plugin.lastUpdate > plugin.updateInterval)
+			if (Date.now() - plugin.lastUpdate > plugin.updateInterval)
 				promises.push(this.updatePlugin(plugin)
 					.then(plugin.data.saveOpportunity));
 		}
@@ -201,7 +202,7 @@ export class Ward {
 		const id = this.addImportable(plugin, this.plugins);
 		config = config || this.config.plugins[id];
 		if (config)
-			plugin.config = config;
+			plugin.setConfig(config);
 
 		return id;
 	}
@@ -214,7 +215,7 @@ export class Ward {
 		const id = this.addImportable(api, this.apis);
 		const config = this.config.apis[id];
 		if (config) {
-			api.config = config;
+			api.setConfig(config);
 		}
 
 		return id;
@@ -289,8 +290,8 @@ export class Ward {
 			.trim()
 			.replace(/\n/g, " \n")
 			.replace(/[ \t]+/g, " ")
-			.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [])
-			.map(v => v[0] === '"' ? v.slice(1, -1) : v);
+			.match(/(?:[^\s"`]+|"[^"]*"|```\w+[\s\r\n]+[^`]*```)+/g) ?? [])
+			.map(v => v[0] === '"' ? v.slice(1, -1) : v[0] === "`" ? v.replace(/^```\w+[\s\r\n]+|\r?\n?```$/g, "") : v);
 
 		const commandMessage = message as CommandMessage;
 		let commandName = "";
@@ -348,7 +349,7 @@ export class Ward {
 		this.discord = new Client();
 		this.discord.on("error", console.error);
 		this.discord.on("disconnect", console.error);
-		const readyPromise = new Promise(resolve => this.discord!.once("ready", resolve));
+		const readyPromise = new Promise<void>(resolve => this.discord!.once("ready", resolve));
 		await this.discord.login(this.config.apis.discord.token);
 		return readyPromise;
 	}
@@ -366,7 +367,7 @@ export class Ward {
 			if (!plugin.shouldExist(config))
 				continue;
 
-			plugin.config = config ?? plugin.config ?? plugin.getDefaultConfig();
+			plugin.setConfig(config ?? plugin["_config"] ?? plugin.getDefaultConfig());
 
 			// initial load of plugin data
 			if (!plugin["loaded"]) {
@@ -428,6 +429,9 @@ export class Ward {
 		}
 
 		this.registerCommand(["plugin", "update"], this.commandUpdatePlugin);
+		this.registerCommand(["plugin", "config", "get"], this.commandConfigGet);
+		this.registerCommand(["plugin", "config", "set"], this.commandConfigSet);
+		this.registerCommand(["plugin", "config", "remove"], this.commandConfigRemove);
 		this.registerCommand(["plugin", "data", "reset"], this.commandResetPluginData);
 		this.registerCommand(["help"], this.commandHelp);
 		this.registerCommand(["restart"], this.commandRestart);
@@ -517,12 +521,11 @@ export class Ward {
 			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];
-		if (!plugin) {
+		if (!plugin)
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
 				.setDescription(`Can't update plugin \`${pluginName}\`, not found.`))
 				.then(reply => CommandResult.fail(message, reply));
-		}
 
 		plugin.logger.info(`Updating due to request from ${message.member?.displayName}`);
 		this.updatePlugin(plugin);
@@ -533,17 +536,107 @@ export class Ward {
 	}
 
 	@Bound
+	private async commandConfigGet (message: CommandMessage, pluginName: string, property: string) {
+		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
+			return CommandResult.pass();
+
+		const plugin = this.plugins[pluginName];
+		if (!plugin)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't get config for plugin \`${pluginName}\`, not found.`))
+				.then(reply => CommandResult.fail(message, reply));
+
+		const oldValue = (plugin.data.data!._config as any)?.[property];
+		const baseValue = Objects.followKeys(plugin["_config"], property as never);
+
+		this.reply(message, new MessageEmbed()
+			.setDescription(`Config property \`${property}\` for plugin \`${pluginName}\`:`)
+			.addField("Overrided value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
+			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+
+		return CommandResult.pass();
+	}
+
+	@Bound
+	private async commandConfigSet (message: CommandMessage, pluginName: string, property: string, value: string) {
+		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
+			return CommandResult.pass();
+
+		const plugin = this.plugins[pluginName];
+		if (!plugin)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't modify config for plugin \`${pluginName}\`, not found.`))
+				.then(reply => CommandResult.fail(message, reply));
+
+		let parsedValue: any;
+		try {
+			parsedValue = JSON.parse(value);
+		} catch (err) {
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't modify config property \`${property}\` for plugin \`${pluginName}\`, unable to parse value. Is it well-formatted JSON data?`)
+				.addField("Error", err.message ?? "_ _"))
+				.then(reply => CommandResult.fail(message, reply));
+		}
+
+		const oldValue = (plugin.data.data!._config as any)?.[property];
+		const baseValue = Objects.followKeys(plugin["_config"], property as never);
+
+		plugin.data.data!._config ??= {};
+		(plugin.data.data!._config as any)[property] = parsedValue;
+		plugin.data.markDirty();
+
+		this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setDescription(`Modified config property \`${property}\` for plugin \`${pluginName}\``)
+			.addField("New value (current)", `\`\`\`json\n${JSON.stringify(parsedValue, null, "\t")}\n\`\`\``)
+			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
+			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+
+		return CommandResult.pass();
+	}
+
+	@Bound
+	private async commandConfigRemove (message: CommandMessage, pluginName: string, property: string) {
+		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
+			return CommandResult.pass();
+
+		const plugin = this.plugins[pluginName];
+		if (!plugin)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Can't modify config for plugin \`${pluginName}\`, not found.`))
+				.then(reply => CommandResult.fail(message, reply));
+
+		const oldValue = (plugin.data.data!._config as any)?.[property];
+		const baseValue = Objects.followKeys(plugin["_config"], property as never);
+
+		plugin.data.data!._config ??= {};
+		delete (plugin.data.data!._config as any)[property];
+		plugin.data.markDirty();
+
+		this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setDescription(`Removed config property \`${property}\` for plugin \`${pluginName}\``)
+			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
+			.addField("Base value (current)", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+
+		return CommandResult.pass();
+	}
+
+	@Bound
 	private async commandResetPluginData (message: CommandMessage, pluginName: string) {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
 		const plugin = this.plugins[pluginName];
-		if (!plugin) {
+		if (!plugin)
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
 				.setDescription(`Can't reset data for plugin \`${pluginName}\`, not found.`))
 				.then(reply => CommandResult.fail(message, reply));
-		}
 
 		await this.commandBackup(message);
 
