@@ -99,14 +99,14 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			this.logger.info(`Removed role ${role.name} from ${toggleMember.displayName}`);
 			this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
-				.setDescription(`Removed role <@&${role.id}>${toggleMember === message.member ? "" : ` from <@${toggleMember.id}>`}!`));
+				.setDescription(`Removed role ${this.mentionRole(role, message.channel)}${toggleMember === message.member ? "" : ` from <@${toggleMember.id}>`}!`));
 
 		} else {
 			toggleMember.roles.add(role);
 			this.logger.info(`Added role ${role.name} to ${toggleMember.displayName}`);
 			this.reply(message, new MessageEmbed()
 				.setColor(COLOR_GOOD)
-				.setDescription(`Added role <@&${role.id}>${toggleMember === message.member ? "" : ` to <@${toggleMember.id}>`}!`));
+				.setDescription(`Added role ${this.mentionRole(role, message.channel)}${toggleMember === message.member ? "" : ` to <@${toggleMember.id}>`}!`));
 		}
 
 		return CommandResult.pass();
