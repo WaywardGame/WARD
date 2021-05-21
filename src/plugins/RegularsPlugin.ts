@@ -3,7 +3,7 @@ import { GuildMember, Message, MessageEmbed, TextChannel, User } from "discord.j
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Random from "../util/Random";
 import Strings from "../util/Strings";
 import { days, getTime, hours, minutes } from "../util/Time";
@@ -22,7 +22,7 @@ export interface ITrackedMember {
 	autodonate?: [string, number];
 }
 
-export interface IRegularsData {
+export interface IRegularsData extends IInherentPluginData<IRegularsConfig> {
 	trackedMembers: Record<string, ITrackedMember>;
 }
 
@@ -131,7 +131,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		return CommandResult.pass();
 	}
 
-	protected initData = () => ({ trackedMembers: {} });
+	protected initData: () => IRegularsData = () => ({ trackedMembers: {} });
 
 	public async onStart () {
 		this.updateTopMembers();

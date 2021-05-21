@@ -1,13 +1,13 @@
 import { GuildMember, Role, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Arrays from "../util/Arrays";
 import { sleep } from "../util/Async";
 import { minutes, seconds } from "../util/Time";
 
 
-export interface IWelcomeData {
+export interface IWelcomeData extends IInherentPluginData<IWelcomeConfig> {
 	welcomedUsers: string[];
 }
 
@@ -26,7 +26,7 @@ enum CommandLanguage {
 export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> {
 	public updateInterval = minutes(1);
 
-	protected initData: () => ({ welcomedUsers: [] });
+	protected initData: () => IWelcomeData = () => ({ welcomedUsers: [] });
 
 	private get channels () {
 		return Arrays.or(this.config.welcomeChannel)

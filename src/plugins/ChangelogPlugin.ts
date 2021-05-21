@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { Message, MessageEmbed, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Strings from "../util/Strings";
 import { hours } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
@@ -54,7 +54,7 @@ const changelogVersion = 10;
 
 type ReportedChange = [trelloId: string, textHash: number, messageId?: string];
 
-export interface IChangelogData {
+export interface IChangelogData extends IInherentPluginData<IChangelogConfig> {
 	reportedChanges: ReportedChange[];
 }
 
@@ -88,7 +88,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	@ImportApi("trello")
 	private trello: Trello = undefined!;
 
-	protected initData = () => ({ reportedChanges: [] });
+	protected initData: () => IChangelogData = () => ({ reportedChanges: [] });
 
 	public getDefaultId () {
 		return "changelog";

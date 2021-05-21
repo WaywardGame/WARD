@@ -1,25 +1,12 @@
 import { APIMessage, Collection, CollectorFilter, ColorResolvable, DMChannel, EmbedFieldData, Message, MessageEmbed, MessageOptions, NewsChannel, Role, TextChannel } from "discord.js";
 import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
-import Objects from "../util/Objects";
 import Regex from "../util/Regex";
 import { Importable } from "./Importable";
 import { Plugin } from "./Plugin";
 
 export abstract class Api<CONFIG extends object = {}> extends Importable<CONFIG> {
-	private _config: CONFIG;
-	public get config (): Flatten<CONFIG> {
-		return new Proxy({}, {
-			get: (target, property) => {
-				return this.getConfig(property as any);
-			},
-		}) as any;
-	}
-	public setConfig (cfg: CONFIG) { this._config = cfg; }
-
-	public getConfig<P extends keyof Flatten<CONFIG>> (property: P): Flatten<CONFIG>[P] {
-		return Objects.followKeys(this._config, property as any);
-	}
+	protected initData = undefined;
 }
 
 export const SYMBOL_IMPORT_API_KEY = Symbol("import-api");

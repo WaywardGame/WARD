@@ -1,6 +1,7 @@
 import chalk, { Chalk } from "chalk";
 import * as fs from "mz/fs";
 import { IConfig } from "../core/Config";
+import Arrays from "./Arrays";
 import stripAnsi = require("strip-ansi");
 
 enum LogLevel {
@@ -76,8 +77,9 @@ export default class Logger {
 		Logger.logInternal(LogLevel.error, from, what);
 	}
 
-	private static async logInternal (level: LogLevel, from?: string | string[], what: any[] = []) {
-		from = Array.isArray(from) ? from.map((scope, i) => chalk[scopeColors[i]](scope)).join(" / ") : from;
+	private static async logInternal (level: LogLevel, from?: ArrayOr<GetterOr<string>>, what: any[] = []) {
+		from = Arrays.or(from ?? [])
+			.map((scope, i) => chalk[scopeColors[i]](typeof scope === "function" ? scope() : scope)).join(" / ");
 
 		const toLog = [];
 
@@ -116,43 +118,47 @@ export default class Logger {
 		}
 	}
 
-	private readonly scopes: string[] = [];
+	private readonly _scopes: GetterOr<string>[] = [];
 
-	public constructor (...scopes: string[]) {
+	public get scopes () {
+		return this._scopes as readonly GetterOr<string>[];
+	}
+
+	public constructor (...scopes: GetterOr<string>[]) {
 		this.pushScope(...scopes);
 	}
 
-	public pushScope (...scopes: string[]) {
-		this.scopes.push(...scopes);
+	public pushScope (...scopes: GetterOr<string>[]) {
+		this._scopes.push(...scopes);
 		return this;
 	}
 
 	public popScope () {
-		this.scopes.pop();
+		this._scopes.pop();
 		return this;
 	}
 
-	public popScopes (...scopes: string[]) {
+	public popScopes (...scopes: GetterOr<string>[]) {
 		while (true) {
 			const scope = scopes.pop();
-			if (scope === undefined || this.scopes.last() !== scope)
+			if (scope === undefined || this._scopes.last() !== scope)
 				break;
 
-			this.scopes.pop();
+			this._scopes.pop();
 		}
 		return this;
 	}
 
 	public async verbose (...what: any[]) {
-		Logger.logInternal(LogLevel.verbose, this.scopes, what);
+		Logger.logInternal(LogLevel.verbose, this._scopes, what);
 	}
 	public async info (...what: any[]) {
-		Logger.logInternal(LogLevel.info, this.scopes, what);
+		Logger.logInternal(LogLevel.info, this._scopes, what);
 	}
 	public async warning (...what: any[]) {
-		Logger.logInternal(LogLevel.warning, this.scopes, what);
+		Logger.logInternal(LogLevel.warning, this._scopes, what);
 	}
 	public async error (...what: any[]) {
-		Logger.logInternal(LogLevel.error, this.scopes, what);
+		Logger.logInternal(LogLevel.error, this._scopes, what);
 	}
 }

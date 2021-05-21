@@ -1,6 +1,6 @@
 import { MessageEmbed, TextChannel } from "discord.js";
 import { ImportApi } from "../core/Api";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import { minutes } from "../util/Time";
 import { IStream, IUser, Twitch } from "../util/Twitch";
 
@@ -33,7 +33,7 @@ export interface ITwitchStreamPluginConfig {
 	warningChannel?: string;
 }
 
-export interface ITwitchStreamPluginData {
+export interface ITwitchStreamPluginData extends IInherentPluginData<ITwitchStreamPluginConfig> {
 	trackedStreams: Record<string, number>,
 	failing: boolean,
 }
@@ -49,7 +49,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 
 	private get trackedStreams () { return this.data.trackedStreams; }
 
-	protected initData = () => ({ trackedStreams: {}, failing: false });
+	protected initData: () => ITwitchStreamPluginData = () => ({ trackedStreams: {}, failing: false });
 
 	public getDefaultId () {
 		return "twitchStream";
@@ -60,12 +60,12 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 		const updateTime = Date.now();
 		try {
 			await this.updateStreams(updateTime);
-			this.data.data!.failing = false;
+			this.data.failing = false;
 			await this.cleanupTrackedStreams(updateTime);
 		} catch (err) {
 			this.logger.error("Cannot update Twitch streams", err);
 			if (err.error.message === "Invalid OAuth token" && !this.data.failing) {
-				this.data.data!.failing = true;
+				this.data.failing = true;
 				this.warningChannel?.send(new MessageEmbed()
 					.setColor("FF0000")
 					.setTitle("Unable to update streams 😭")

@@ -32,25 +32,33 @@ import { IConfig, IGuildConfig } from "./Config";
 import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Importable } from "./Importable";
 import { Paginator } from "./Paginatable";
-import { IPluginConfig, Plugin } from "./Plugin";
+import { IInherentPluginData, IPluginConfig, Plugin } from "./Plugin";
 
 type Command = { function?: CommandFunction, plugin?: string, subcommands: CommandMap };
 type CommandMap = Map<string, Command>;
 
-interface IMainData {
+interface IMainData extends IInherentPluginData<IMainConfig> {
 	restartMessage?: [location: "guild" | "dm", channel: string, message: string];
+}
+
+interface IMainConfig {
+	commandPrefix: string;
 }
 
 const PLUGIN_MAIN = "main";
 
-class MainDataPlugin extends Plugin<{}, IMainData> {
+class MainDataPlugin extends Plugin<IMainConfig, IMainData> {
 	public getDefaultId () {
 		return PLUGIN_MAIN;
 	}
 
 	protected initData = () => ({});
 
-	public getDefaultConfig () { return {}; };
+	public getDefaultConfig () {
+		return {
+			commandPrefix: "!",
+		};
+	};
 }
 
 export class Ward {
@@ -59,46 +67,47 @@ export class Ward {
 
 	private guild: Guild;
 	private discord?: Client;
-	private commandPrefix: string;
 	private plugins = {} as Record<string, Plugin> & { main: MainDataPlugin };
 	private apis: Record<string, Api> = {};
 	private stopped = true;
 	private onStop?: AnyFunction;
 	private readonly commands: CommandMap = new Map();
 	private readonly anythingCommands = new Set<CommandFunction>();
-	private readonly logger = new Logger(this.config.apis.discord.guild);
+	private readonly logger = new Logger(() => this.guild?.name ?? this.config.apis.discord.guild);
+	private readonly data = new Data(this.config.apis.discord.guild);
 
 	public constructor (private readonly config: IConfig & IGuildConfig) {
-		this.addApi(new Trello());
-		this.addApi(new Twitch());
-		this.addApi(new Data(this.config.apis.discord.guild));
-		this.addPlugin(new MainDataPlugin());
-		this.addPlugin(new ChangelogPlugin());
-		this.addPlugin(new WelcomePlugin());
-		this.addPlugin(new AutoRolePlugin());
-		this.addPlugin(new RegularsPlugin());
-		this.addPlugin(new RoleTogglePlugin());
-		this.addPlugin(new TwitchStreamPlugin());
-		this.addPlugin(new GiveawayPlugin());
-		this.addPlugin(new SpamPlugin());
-		this.addPlugin(new ColorsPlugin());
-		this.addPlugin(new StoryPlugin());
-		this.addPlugin(new RemindersPlugin());
-		this.addPlugin(new WishPlugin());
-		this.addPlugin(new KingPlugin());
-		this.addPlugin(new PronounsPlugin());
-		this.addPlugin(new CrossPostPlugin());
+		this.addApi(Trello);
+		this.addApi(Twitch);
+		this.addPlugin(MainDataPlugin);
+		this.addPlugin(ChangelogPlugin);
+		this.addPlugin(WelcomePlugin);
+		this.addPlugin(AutoRolePlugin);
+		this.addPlugin(RegularsPlugin);
+		this.addPlugin(RoleTogglePlugin);
+		this.addPlugin(TwitchStreamPlugin);
+		this.addPlugin(GiveawayPlugin);
+		this.addPlugin(SpamPlugin);
+		this.addPlugin(ColorsPlugin);
+		this.addPlugin(StoryPlugin);
+		this.addPlugin(RemindersPlugin);
+		this.addPlugin(WishPlugin);
+		this.addPlugin(KingPlugin);
+		this.addPlugin(PronounsPlugin);
+		this.addPlugin(CrossPostPlugin);
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {
-				const externalPluginEntryPointModule = require(pluginCfg.classFile);
-				const externalPluginEntryPoint: ExternalPluginEntryPoint = externalPluginEntryPointModule.default;
-				const externalPlugin = externalPluginEntryPoint && externalPluginEntryPoint.initialize &&
-					externalPluginEntryPoint.initialize(ExternalPlugin);
+				const externalPluginEntryPoint = require(pluginCfg.classFile) as ExternalPluginEntryPoint | undefined;
+				const externalPlugin = externalPluginEntryPoint?.default?.(ExternalPlugin);
 				if (externalPlugin) this.addPlugin(externalPlugin, pluginCfg);
 				else Logger.error("External Plugins", `Unable to load plugin ${pluginCfg.classFile}`);
 			}
 		}
+	}
+
+	private get commandPrefix () {
+		return this.plugins.main.config.commandPrefix;
 	}
 
 	public async start () {
@@ -107,16 +116,12 @@ export class Ward {
 
 		this.stopped = false;
 
-		this.commandPrefix = this.config.commandPrefix;
-
 		this.logger.verbose("Login");
 		await this.login();
 		this.guild = await this.discord!.guilds.fetch(this.config.apis.discord.guild, true, true);
-		this.logger.popScope();
-		this.logger.pushScope(this.guild.name);
 
 		this.logger.verbose("Data init & backup");
-		await this.getApi<Data>("data")?.init();
+		await this.data.init();
 
 		this.logger.verbose("Plugins init");
 		this.pluginHookInit();
@@ -132,8 +137,7 @@ export class Ward {
 			reply?.edit(undefined, new MessageEmbed()
 				.setColor(COLOR_GOOD)
 				.setDescription("Restart complete."));
-			delete this.plugins.main.data.data!.restartMessage;
-			this.plugins.main.data.markDirty();
+			this.plugins.main.data.remove("restartMessage");
 			this.plugins.main.data.save();
 		}
 
@@ -158,14 +162,14 @@ export class Ward {
 		this.logger.verbose("Logout");
 		await this.logout();
 
-		this.logger.verbose("Stop");
+		this.logger.verbose("Stopped");
 		this.onStop?.();
 		delete this.onStop;
 	}
 
 	public async stop () {
 		if (!this.stopped) {
-			this.logger.verbose(`"Stopped bot for guild: '${this.guild?.name}'`)
+			this.logger.verbose("Stop");
 			this.stopped = true;
 
 			return new Promise(resolve => this.onStop = resolve);
@@ -198,9 +202,10 @@ export class Ward {
 		plugin.lastUpdate = Date.now();
 	}
 
-	public addPlugin (plugin: Plugin, config?: false | IPluginConfig) {
+	public addPlugin (pluginClass: Class<Plugin, ConstructorParameters<typeof Importable>>, config?: false | IPluginConfig) {
+		const plugin = new pluginClass(this.data, this.logger);
 		const id = this.addImportable(plugin, this.plugins);
-		config = config || this.config.plugins[id];
+		config ??= this.config.plugins[id];
 		if (config)
 			plugin.setConfig(config);
 
@@ -211,7 +216,8 @@ export class Ward {
 		delete this.plugins[pid];
 	}
 
-	public addApi (api: Api) {
+	public addApi (apiClass: Class<Api, ConstructorParameters<typeof Importable>>) {
+		const api = new apiClass(this.data, this.logger);
 		const id = this.addImportable(api, this.apis);
 		const config = this.config.apis[id];
 		if (config) {
@@ -290,8 +296,8 @@ export class Ward {
 			.trim()
 			.replace(/\n/g, " \n")
 			.replace(/[ \t]+/g, " ")
-			.match(/(?:[^\s"`]+|"[^"]*"|```\w+[\s\r\n]+[^`]*```)+/g) ?? [])
-			.map(v => v[0] === '"' ? v.slice(1, -1) : v[0] === "`" ? v.replace(/^```\w+[\s\r\n]+|\r?\n?```$/g, "") : v);
+			.match(/(?:[^\s"`]+|"[^"]*"|```(\w+[\s\r\n]+)?[^`]*```)+/g) ?? [])
+			.map(v => v[0] === '"' ? v.slice(1, -1) : v[0] === "`" ? v.replace(/^```(\w+[\s\r\n]+)?|\r?\n?```$/g, "") : v);
 
 		const commandMessage = message as CommandMessage;
 		let commandName = "";
@@ -362,7 +368,7 @@ export class Ward {
 		for (const pluginName in this.plugins) {
 			const plugin = this.plugins[pluginName];
 			const config = this.config.plugins[pluginName];
-			(plugin as any).commandPrefix = this.commandPrefix;
+			Object.defineProperty(plugin, "commandPrefix", { get: () => this.commandPrefix });
 
 			if (!plugin.shouldExist(config))
 				continue;
@@ -373,9 +379,8 @@ export class Ward {
 			if (!plugin["loaded"]) {
 				plugin["loaded"] = true;
 				plugin.logger.verbose("Load data");
-				await this.getApi<Data>("data")?.load(plugin)
-					.catch(err => plugin.logger.warning(`Unable to load data`, err))
-					?? {};
+				await this.data.load(plugin)
+					.catch(err => plugin.logger.warning(`Unable to load data`, err));
 			}
 
 			await this.pluginHook(pluginName, "onStart");
@@ -407,7 +412,6 @@ export class Ward {
 			const plugin = this.plugins[pluginName] as Plugin;
 			plugin.user = this.discord!.user!;
 			plugin.guild = this.guild;
-			plugin.logger = new Logger(this.guild.name, plugin.getId());
 
 			for (const property in plugin) {
 				// import apis
@@ -428,10 +432,10 @@ export class Ward {
 			}
 		}
 
+		this.registerCommand(["config", "get"], this.commandConfigGet);
+		this.registerCommand(["config", "set"], this.commandConfigSet);
+		this.registerCommand(["config", "remove"], this.commandConfigRemove);
 		this.registerCommand(["plugin", "update"], this.commandUpdatePlugin);
-		this.registerCommand(["plugin", "config", "get"], this.commandConfigGet);
-		this.registerCommand(["plugin", "config", "set"], this.commandConfigSet);
-		this.registerCommand(["plugin", "config", "remove"], this.commandConfigRemove);
 		this.registerCommand(["plugin", "data", "reset"], this.commandResetPluginData);
 		this.registerCommand(["help"], this.commandHelp);
 		this.registerCommand(["restart"], this.commandRestart);
@@ -476,7 +480,7 @@ export class Ward {
 			return CommandResult.pass();
 
 		const reply = await this.reply(message, new MessageEmbed().setDescription("Making a backup..."));
-		const madebackup = await this.getApi<Data>("data")?.backup();
+		const madebackup = await this.data.backup();
 
 		return Arrays.or(reply)[0].edit(new MessageEmbed()
 			.setColor(madebackup ? COLOR_GOOD : COLOR_BAD)
@@ -493,8 +497,7 @@ export class Ward {
 		if (canRunCommand) {
 			const reply = await this.reply(message, new MessageEmbed().setDescription(`Restarting${all ? " every instance" : ""}...`));
 			const dm = message.channel instanceof DMChannel;
-			this.plugins.main.data.data!.restartMessage = [dm ? "dm" : "guild", dm ? message.author.id : message.channel.id, Arrays.or(reply)[0].id];
-			this.plugins.main.data.markDirty();
+			this.plugins.main.data.set("restartMessage", [dm ? "dm" : "guild", dm ? message.author.id : message.channel.id, Arrays.or(reply)[0].id]);
 			this.event.emit("restart", all);
 		}
 
@@ -535,23 +538,51 @@ export class Ward {
 		return CommandResult.pass();
 	}
 
+	private async resolveConfig (message: CommandMessage, domain: "main" | `${"plugin" | "api"}${":" | "." | "/"}${string}`): Promise<CommandResult | Importable> {
+		if (domain === "main")
+			domain = "plugin:main";
+
+		const match = domain.match(/^(plugin|api)[:\.\/](.*)$/);
+		if (!match)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setDescription(`Invalid config domain \`${domain}\`. Must be \`main\`, \`plugin:<plugin name>\` or \`api:<api name>\``))
+				.then(reply => CommandResult.fail(message, reply));
+
+		const [, type, name] = match as [any, "plugin" | "api", string];
+		switch (type) {
+			case "plugin":
+				return this.plugins[name]
+					?? this.reply(message, new MessageEmbed()
+						.setColor(COLOR_BAD)
+						.setDescription(`Can't get config for plugin \`${name}\`, not found.`))
+						.then(reply => CommandResult.fail(message, reply));
+
+			case "api":
+				return this.apis[name]
+					?? this.reply(message, new MessageEmbed()
+						.setColor(COLOR_BAD)
+						.setDescription(`Can't get config for api \`${name}\`, not found.`))
+						.then(reply => CommandResult.fail(message, reply));
+		}
+	}
+
 	@Bound
-	private async commandConfigGet (message: CommandMessage, pluginName: string, property: string) {
+	private async commandConfigGet (message: CommandMessage, domain: string, property: string) {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
-		const plugin = this.plugins[pluginName];
-		if (!plugin)
-			return this.reply(message, new MessageEmbed()
-				.setColor(COLOR_BAD)
-				.setDescription(`Can't get config for plugin \`${pluginName}\`, not found.`))
-				.then(reply => CommandResult.fail(message, reply));
+		const result = await this.resolveConfig(message, domain as any);
+		if (!(result instanceof Importable))
+			return result;
 
-		const oldValue = (plugin.data.data!._config as any)?.[property];
-		const baseValue = Objects.followKeys(plugin["_config"], property as never);
+		const importable = result;
+
+		const oldValue = (importable.data._config as any)?.[property];
+		const baseValue = Objects.followKeys(importable["_config"], property as never);
 
 		this.reply(message, new MessageEmbed()
-			.setDescription(`Config property \`${property}\` for plugin \`${pluginName}\`:`)
+			.setDescription(`Config property \`${property}\` for plugin \`${domain}\`:`)
 			.addField("Overrided value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
 			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
 
@@ -581,11 +612,11 @@ export class Ward {
 				.then(reply => CommandResult.fail(message, reply));
 		}
 
-		const oldValue = (plugin.data.data!._config as any)?.[property];
+		const oldValue = (plugin.data._config as any)?.[property];
 		const baseValue = Objects.followKeys(plugin["_config"], property as never);
 
-		plugin.data.data!._config ??= {};
-		(plugin.data.data!._config as any)[property] = parsedValue;
+		plugin.data._config ??= {};
+		(plugin.data._config as any)[property] = parsedValue;
 		plugin.data.markDirty();
 
 		this.reply(message, new MessageEmbed()
@@ -610,11 +641,11 @@ export class Ward {
 				.setDescription(`Can't modify config for plugin \`${pluginName}\`, not found.`))
 				.then(reply => CommandResult.fail(message, reply));
 
-		const oldValue = (plugin.data.data!._config as any)?.[property];
+		const oldValue = (plugin.data._config as any)?.[property];
 		const baseValue = Objects.followKeys(plugin["_config"], property as never);
 
-		plugin.data.data!._config ??= {};
-		delete (plugin.data.data!._config as any)[property];
+		plugin.data._config ??= {};
+		delete (plugin.data._config as any)[property];
 		plugin.data.markDirty();
 
 		this.reply(message, new MessageEmbed()

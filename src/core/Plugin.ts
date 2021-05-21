@@ -1,12 +1,9 @@
 import { Channel, Collection, ColorResolvable, DMChannel, Emoji, Guild, GuildEmoji, GuildMember, Message, MessageEmbed, MessageReaction, NewsChannel, ReactionEmoji, Role, TextChannel, User } from "discord.js";
 import { EventEmitterAsync, sleep } from "../util/Async";
-import Data, { FullDataContainer } from "../util/Data";
-import Logger from "../util/Log";
-import Objects from "../util/Objects";
-import { getTime, hours, minutes, never, seconds, TimeUnit } from "../util/Time";
-import { CommandMessage, ImportApi } from "./Api";
+import { minutes, never, seconds, TimeUnit } from "../util/Time";
+import { CommandMessage } from "./Api";
 import HelpContainerPlugin, { HelpContainerCommand } from "./Help";
-import { Importable } from "./Importable";
+import { IInherentImportableData, Importable } from "./Importable";
 
 export interface IPluginConfig {
 	updateInterval?: string | [TimeUnit, number];
@@ -21,88 +18,33 @@ export interface IGetApi<T> {
 	(name: string): T;
 }
 
-interface IInherentData<CONFIG extends {}> {
+export interface IInherentPluginData<CONFIG = {}> extends IInherentImportableData<CONFIG> {
 	_lastUpdate?: number;
-	_config?: Partial<Flatten<CONFIG>>;
 }
 
-export abstract class Plugin<CONFIG extends {} = any, DATA = {}>
-	extends Importable<CONFIG & IPluginConfig> {
+export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPluginData<CONFIG> = IInherentPluginData<CONFIG>>
+	extends Importable<CONFIG & IPluginConfig, DATA> {
 
 	public event = new EventEmitterAsync();
 
 	public updateInterval = never();
-	public get lastUpdate () { return this._data.data?._lastUpdate || 0; }
+	public get lastUpdate () { return this.data._lastUpdate ?? 0; }
 	public set lastUpdate (value: number) {
-		if (this._data.data)
-			this._data.data!._lastUpdate = value;
-		this._data.markDirty();
+		this.data.set("_lastUpdate", value);
+		this.data.markDirty();
 	}
-	public autosaveInterval = hours(2);
+
 	public lastAutosave = 0;
 
 	public guild: Guild;
 	public user: User;
-	public logger: Logger;
-
-	@ImportApi("data")
-	protected dataApi: Data = undefined!;
-
-	private _data: FullDataContainer<DATA & IInherentData<CONFIG>>;
-
-	public get data () {
-		if (!this._data)
-			this._data = this.dataApi.createContainer<DATA & IInherentData<CONFIG>>((self => ({
-				get dataPath () { return self.getId(); },
-				get autosaveInterval () { return self.autosaveInterval; },
-				initData: () => ({ ...this.initData?.(), _lastUpdate: this.lastUpdate } as any),
-			}))(this))
-				.event.subscribe("save", () => this.logger.verbose("Saved"))!;
-
-		return this._data;
-	};
 
 	// @ts-ignore
 	private loaded = false;
 	/**
 	 * The current command prefix, configured instance-wide. It's only for reference, changing this would do nothing
 	 */
-	// @ts-ignore
 	protected readonly commandPrefix: string;
-
-	private _config: CONFIG & IPluginConfig;
-	public get config (): Flatten<CONFIG & IPluginConfig> {
-		return new Proxy({}, {
-			get: (target, property) => {
-				return this.getConfig(property as any);
-			},
-		}) as any;
-	}
-	public setConfig (cfg: CONFIG & IPluginConfig) {
-		this._config = cfg;
-
-		if (cfg && cfg.updateInterval) {
-			this.updateInterval = getTime(cfg.updateInterval);
-		}
-
-		// if (cfg && cfg.autosaveInterval) {
-		// 	this.autosaveInterval = getTime(cfg.autosaveInterval);
-		// }
-	}
-
-	public constructor () {
-		super();
-		// Injector.into<Plugin, "onStart", "pre">(null, "onStart", "pre")
-		// 	.inject(this, this.onStartInternal);
-		// Injector.register(this.constructor as Class<this>, this);
-	}
-
-	public getConfig<P extends keyof Flatten<CONFIG>> (property: P): Flatten<CONFIG>[P] {
-		return this.data._config?.[property]
-			?? Objects.followKeys(this._config, property as any);
-	}
-
-	protected abstract initData: {} extends DATA ? (() => DATA) | undefined : () => DATA;
 
 	public async save () {
 		return this.data.save();

@@ -1,7 +1,7 @@
 import { Plugin } from "./Plugin";
 
 export interface ExternalPluginEntryPoint {
-	initialize (cls: typeof ExternalPlugin): ExternalPlugin;
+	default?(cls: typeof ExternalPlugin): Class<ExternalPlugin, ConstructorParameters<typeof ExternalPlugin>>;
 }
 
 export default abstract class ExternalPlugin<CONFIG extends {} = {}, DATA = {}> extends Plugin<CONFIG, DATA> {

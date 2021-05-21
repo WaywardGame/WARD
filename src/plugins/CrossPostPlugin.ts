@@ -1,7 +1,7 @@
 
 import { GuildMember, Message, MessageEmbed, MessageReaction, TextChannel } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Arrays, { tuple } from "../util/Arrays";
 import Strings from "../util/Strings";
 import ogs = require("open-graph-scraper");
@@ -41,13 +41,13 @@ interface IEmbedDetails {
 	message?: string;
 }
 
-export interface ICrossPostPluginData {
+export interface ICrossPostPluginData extends IInherentPluginData<ICrossPostPluginConfig> {
 	crossposts: Record<string, ICrossPost[]>
 }
 
 export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPluginData> {
 
-	protected initData = () => ({ crossposts: {} });
+	protected initData: () => ICrossPostPluginData = () => ({ crossposts: {} });
 
 	public getDefaultId () {
 		return "crosspost";

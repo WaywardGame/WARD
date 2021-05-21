@@ -1,7 +1,7 @@
 import { GuildMember, Message, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Bound from "../util/Bound";
 import { RegularsPlugin } from "./RegularsPlugin";
 
@@ -14,7 +14,7 @@ export type IGiveawayPluginConfig = {
 	};
 }
 
-export interface IGiveawayData {
+export interface IGiveawayData extends IInherentPluginData<IGiveawayPluginConfig> {
 	giveaway?: IGiveawayInfo;
 }
 
@@ -50,7 +50,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 	@ImportPlugin("regulars")
 	private regularsPlugin: RegularsPlugin = undefined!;
 
-	protected initData = (): IGiveawayData => ({});
+	protected initData: () => IGiveawayData = () => ({});
 
 	public getDefaultId () {
 		return "giveaway";
@@ -127,7 +127,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		const giveawayMessage = await this.channel.send(`**A giveaway is starting for ${winnerCount} winner(s)!**\n${giveawayText.length ? `${giveawayText.join(" ")}\n` : ""}\n*To enter the giveaway, leave a reaction on this message. Reacting multiple times does not change your chances of winning. ${lockInfoText}*`) as Message;
 		this.logger.info(`${message.member.displayName} started a giveaway for ${winnerCount} winner(s). Text: ${giveawayText}`);
 
-		this.data.data!.giveaway = {
+		this.data.giveaway = {
 			message: giveawayMessage.id,
 			winnerCount
 		};
@@ -148,7 +148,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		this.channel.send("The giveaway has been cancelled!");
 		this.logger.info(`${message.member.displayName} cancelled the giveaway`);
 
-		delete this.data.data!.giveaway;
+		delete this.data.giveaway;
 		await this.save();
 		return CommandResult.pass();
 	}
@@ -196,7 +196,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 		if (!announcementMessage)
 			return CommandResult.pass();
 
-		delete this.data.data!.giveaway;
+		delete this.data.giveaway;
 		await this.save();
 
 		this.drawWinners(announcementMessage, winnerCount, prize || 0, consolation || 0);
@@ -259,7 +259,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 
 		if (!announcement) {
 			this.logger.warning("Giveaway announcement message inaccessible", this.data.giveaway);
-			delete this.data.data!.giveaway;
+			delete this.data.giveaway;
 			await this.save();
 			this.reply(message, "there is no giveaway running.");
 			return undefined;

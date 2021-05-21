@@ -3,7 +3,7 @@ import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageAttachment, 
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Arrays from "../util/Arrays";
 import Bound from "../util/Bound";
 import Enums from "../util/Enums";
@@ -54,7 +54,7 @@ interface IAuthor {
 	wordTracker?: Record<string, number>;
 }
 
-interface IStoryData {
+interface IStoryData extends IInherentPluginData<IStoryConfig> {
 	authors: Record<string, IAuthor>;
 	stories: Record<string, IStory[]>;
 }
@@ -96,7 +96,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		return {};
 	}
 
-	protected initData = () => ({ authors: {}, stories: {} });
+	protected initData: () => IStoryData = () => ({ authors: {}, stories: {} });
 
 	public getDefaultId () {
 		return "stories";

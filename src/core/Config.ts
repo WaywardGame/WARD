@@ -9,7 +9,6 @@ export interface IConfig {
 }
 
 export interface IGuildConfig {
-	commandPrefix: string;
 	externalPlugins?: IExternalPluginConfig[];
 	plugins: Record<string, false | IPluginConfig>;
 	apis: {

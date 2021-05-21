@@ -1,4 +1,3 @@
-import { Api } from "../core/Api";
 import type { Plugin } from "../core/Plugin";
 import { EventEmitterAsync } from "./Async";
 import Bound from "./Bound";
@@ -12,14 +11,13 @@ export interface IDataConfig {
 	dir?: string;
 }
 
-export default class Data extends Api<IDataConfig> {
+export default class Data {
 	public readonly dirData: string;
 	public readonly dirBackups = "data/backups";
 	public readonly dirExternalData: string;
 	private lastBackupTime = 0;
 
 	public constructor (private readonly guild: string) {
-		super();
 		this.dirData = `data/${guild}`;
 		this.dirExternalData = `data/${guild}/external`;
 	}
@@ -40,7 +38,15 @@ export default class Data extends Api<IDataConfig> {
 		const container = new DataContainer(this, host);
 		const proxy = new Proxy(container, {
 			get (target, prop) {
-				return target[prop as keyof typeof target] ?? target.data?.[prop as keyof DATA];
+				return target[prop as keyof typeof target] ?? target.get(prop as keyof DATA);
+			},
+			set (target, prop, value) {
+				target.set(prop as keyof DATA, value);
+				return true;
+			},
+			deleteProperty (target, prop) {
+				target.remove(prop as keyof DATA);
+				return true;
 			},
 		}) as FullDataContainer<DATA>;
 		(container.event as any).host = proxy;
@@ -98,7 +104,7 @@ export default class Data extends Api<IDataConfig> {
 	}
 }
 
-export type FullDataContainer<DATA extends {} = any> = DataContainer<DATA> & { readonly [K in keyof DATA]: DATA[K] };
+export type FullDataContainer<DATA extends {} = any> = DataContainer<DATA> & { [K in keyof DATA]: DATA[K] };
 
 export interface IDataContainerHost<DATA extends {} = any> {
 	autosaveInterval: number;
@@ -108,7 +114,7 @@ export interface IDataContainerHost<DATA extends {} = any> {
 
 export class DataContainer<DATA extends {} = any> {
 
-	public event = new EventEmitterAsync(this);
+	public readonly event = new EventEmitterAsync(this);
 
 	private _data?: DATA;
 	private dataJson?: string;
@@ -120,11 +126,23 @@ export class DataContainer<DATA extends {} = any> {
 	public get timeSinceLastSave () { return Date.now() - this._lastSave; }
 	public get timeTillNextSave () { return Math.max(0, this.host.autosaveInterval - this.timeSinceLastSave); }
 
-	public get data () {
-		return this._data;
+	public constructor (private readonly api: Data, private readonly host: IDataContainerHost<DATA>) { }
+
+	public get<PROPERTY extends keyof DATA> (property: PROPERTY) {
+		return this._data?.[property];
 	}
 
-	public constructor (private readonly api: Data, private readonly host: IDataContainerHost<DATA>) { }
+	public set<PROPERTY extends keyof DATA> (property: PROPERTY, value: DATA[PROPERTY]) {
+		if (this._data) {
+			this._data[property] = value;
+			this.dirty = true;
+		}
+	}
+
+	public remove<PROPERTY extends keyof DATA> (property: PROPERTY) {
+		delete this._data?.[property];
+		this.dirty = true;
+	}
 
 	@Bound
 	public isDirty () {

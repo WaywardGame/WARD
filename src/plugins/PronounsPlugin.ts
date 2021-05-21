@@ -2,7 +2,7 @@ import { DMChannel, GuildMember, Message, MessageEmbed, User } from "discord.js"
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import { tuple } from "../util/Arrays";
 import Bound from "../util/Bound";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
@@ -38,7 +38,7 @@ interface ISystem {
 	members: ISystemMember[];
 }
 
-interface PronounsPluginData {
+interface PronounsPluginData extends IInherentPluginData<PronounsPluginConfig> {
 	systems: Record<string, ISystem>;
 }
 
@@ -70,7 +70,7 @@ enum CommandLanguage {
 }
 
 export default class PronounsPlugin extends Plugin<PronounsPluginConfig, PronounsPluginData> {
-	protected initData = () => ({ systems: {} });
+	protected initData: () => PronounsPluginData = () => ({ systems: {} });
 
 	private get aboveRole () { return this.config.aboveRole && this.guild.roles.cache.get(this.config.aboveRole); }
 

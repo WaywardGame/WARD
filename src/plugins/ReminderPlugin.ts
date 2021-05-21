@@ -3,7 +3,7 @@ import { GuildMember, Message, MessageEmbed, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
-import { Plugin } from "../core/Plugin";
+import { IInherentPluginData, Plugin } from "../core/Plugin";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Strings from "../util/Strings";
 import { days, getTime, minutes, renderTime } from "../util/Time";
@@ -37,7 +37,7 @@ export interface IDowntime {
 	end?: number;
 }
 
-export interface IReminderPluginData {
+export interface IReminderPluginData extends IInherentPluginData {
 	reminders: IReminder[];
 	downtime: Record<string, IDowntime>;
 }
@@ -46,7 +46,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 
 	public readonly updateInterval = minutes(1);
 
-	protected readonly initData = () => ({ reminders: [], downtime: {} });
+	protected readonly initData: () => IReminderPluginData = () => ({ reminders: [], downtime: {} });
 
 	public getDefaultConfig () {
 		return {};
