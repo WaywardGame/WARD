@@ -70,8 +70,12 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 				if (active)
 					continue;
 
-				reminder.last = Date.now();
 				let remove = reminder.type === "after";
+
+				if (remove)
+					reminder.last = Date.now();
+				else
+					reminder.last += reminder.time;
 
 				const reminderOwner = this.guild.members.cache.get(reminder.owner);
 				if (reminderOwner) {
