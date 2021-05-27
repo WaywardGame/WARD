@@ -5,7 +5,7 @@ import Arrays from "../util/Arrays";
 import { minutes } from "../util/Time";
 
 export interface IAutoRoleConfig {
-	rules: IAutoRoleRuleConfig[];
+	rules?: IAutoRoleRuleConfig[];
 }
 
 interface IAutoRoleRuleConfig {
@@ -32,7 +32,7 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 	}
 
 	public async onStart () {
-		this.rules = await Promise.all(this.config.rules.map(async ruleConfig => ({
+		this.rules = await Promise.all((this.config.rules ?? []).map(async ruleConfig => ({
 			match: new RoleMatcher(ruleConfig.match),
 			apply: await Promise.all(Arrays.or(ruleConfig.apply ?? []).map(role => this.findRole(role))),
 			remove: await Promise.all(Arrays.or(ruleConfig.remove ?? []).map(role => this.findRole(role))),

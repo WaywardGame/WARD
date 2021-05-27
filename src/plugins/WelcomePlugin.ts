@@ -12,9 +12,9 @@ export interface IWelcomeData extends IInherentPluginData<IWelcomeConfig> {
 }
 
 export interface IWelcomeConfig {
-	welcomeChannel: string | string[];
-	welcomeRoles: string[];
-	welcomeMessage: string | (string | string[])[];
+	welcomeChannel?: string | string[];
+	welcomeRoles?: string[];
+	welcomeMessage?: string | (string | string[])[];
 }
 
 enum CommandLanguage {
@@ -29,11 +29,10 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	protected initData: () => IWelcomeData = () => ({ welcomedUsers: [] });
 
 	private get channels () {
-		return Arrays.or(this.config.welcomeChannel)
+		return Arrays.or(this.config.welcomeChannel ?? [])
 			.map(channel => this.guild.channels.cache.get(channel) as TextChannel);
 	}
 
-	private welcomeRoles: Role[];
 	private isWelcoming = false;
 	private get welcomedUsers () { return this.data.welcomedUsers; }
 	private continueWelcomes?: (report: boolean) => any;
@@ -66,11 +65,6 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		return CommandResult.pass();
 	}
 
-	public async onStart () {
-		this.welcomeRoles = (await Promise.all(this.config.welcomeRoles.map(role => this.findRole(role))))
-			.filter((role): role is Role => !!role);
-	}
-
 	public async onUpdate () {
 		if (this.isWelcoming) {
 			return;
@@ -94,6 +88,11 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 		return CommandResult.pass();
 	}
 
+	private async getWelcomeRoles () {
+		return Promise.all((this.config.welcomeRoles ?? []).map(role => this.findRole(role)))
+			.then(roles => roles.filter((role): role is Role => !!role));
+	}
+
 	private continueLogging (message: CommandMessage, report: boolean) {
 		if (!message.member?.permissions.has("ADMINISTRATOR"))
 			return;
@@ -113,9 +112,10 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	private async welcomeNewUsers () {
 		await this.guild.members.fetch({ force: true });
 
+		const welcomeRoles = await this.getWelcomeRoles();
 		// each guild member that has a welcome role
 		const users = this.guild.members.cache.filter(member =>
-			this.welcomeRoles.some(role => member.roles.cache.has(role.id))
+			welcomeRoles.some(role => member.roles.cache.has(role.id))
 			&& !this.welcomedUsers.includes(member.id));
 
 		if (!users?.size)
@@ -141,13 +141,14 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 
 		this.logger.info(`${welcome ? "Welcoming" : "Skipping welcome for"}: ${user.displayName}`);
 
-		if (welcome) {
-			for (const channel of this.channels) {
-				await channel.send((Array.isArray(this.config.welcomeMessage) ? this.config.welcomeMessage : [this.config.welcomeMessage])
-					.map(part => Array.isArray(part) ? part[Math.floor(Math.random() * part.length)] : part)
-					.join(" ")
-					.replace("{user}", `<@${user.id}>`));
+		if (welcome && this.config.welcomeMessage !== undefined) {
+			const message = (Array.isArray(this.config.welcomeMessage) ? this.config.welcomeMessage : [this.config.welcomeMessage])
+				.map(part => Array.isArray(part) ? part[Math.floor(Math.random() * part.length)] : part)
+				.join(" ")
+				.replace("{user}", `<@${user.id}>`);
 
+			for (const channel of this.channels) {
+				await channel.send(message);
 				await sleep(seconds(1));
 			}
 

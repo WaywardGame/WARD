@@ -14,7 +14,7 @@ interface IToggleableRoles {
 type ToggleableRoles = ArrayOr<string> | IToggleableRoles;
 
 export interface IRoleTogglePluginConfig {
-	toggleableRoles: Record<string, ToggleableRoles>;
+	toggleableRoles?: Record<string, ToggleableRoles>;
 }
 
 enum CommandLanguage {
@@ -38,7 +38,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 	private readonly help = (channel?: Channel) => new HelpContainerPlugin()
 		.addCommand("role", CommandLanguage.RoleDescription, command => command
 			.addRawTextArgument("role", CommandLanguage.RoleArgumentRole, argument => argument
-				.addOptions(...Object.entries(this.config.toggleableRoles)
+				.addOptions(...Object.entries(this.config.toggleableRoles ?? {})
 					.map(([role, config]) => tuple(
 						[...this.getAliases(role, config)]
 							.map(alias => alias.includes(" ") ? `"${alias}"` : alias)
@@ -119,7 +119,7 @@ export class RoleTogglePlugin extends Plugin<IRoleTogglePluginConfig> {
 			return role;
 
 		// find toggleableRoles that match the query
-		for (const [toggleableRole, config] of Object.entries(this.config.toggleableRoles)) {
+		for (const [toggleableRole, config] of Object.entries(this.config.toggleableRoles ?? {})) {
 			if (!this.getAliases(toggleableRole, config).has(query))
 				continue;
 
