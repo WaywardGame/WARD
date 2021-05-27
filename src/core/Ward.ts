@@ -33,6 +33,7 @@ import ExternalPlugin, { ExternalPluginEntryPoint } from "./ExternalPlugin";
 import { Importable } from "./Importable";
 import { Paginator } from "./Paginatable";
 import { IInherentPluginData, IPluginConfig, Plugin } from "./Plugin";
+import json5 = require("json5");
 
 type Command = { function?: CommandFunction, plugin?: string, subcommands: CommandMap };
 type CommandMap = Map<string, Command>;
@@ -603,7 +604,7 @@ export class Ward {
 
 		let parsedValue: any;
 		try {
-			parsedValue = JSON.parse(value);
+			parsedValue = json5.parse(value);
 		} catch (err) {
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
