@@ -1,4 +1,4 @@
-import * as request from "request-promise-native";
+import fetch from "node-fetch";
 import { Api } from "../core/Api";
 import { sleep } from "./Async";
 import Logger from "./Log";
@@ -257,9 +257,8 @@ export class Trello extends Api<ITrelloConfig> {
 			await sleep(seconds(2) - timeSinceLastRequest);
 
 		lastRequest = Date.now();
-		return request(`${endpoint}${rq}${rq.includes("?") ? "&" : "?"}key=${this.config.key}`, {
-			json: true,
-		});
+		return fetch(`${endpoint}${rq}${rq.includes("?") ? "&" : "?"}key=${this.config.key}`)
+			.then(response => response.json());
 	}
 
 	private getListVersionInfo (list: ITrelloList): IVersionInfo | undefined {

@@ -1,4 +1,4 @@
-import * as request from "request-promise-native";
+import fetch from "node-fetch";
 import { Api } from "../core/Api";
 import { sleep } from "./Async";
 import Logger from "./Log";
@@ -102,17 +102,17 @@ export class Twitch extends Api<ITwitchConfig> {
 			}
 
 			try {
-				const r = request(`${rq.startsWith(endpoint) ? "" : endpoint}${rq}`, {
+				const r = fetch(`${rq.startsWith(endpoint) ? "" : endpoint}${rq}`, {
 					headers: {
 						"Client-ID": this.config.client,
 						"Authorization": `Bearer ${this.config.token}`
 					},
-					json: true,
 				});
 
-				result = await r;
+				const response = await r;
+				result = await response.json();
 
-				const ratelimit = r.response.headers["Ratelimit-Limit"];
+				const ratelimit = response.headers.get("Ratelimit-Limit");
 				sleepTime = minutes(1) / +ratelimit!;
 
 			} catch (err) {
