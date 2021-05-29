@@ -121,6 +121,7 @@ export class DataContainer<DATA extends {} = any> {
 	private dirty = false;
 	private _lastSave = 0;
 	private saving?: Promise<void>;
+	private loaded = false;
 
 	public get lastSaveTime () { return this._lastSave; }
 	public get timeSinceLastSave () { return Date.now() - this._lastSave; }
@@ -178,10 +179,15 @@ export class DataContainer<DATA extends {} = any> {
 		const dataJson = await FileSystem.readFile(this.getPath(), "utf8");
 		this._data = json5.parse(dataJson);
 		this.dataJson = JSON.stringify(this._data);
+		this.loaded = true;
+		this.dirty = false;
 	}
 
 	@Bound
 	public async save () {
+		if (!this.loaded)
+			return;
+
 		return this.saving ?? (this.saving = new Promise<void>(async resolve => {
 			this._lastSave = Date.now();
 			this.dataJson = JSON.stringify(this._data);
@@ -203,6 +209,7 @@ export class DataContainer<DATA extends {} = any> {
 
 	public reset () {
 		this._data = this.host.initData();
+		this.loaded = true;
 		this.markDirty();
 	}
 

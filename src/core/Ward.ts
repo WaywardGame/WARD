@@ -121,14 +121,26 @@ export class Ward {
 		await this.login();
 		this.guild = await this.discord!.guilds.fetch(this.config.apis.discord.guild, true, true);
 
+		if (this.stopped)
+			return this.handleStop();
+
 		this.logger.verbose("Data init & backup");
 		await this.data.init();
+
+		if (this.stopped)
+			return this.handleStop();
 
 		this.logger.verbose("Plugins init");
 		this.pluginHookInit();
 
+		if (this.stopped)
+			return this.handleStop();
+
 		this.logger.verbose("Plugins start");
 		await this.pluginHookStart();
+
+		if (this.stopped)
+			return this.handleStop();
 
 		if (this.plugins.main.data.restartMessage) {
 			const [location, channelId, messageId] = this.plugins.main.data.restartMessage;
@@ -154,6 +166,10 @@ export class Ward {
 			await sleep(100);
 		}
 
+		await this.handleStop();
+	}
+
+	private async handleStop () {
 		this.logger.verbose("Plugins stop");
 		await this.pluginHookStop();
 
