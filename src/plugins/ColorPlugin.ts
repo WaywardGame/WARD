@@ -1,13 +1,32 @@
 import { Channel, Collection, GuildMember, MessageEmbed, Permissions, Role } from "discord.js";
+import fetch from "node-fetch";
 import { Command, CommandMessage, CommandResult, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Plugin } from "../core/Plugin";
 import PronounsPlugin from "./PronounsPlugin";
 import { RegularsPlugin } from "./RegularsPlugin";
 
+let cssColors: Record<string, string> = {};
+fetch("https://www.w3.org/TR/css-color-3")
+	.then(response => response.text())
+	.then(text => {
+		for (const table of text.match(/<table class=colortable>.*?<\/table>/sg) ?? []) {
+			for (const row of table.match(/<tr>.*?(?=<tr>)/sg) ?? []) {
+				const [, name, hex] = row.match(/<tr>\s*?<td class=c style="background:(\w+)">\s*?<td class=c style="background:#(\w+)">/s) ?? [];
+				if (!name || !hex)
+					continue;
+
+				cssColors[name] = hex;
+			}
+		}
+	});
+
 
 const colorRegex = /^#[A-F0-9]{6}$/;
 function parseColorInput (color: string) {
+	if (cssColors[color.toLowerCase()])
+		return `#${cssColors[color.toLowerCase()]}`.toUpperCase();
+
 	color = color.toUpperCase();
 
 	if (color[0] === "#")
