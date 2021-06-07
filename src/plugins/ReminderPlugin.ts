@@ -61,6 +61,11 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 	}
 
 	public async onUpdate () {
+		if (this.guild.members.cache.size < 3) {
+			this.logger.warning("Saw less than three members in guild, skipping update in case something is wrong.");
+			return;
+		}
+
 		const reminders = this.data.reminders;
 		for (let i = 0; i < reminders.length; i++) {
 			const reminder = reminders[i];
