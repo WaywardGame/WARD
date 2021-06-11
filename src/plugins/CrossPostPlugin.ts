@@ -6,7 +6,7 @@ import Arrays, { tuple } from "../util/Arrays";
 import Strings from "../util/Strings";
 import ogs = require("open-graph-scraper");
 
-const version = 3;
+const version = 6;
 
 interface IWatch {
 	channel: string;
@@ -39,6 +39,7 @@ interface IEmbedDetails {
 	description?: string;
 	thumbnail?: string;
 	message?: string;
+	fields?: [string, string][];
 }
 
 export interface ICrossPostPluginData extends IInherentPluginData<ICrossPostPluginConfig> {
@@ -71,7 +72,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 			for (const crosspost of crosspostList.slice(-25).reverse()) {
 				const [, sourceMessageId] = crosspost.source;
-				const message = await channel.messages.fetch(sourceMessageId);
+				const message = await channel.messages.fetch(sourceMessageId)
+					.catch(() => { });
 				if (!message) {
 					this.logger.warning(`Could not find source message in #${channel.name} by ID`, sourceMessageId);
 					continue;
@@ -101,7 +103,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			return this.reply(message, `I could not find a channel by ID "${channelId}"`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		const sourceMessage = messageId && await channel.messages.fetch(messageId);
+		const sourceMessage = messageId && await channel.messages.fetch(messageId)
+			.catch(() => { });
 		if (!sourceMessage)
 			return this.reply(message, `I could not find a message by ID "${messageId}" in <#${channel.id}>`)
 				.then(reply => CommandResult.fail(message, reply));
@@ -173,7 +176,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 		const [sourceChannelId, sourceMessageId] = crosspost.source;
 		const sourceMessage = await (this.guild.channels.cache.get(sourceChannelId) as TextChannel)
-			?.messages.fetch(sourceMessageId);
+			?.messages.fetch(sourceMessageId)
+			.catch(() => { });
 
 		if (!sourceMessage)
 			return this.reply(message, "it seems as though the crosspost source message has been deleted.")
@@ -194,7 +198,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			return;
 		}
 
-		const crosspostMessage = await channel.messages.fetch(crosspostMessageId);
+		const crosspostMessage = await channel.messages.fetch(crosspostMessageId)
+			.catch(() => { });
 		if (!crosspostMessage) {
 			this.logger.warning("Could not edit crosspost, could not get message by ID", crosspostMessageId);
 			return;
@@ -202,7 +207,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 		let openGraph: IEmbedDetails = {};
 		if (gdocs)
-			openGraph = await this.extractGDocs(message) ?? {};
+			openGraph = await this.extractGDocs(message.content) ?? {};
 
 		const watch = this.config.watch.find(watch => watch.channel === message.channel.id
 			&& watch.postChannel === channel.id);
@@ -236,7 +241,8 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 				continue;
 			}
 
-			const crosspostMessage = await channel.messages.fetch(crosspostMessageId);
+			const crosspostMessage = await channel.messages.fetch(crosspostMessageId)
+				.catch(() => { });
 			if (!crosspostMessage) {
 				this.logger.warning("Could not delete crosspost, could not get message by ID", crosspostMessageId);
 				continue;
@@ -265,7 +271,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 
 		let openGraph: IEmbedDetails = {};
 		if (watch.filter?.gdocs) {
-			const extracted = await this.extractGDocs(message);
+			const extracted = await this.extractGDocs(message.content);
 			if (!extracted)
 				return;
 
@@ -328,7 +334,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			.setURL(openGraph.link)
 			.setTitle(openGraph.title)
 			.setThumbnail(openGraph.thumbnail)
-			.setDescription(`${openGraph.message ?? message.content} [[Message]](${message.url})`)
+			.setDescription(`${(`${openGraph.message ?? message.content} `).replace(/(\[.*?\]\([^\[\]()]*?\))\s*$/, "$1\n")}[[Message]](${message.url})`)
 			.addFields(...!openGraph.description ? [] : [
 				{ name: "Document Preview", value: this.reformatOpenGraphDescription(openGraph.description) },
 			])
@@ -346,8 +352,9 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		return `> ||${description.replace(/\r?\n/g, "||\n> ||")}||`;
 	}
 
-	private async extractGDocs (message: Message): Promise<IEmbedDetails | undefined> {
-		const match = message.content.match(/\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/);
+	private async extractGDocs (text: string, preserveLinks = false): Promise<IEmbedDetails | undefined> {
+		const regex = /\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/;
+		const match = text.match(regex);
 		if (!match)
 			return;
 
@@ -357,7 +364,16 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		if (!embed)
 			return;
 
-		embed.message = message.content.slice(0, match.index) + message.content.slice(match.index! + gdocsLink.length);
+		const before = text.slice(0, match.index);
+		let after = text.slice(match.index! + gdocsLink.length);
+		let link = "";
+
+		if (embed.title && (regex.test(after) || preserveLinks)) {
+			link = `[${embed.title}](${gdocsLink})`;
+			after = (await this.extractGDocs(after, true))?.message ?? "";
+		}
+
+		embed.message = `${before}${link}${after}`;
 
 		return embed;
 	}
