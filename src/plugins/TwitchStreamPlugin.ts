@@ -64,7 +64,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			await this.cleanupTrackedStreams(updateTime);
 		} catch (err) {
 			this.logger.error("Cannot update Twitch streams", err);
-			if (err.error.message === "Invalid OAuth token" && !this.data.failing) {
+			if (err.message === "Invalid OAuth token" && !this.data.failing) {
 				this.data.failing = true;
 				this.warningChannel?.send(new MessageEmbed()
 					.setColor("FF0000")

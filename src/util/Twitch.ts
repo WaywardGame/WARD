@@ -48,7 +48,8 @@ export interface ITwitchConfig {
 	token: string;
 }
 
-let sleepTime = 10000;
+const defaultSleepTime = 10000;
+let sleepTime = defaultSleepTime;
 let isRequesting = false;
 let lastRequestTime = 0;
 
@@ -111,20 +112,20 @@ export class Twitch extends Api<ITwitchConfig> {
 
 				const response = await r;
 				result = await response.json();
+				if (result.error)
+					throw result;
 
 				const ratelimit = response.headers.get("Ratelimit-Limit");
-				sleepTime = minutes(1) / +ratelimit!;
+				sleepTime = Math.max(defaultSleepTime, minutes(1) / (+ratelimit! ?? 1));
 
 			} catch (err) {
 				lastRequestTime = Date.now();
 
-				if (err.error?.message === "Invalid OAuth token") {
+				if (err?.message === "Invalid OAuth token")
 					throw err;
-				}
 
-				if (++tries > 100) {
+				if (++tries > 100)
 					throw err;
-				}
 
 				Logger.error(err);
 			}
