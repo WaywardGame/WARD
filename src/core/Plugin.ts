@@ -534,11 +534,12 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 
 	protected async getReactors (message: Message): Promise<Set<User>>;
 	protected async getReactors (message: string, channel: TextChannel): Promise<Set<User>>;
-	protected async getReactors (message: Message | string, channel?: TextChannel) {
-		message = message instanceof Message ? message : await channel!.messages.fetch(message);
+	protected async getReactors (message: Message | string | undefined, channel?: TextChannel) {
+		message = message instanceof Message ? message : await channel!.messages.fetch(message!)
+			.catch(() => undefined);
 
 		const users = new Set<User>();
-		for (const reaction of message.reactions.cache.values())
+		for (const reaction of message?.reactions.cache.values() ?? [])
 			for (const user of (await reaction.users.fetch()).values())
 				users.add(user);
 
@@ -562,7 +563,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 
 		let member = this.guild.members.cache.get(message.author.id);
 		if (!member)
-			member = await this.guild.members.fetch(message.author.id);
+			member = await this.guild.members.fetch(message.author.id)
+				.catch(() => undefined);
 
 		if (!member)
 			return false;
