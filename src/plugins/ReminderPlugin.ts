@@ -66,7 +66,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 			return;
 		}
 
-		const reminders = this.data.reminders;
+		const reminders = this.data.reminders ?? [];
 		for (let i = 0; i < reminders.length; i++) {
 			const reminder = reminders[i];
 			if (Date.now() - reminder.last > reminder.time) {
