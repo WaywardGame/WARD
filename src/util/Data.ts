@@ -176,11 +176,17 @@ export class DataContainer<DATA extends {} = any> {
 			return;
 		}
 
-		const dataJson = await FileSystem.readFile(this.getPath(), "utf8");
-		this._data = json5.parse(dataJson);
+		const path = this.getPath();
+		this._data = await this.getJSON(path)
+			.catch(() => this.getJSON(`${path}.backup`));
 		this.dataJson = JSON.stringify(this._data);
 		this.loaded = true;
 		this.dirty = false;
+	}
+
+	private async getJSON (path: string) {
+		const dataJson = await FileSystem.readFile(path, "utf8");
+		return json5.parse(dataJson);
 	}
 
 	@Bound
@@ -191,7 +197,13 @@ export class DataContainer<DATA extends {} = any> {
 		return this.saving ?? (this.saving = new Promise<void>(async resolve => {
 			this._lastSave = Date.now();
 			this.dataJson = JSON.stringify(this._data);
-			await FileSystem.writeFile(this.getPath(), this.dataJson);
+			const path = this.getPath();
+			const tempPath = `${path}.temp`;
+			const backupPath = `${path}.backup`;
+			await FileSystem.writeFile(tempPath, this.dataJson);
+			await FileSystem.rename(path, backupPath);
+			await FileSystem.rename(tempPath, path);
+			await FileSystem.unlink(backupPath);
 			await this.event.emit("save");
 			resolve();
 			this._lastSave = Date.now();

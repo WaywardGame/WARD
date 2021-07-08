@@ -8,6 +8,8 @@ module FileSystem {
 	export const exists = fs.exists;
 	export const mkdir = fs2.mkdirp;
 	export const copy = fs2.copy;
+	export const unlink = fs2.unlink;
+	export const rename = fs.rename;
 }
 
 export default FileSystem;
