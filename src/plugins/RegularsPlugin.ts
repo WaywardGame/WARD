@@ -537,18 +537,18 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				.setAuthor(memberName, member.user.avatarURL() ?? undefined)
 				.setTitle(`${Intl.NumberFormat().format(trackedMember.xp)} ${this.getScoreName()}`)
 				.addFields(
-					!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${daysAway} days` }
+					!daysTillXpLoss ? { name: `Losing ${this.getScoreName()}!`, value: `Not chatted for ${Intl.NumberFormat().format(daysAway)} days` }
 						: trackedMember.lastDay < today ? { name: "Not chatted today!", value: Random.choice(...this.config.notChattedMessages ?? ["Come on... say something! We're fun!"]).replace(/\{name\}/g, memberName) } : undefined,
-					{ name: "Days chatted", value: `${days}${days === 69 ? " (nice)" : ""}`, inline: true },
+					{ name: "Days chatted", value: `${Intl.NumberFormat().format(days)}${days === 69 ? " (nice)" : ""}`, inline: true },
 					...trackedMember.lastDay < today - 1
 						? (!daysTillXpLoss ? [] : [
-							{ name: "Days away", value: `${daysAway}`, inline: true },
+							{ name: "Days away", value: Intl.NumberFormat().format(daysAway), inline: true },
 							{ name: `Days till ${this.getScoreName()} loss`, value: `${daysTillXpLoss}`, inline: true }
 						])
 						: [
-							{ name: "Streak", value: `${trackedMember.streak ?? 0}${trackedMember.streak === 69 ? " (nice)" : ""}`, inline: true },
+							{ name: "Streak", value: `${Intl.NumberFormat().format(trackedMember.streak ?? 0)}${trackedMember.streak === 69 ? " (nice)" : ""}`, inline: true },
 							{ name: "Multiplier", value: `${Intl.NumberFormat().format(multiplier)}x`, inline: true },
-							{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: `${daysUntilMultiplierUp}`, inline: true },
+							{ name: `Days chatted till ${multiplierFloored + 1}x multiplier`, value: Intl.NumberFormat().format(daysUntilMultiplierUp), inline: true },
 						]);
 		};
 	}
@@ -624,6 +624,64 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 		trackedMember.xp = amt;
 
 		const operation = `set the ${this.getScoreName()} of ${member.displayName} to ${Intl.NumberFormat().format(Math.abs(amt))}`;
+		const reply = `${operation}.`;
+		this.reply(message, `I ${reply}`);
+		this.logger.info(message.member.displayName, reply);
+
+		this.updateTopMember(trackedMember);
+		return CommandResult.pass();
+	}
+
+	@Command<RegularsPlugin>(p => `${p.getCommandName("set")} streak`)
+	protected async commandSetStreak (message: CommandMessage, queryMember?: string, amtStr?: string) {
+		if (!this.isMod(message.member))
+			return CommandResult.pass();
+
+		if (queryMember === undefined || !amtStr)
+			return this.reply(message, `you must provide a member to update the streak on and the amount to set the streak to.`)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const result = this.validateFindResult(await this.findMember(queryMember));
+		if (result.error !== undefined)
+			return message.reply(result.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = result.member;
+
+		const trackedMember = this.getTrackedMember(member.id);
+		const amt = isNaN(+amtStr) ? 0 : +amtStr;
+		trackedMember.streak = amt;
+
+		const operation = `set the streak of ${member.displayName} to ${Intl.NumberFormat().format(Math.abs(amt))}`;
+		const reply = `${operation}.`;
+		this.reply(message, `I ${reply}`);
+		this.logger.info(message.member.displayName, reply);
+
+		this.updateTopMember(trackedMember);
+		return CommandResult.pass();
+	}
+
+	@Command<RegularsPlugin>(p => `${p.getCommandName("set")} days`)
+	protected async commandSetDays (message: CommandMessage, queryMember?: string, amtStr?: string) {
+		if (!this.isMod(message.member))
+			return CommandResult.pass();
+
+		if (queryMember === undefined || !amtStr)
+			return this.reply(message, `you must provide a member to update the days chatted on and the amount to set the days chatted to.`)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const result = this.validateFindResult(await this.findMember(queryMember));
+		if (result.error !== undefined)
+			return message.reply(result.error)
+				.then(reply => CommandResult.fail(message, reply));
+
+		const member = result.member;
+
+		const trackedMember = this.getTrackedMember(member.id);
+		const amt = isNaN(+amtStr) ? 0 : +amtStr;
+		trackedMember.daysVisited = amt;
+
+		const operation = `set the days chatted of ${member.displayName} to ${Intl.NumberFormat().format(Math.abs(amt))}`;
 		const reply = `${operation}.`;
 		this.reply(message, `I ${reply}`);
 		this.logger.info(message.member.displayName, reply);
