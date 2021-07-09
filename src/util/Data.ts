@@ -201,9 +201,9 @@ export class DataContainer<DATA extends {} = any> {
 			const tempPath = `${path}.temp`;
 			const backupPath = `${path}.backup`;
 			await FileSystem.writeFile(tempPath, this.dataJson);
-			await FileSystem.rename(path, backupPath);
+			await FileSystem.rename(path, backupPath).catch(err => { if (err.code !== "ENOENT") throw err; });
 			await FileSystem.rename(tempPath, path);
-			await FileSystem.unlink(backupPath);
+			await FileSystem.unlink(backupPath).catch(err => { if (err.code !== "ENOENT") throw err; });
 			await this.event.emit("save");
 			resolve();
 			this._lastSave = Date.now();
