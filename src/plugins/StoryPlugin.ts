@@ -488,7 +488,7 @@ export default class StoryPlugin extends Plugin<IStoryConfig, IStoryData> {
 		await this.clearReactions(message);
 
 		const stories = member ? this.getStoriesBy(member) : Arrays.shuffle(Object.values(this.data.stories).flat());
-		Paginator.create(stories, story => this.generateStoryEmbed(story))
+		Paginator.create(stories.filterNullish(), story => this.generateStoryEmbed(story))
 			.addOption(message.channel instanceof DMChannel && (page => page.originalValue.author === message.author.id && "✏"), "Edit story")
 			.addOption("👤", "View author's profile")
 			.event.subscribe("reaction", async (paginator: Paginator<IStory>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
