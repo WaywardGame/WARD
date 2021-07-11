@@ -47,9 +47,10 @@ process.stdin.resume();
 start();
 
 async function exitHandler (err?: NodeJS.Signals | Error) {
-	if (err && typeof err === "object" && "stack" in err) {
+	if (err !== undefined) {
 		console.log(err);
-		Logger.error("main", err.stack);
+		if (typeof err === "object" && "stack" in err)
+			Logger.error("main", err.stack);
 	}
 
 	await stop();
