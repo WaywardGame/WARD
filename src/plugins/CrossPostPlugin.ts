@@ -3,8 +3,8 @@ import { GuildMember, Message, MessageEmbed, MessageReaction, TextChannel } from
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Arrays, { tuple } from "../util/Arrays";
+import Scrape from "../util/Scrape";
 import Strings from "../util/Strings";
-import ogs = require("open-graph-scraper");
 
 const version = 6;
 
@@ -31,15 +31,6 @@ interface ICrossPost {
 	hash: number;
 	author: string;
 	gdocs?: true;
-}
-
-interface IEmbedDetails {
-	link?: string;
-	title?: string;
-	description?: string;
-	thumbnail?: string;
-	message?: string;
-	fields?: [string, string][];
 }
 
 export interface ICrossPostPluginData extends IInherentPluginData<ICrossPostPluginConfig> {
@@ -205,9 +196,9 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			return;
 		}
 
-		let openGraph: IEmbedDetails = {};
+		let openGraph: Scrape.IEmbedDetails = {};
 		if (gdocs)
-			openGraph = await this.extractGDocs(message.content) ?? {};
+			openGraph = await Scrape.extractGDocs(message.content) ?? {};
 
 		const watch = this.config.watch.find(watch => watch.channel === message.channel.id
 			&& watch.postChannel === channel.id);
@@ -269,9 +260,9 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			if (!this.matchesFilter(message, filter))
 				return false;
 
-		let openGraph: IEmbedDetails = {};
+		let openGraph: Scrape.IEmbedDetails = {};
 		if (watch.filter?.gdocs) {
-			const extracted = await this.extractGDocs(message.content);
+			const extracted = await Scrape.extractGDocs(message.content);
 			if (!extracted)
 				return;
 
@@ -326,7 +317,7 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 		return realFilter.test(message.content);
 	}
 
-	private createCrosspostEmbed (message: Message, openGraph: IEmbedDetails) {
+	private createCrosspostEmbed (message: Message, openGraph: Scrape.IEmbedDetails) {
 		const avatarURL = message.author.avatarURL() ?? undefined;
 		return new MessageEmbed()
 			.setAuthor(message.member!.displayName, avatarURL === openGraph.thumbnail ? undefined : avatarURL)
@@ -350,49 +341,6 @@ export class CrossPostPlugin extends Plugin<ICrossPostPluginConfig, ICrossPostPl
 			return "";
 
 		return `> ||${description.replace(/\r?\n/g, "||\n> ||")}||`;
-	}
-
-	private async extractGDocs (text: string, preserveLinks = false): Promise<IEmbedDetails | undefined> {
-		const regex = /\bhttps:\/\/docs\.google\.com\/document\/d\/(.*?)\/edit(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/;
-		const match = text.match(regex);
-		if (!match)
-			return;
-
-		const gdocsLink = match[0];
-
-		const embed = await this.extractOpenGraph(gdocsLink);
-		if (!embed)
-			return;
-
-		const before = text.slice(0, match.index);
-		let after = text.slice(match.index! + gdocsLink.length);
-		let link = "";
-
-		if (embed.title && (regex.test(after) || preserveLinks)) {
-			link = `[${embed.title}](${gdocsLink})`;
-			after = (await this.extractGDocs(after, true))?.message ?? "";
-		}
-
-		embed.message = `${before}${link}${after}`;
-
-		return embed;
-	}
-
-	private async extractOpenGraph (link: string): Promise<IEmbedDetails> {
-		let title: string | undefined;
-		let description: string | undefined;
-		let thumbnail: string | undefined;
-
-		const ogData = await ogs({ url: link });
-		if (ogData.error) {
-			this.logger.warning("Could not get Open Graph data for link", link, ogData.result);
-		} else {
-			title = ogData.result.ogTitle;
-			description = ogData.result.ogDescription;
-			thumbnail = ogData.result.ogImage?.url;
-		}
-
-		return { link, title, description, thumbnail };
 	}
 
 }
