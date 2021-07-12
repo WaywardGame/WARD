@@ -27,17 +27,15 @@ export class Paginator<T = any> {
 
 	public static create<T extends string | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
 	public static create<T extends IField | undefined> (values: Iterable<T>, handler?: undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => string | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => IField | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => MessageEmbed | undefined): Paginator<T>;
-	public static create<T> (values: Iterable<T>, handler?: (value: T, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined): Paginator<T> {
+	public static create<T> (values: Iterable<T>, handler: (value: T, paginator: Paginator<T>, index: number) => Promise<string | IField | MessageEmbed | undefined> | string | IField | MessageEmbed | undefined): Paginator<T>;
+	public static create<T> (values: Iterable<T>, handler?: (value: T, paginator: Paginator<T>, index: number) => Promise<string | IField | MessageEmbed | undefined> | string | IField | MessageEmbed | undefined): Paginator<T> {
 		return new Paginator(values, handler);
 	}
 
 	public event = new EventEmitterAsync(this);
 
 	private readonly values: any[];
-	private readonly handler: ((value: any, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined) | undefined;
+	private readonly handler: ((value: any, paginator: Paginator<T>, index: number) => Promise<string | IField | MessageEmbed | undefined> | string | IField | MessageEmbed | undefined) | undefined;
 	private readonly otherOptions: [GetterOr<string | Emoji | false | "" | 0 | null, [IPage<T>]>, string?][] = [];
 	private pages?: IPage<T>[];
 	private i = 0;
@@ -55,7 +53,7 @@ export class Paginator<T = any> {
 		return this.i;
 	}
 
-	private constructor (values: Iterable<T>, handler?: (value: any, paginator: Paginator<T>, index: number) => string | IField | MessageEmbed | undefined) {
+	private constructor (values: Iterable<T>, handler?: (value: any, paginator: Paginator<T>, index: number) => Promise<string | IField | MessageEmbed | undefined> | string | IField | MessageEmbed | undefined) {
 		this.values = Array.from(values);
 		this.handler = handler;
 	}
@@ -116,6 +114,7 @@ export class Paginator<T = any> {
 	}
 
 	public async send (channel: TextChannel | DMChannel | NewsChannel | User, inputUser?: User, commandMessage?: CommandMessage) {
+		await this.initPages();
 		// if (this.getSize() === 1) {
 		// 	const currentContent = this.get();
 		// 	let currentText: string;
@@ -185,36 +184,33 @@ export class Paginator<T = any> {
 	}
 
 	public get () {
-		return this.getPages()[this.i];
+		return this.pages![this.i];
 	}
 
 	public next () {
 		this.i++;
-		if (this.i >= this.getPages().length)
+		if (this.i >= this.pages!.length)
 			this.i = 0;
 	}
 
 	public prev () {
 		if (this.i <= 0)
-			this.i = this.getPages().length;
+			this.i = this.pages!.length;
 
 		this.i--;
 	}
 
 	protected getSize () {
-		return this.getPages().length;
+		return this.pages!.length;
 	}
 
-	private getPages () {
-		if (this.pages)
-			return this.pages;
-
+	private async initPages () {
 		const maxLength = 1400;
 		const maxFields = 24;
 		let pages: IPage<T>[] = [];
 		let index = 0;
 		for (const value of this.values) {
-			const content = this.handler ? this.handler(value, this, index) : value;
+			const content = this.handler ? await this.handler(value, this, index) : value;
 			if (!content)
 				continue;
 
@@ -442,7 +438,7 @@ export class Paginator<T = any> {
 	}
 
 	private getPageNumberText () {
-		const length = this.getPages().length;
+		const length = this.pages!.length;
 		return length < 2 ? undefined : `Page ${this.i + 1} of ${length}`;
 	}
 }

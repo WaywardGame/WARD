@@ -1,5 +1,6 @@
 import { DMChannel, MessageEmbed } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
+import { Paginator } from "../core/Paginatable";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
 import Arrays from "../util/Arrays";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
@@ -97,13 +98,36 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 		}
 	}
 
-	// @Command("exhibition next")
-	// public async onExhibitionNext (message: CommandMessage, exhibitionName: string) {
-	// 	const exhibition = this.data.exhibitions[exhibitionName];
-	// 	exhibition.lastShown = 0;
-	// 	await this.onUpdate();
-	// 	return CommandResult.pass();
-	// }
+	@Command("exhibition next")
+	public async onExhibitionNext (message: CommandMessage, exhibitionName: string) {
+		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
+			return CommandResult.pass();
+
+		const exhibition = this.data.exhibitions[exhibitionName];
+		exhibition.lastShown = 0;
+		await this.onUpdate()
+			.then(() => this.data.saveOpportunity());
+		return CommandResult.pass();
+	}
+
+	@Command("exhibition submissions")
+	public async onExhibitionSubmissions (message: CommandMessage, exhibitionName: string) {
+		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
+			return CommandResult.pass();
+
+		const exhibitionConfig = this.config.exhibitions[exhibitionName];
+		if (!exhibitionConfig)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle(exhibitionName ? "Please provide an exhibition name." : `Unknown exhibition "${exhibitionName}"`)
+				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
+				.then(reply => CommandResult.fail(message, reply));
+
+		const submissions = this.data.exhibitions[exhibitionName]?.submissions.filterFalsey() ?? [];
+		Paginator.create(submissions, submission => this.getSubmissionEmbed(exhibitionConfig, submission))
+			.reply(message);
+		return CommandResult.pass();
+	}
 
 	@Command("exhibition shuffle")
 	public async onShuffle (message: CommandMessage, exhibitionName: string) {
