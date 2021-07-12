@@ -540,6 +540,9 @@ export class Ward {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
+		if (pluginName.startsWith("plugin:"))
+			pluginName = pluginName.slice(7);
+
 		const plugin = this.plugins[pluginName];
 		if (!plugin)
 			return this.reply(message, new MessageEmbed()
@@ -611,6 +614,9 @@ export class Ward {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
+		if (pluginName.startsWith("plugin:"))
+			pluginName = pluginName.slice(7);
+
 		const plugin = this.plugins[pluginName];
 		if (!plugin)
 			return this.reply(message, new MessageEmbed()
@@ -651,6 +657,9 @@ export class Ward {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
+		if (pluginName.startsWith("plugin:"))
+			pluginName = pluginName.slice(7);
+
 		const plugin = this.plugins[pluginName];
 		if (!plugin)
 			return this.reply(message, new MessageEmbed()
@@ -678,6 +687,9 @@ export class Ward {
 	private async commandResetPluginData (message: CommandMessage, pluginName: string) {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
+
+		if (pluginName.startsWith("plugin:"))
+			pluginName = pluginName.slice(7);
 
 		const plugin = this.plugins[pluginName];
 		if (!plugin)
