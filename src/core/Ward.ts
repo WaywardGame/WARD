@@ -6,6 +6,7 @@ import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
 import { ChangelogPlugin } from "../plugins/ChangelogPlugin";
 import { ColorsPlugin } from "../plugins/ColorPlugin";
 import { CrossPostPlugin } from "../plugins/CrossPostPlugin";
+import ExhibitionPlugin from "../plugins/ExhibitionPlugin";
 import { GiveawayPlugin } from "../plugins/GiveawayPlugin";
 import KingPlugin from "../plugins/KingPlugin";
 import PronounsPlugin from "../plugins/PronounsPlugin";
@@ -96,6 +97,7 @@ export class Ward {
 		this.addPlugin(KingPlugin);
 		this.addPlugin(PronounsPlugin);
 		this.addPlugin(CrossPostPlugin);
+		this.addPlugin(ExhibitionPlugin);
 
 		if (this.config.externalPlugins) {
 			for (const pluginCfg of this.config.externalPlugins) {

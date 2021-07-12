@@ -189,6 +189,16 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 			?? this.guild.roles.cache.find(r => r.name.toLowerCase() === role.toLowerCase());
 	}
 
+	protected getChannel (channelId: string) {
+		const channel = this.guild.channels.cache.get(channelId);
+		if (!(channel instanceof TextChannel)) {
+			this.logger.warning("Could not find channel by ID", channelId);
+			return undefined;
+		}
+
+		return channel;
+	}
+
 	protected validateFindResult (result: GuildMember | Collection<string, GuildMember> | undefined): { error: string, member?: undefined } | { member: GuildMember, error?: undefined } {
 		if (result instanceof Collection)
 			return { error: "I found multiple members with that name. Can you be more specific?" };
@@ -380,7 +390,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 		let defaultValue: string | undefined;
 		let deletable = false;
 		let timeout = minutes(5);
-		let validator: ((value: Message) => true | string | undefined) | undefined;
+		let validator: ((value: Message) => Promise<true | string | undefined> | true | string | undefined) | undefined;
 		const self = this;
 		let _title: string | undefined;
 		let _url: string | undefined;
@@ -433,7 +443,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 				_maxLength = maxLength;
 				return this;
 			},
-			setValidator (v: (value: Message) => true | string | undefined) {
+			setValidator (v: (value: Message) => Promise<true | string | undefined> | true | string | undefined) {
 				validator = v;
 				return this;
 			},
@@ -495,7 +505,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 							continue;
 						}
 
-						const validationResult = validator?.(result);
+						const validationResult = await validator?.(result);
 						if (typeof validationResult === "string") {
 							await message.reply(`Invalid response. ${validationResult}`);
 							continue;
