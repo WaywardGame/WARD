@@ -1,6 +1,7 @@
 import { DMChannel, MessageEmbed } from "discord.js";
 import { Command, CommandMessage, CommandResult } from "../core/Api";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
+import Arrays from "../util/Arrays";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Scrape from "../util/Scrape";
 import Strings from "../util/Strings";
@@ -100,6 +101,35 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 	// 	return CommandResult.pass();
 	// }
 
+	@Command("exhibition shuffle")
+	public async onShuffle (message: CommandMessage, exhibitionName: string) {
+		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
+			return CommandResult.pass();
+
+		const exhibitionConfig = this.config.exhibitions[exhibitionName];
+		if (!exhibitionConfig)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle(exhibitionName ? "Please provide an exhibition name." : `Unknown exhibition "${exhibitionName}"`)
+				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
+				.then(reply => CommandResult.fail(message, reply));
+
+		const exhibition = this.data.exhibitions[exhibitionName];
+		if ((exhibition?.submissions.length ?? 0) <= 1)
+			return CommandResult.pass();
+
+		this.data.markDirty();
+		const first = exhibition.submissions.shift()!;
+		Arrays.shuffle(exhibition.submissions.filterNullish());
+		exhibition.submissions.unshift(first);
+		this.logger.info(`${this.getName(message)} shuffled the submissions of the "${exhibitionName}" exhibition.`);
+
+		return this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setTitle(`Shuffled ${exhibition.submissions.length - 1} submissions.`))
+			.then(() => CommandResult.pass());
+	}
+
 	@Command("exhibition")
 	public async onExhibitionCommand (message: CommandMessage, exhibitionName: string) {
 		if (!(message.channel instanceof DMChannel))
@@ -112,11 +142,19 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 		if (!exhibitionConfig)
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
-				.setTitle(`Unknown exhibition "${exhibitionName}"`)
+				.setTitle(exhibitionName ? "Please provide an exhibition name." : `Unknown exhibition "${exhibitionName}"`)
 				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
 				.then(reply => CommandResult.fail(message, reply));
 
+		this.logger.info(`${this.getName(message)} entered the exhibition wizard.`);
+		const result = await this.exhibitionWizard(message, exhibitionName, exhibitionConfig);
+		this.logger.info(`${this.getName(message)} exited the exhibition wizard.`);
+		return result;
+	}
 
+
+	public async exhibitionWizard (message: CommandMessage, exhibitionName: string, exhibitionConfig: IExhibitionConfig) {
+		this.data.markDirty();
 		const exhibition = this.data.exhibitions[exhibitionName]
 			?? (this.data.exhibitions[exhibitionName] = {
 				lastShown: 0,
