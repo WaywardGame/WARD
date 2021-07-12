@@ -76,6 +76,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 			if (oldSubmissionMessageId) {
 				const oldMessage = await channel.messages.fetch(oldSubmissionMessageId).catch(() => { });
 				await oldMessage?.unpin();
+				this.logger.info(`Ended previous "${exhibitionName}" exhibition: ${exhibition.submissions[0]!.title}`);
 			}
 
 			this.data.markDirty();
@@ -86,10 +87,13 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 				exhibition.submissions[0].messageId = message.id;
 				if (exhibitionConfig.pin)
 					await message.pin();
+				this.logger.info(`Started new "${exhibitionName}" exhibition: ${exhibition.submissions[0].title}.`);
 			}
 
-			if (exhibition.submissions.length === 0)
+			if (exhibition.submissions.length === 0) {
 				exhibition.submissions.push(null);
+				this.logger.info(`There are no more submissions to exhibit for the "${exhibitionName}" exhibition. Downtime is starting.`);
+			}
 		}
 	}
 
