@@ -14,7 +14,7 @@ module Scrape {
 	}
 
 	export async function extractGDocs (text: string, preserveLinks = false): Promise<IEmbedDetails | undefined> {
-		const regex = /\bhttps:\/\/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)(\/edit)?(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/;
+		const regex = /\b(?:https:\/\/docs\.google\.com\/document\/d\/|https:\/\/drive\.google\.com\/drive\/folders\/)([a-zA-Z0-9_-]+)(\/edit)?(\?(&?(usp=(sharing|drivesdk)|pli=1))*)?(#(heading=h\.\w+)?)?/;
 		const match = text.match(regex);
 		if (!match)
 			return undefined;
