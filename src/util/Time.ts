@@ -92,13 +92,13 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 		return amt;
 
 	switch (unit) {
-		case TimeUnit.Seconds: return seconds(amt);
-		case TimeUnit.Minutes: return minutes(amt);
-		case TimeUnit.Hours: return hours(amt);
-		case TimeUnit.Days: return days(amt);
-		case TimeUnit.Weeks: return weeks(amt);
-		case TimeUnit.Months: return months(amt);
-		case TimeUnit.Years: return years(amt);
+		case TimeUnit.Seconds: case TimeUnit.Seconds.slice(0, -1): return seconds(amt);
+		case TimeUnit.Minutes: case TimeUnit.Minutes.slice(0, -1): return minutes(amt);
+		case TimeUnit.Hours: case TimeUnit.Hours.slice(0, -1): return hours(amt);
+		case TimeUnit.Days: case TimeUnit.Days.slice(0, -1): return days(amt);
+		case TimeUnit.Weeks: case TimeUnit.Weeks.slice(0, -1): return weeks(amt);
+		case TimeUnit.Months: case TimeUnit.Months.slice(0, -1): return months(amt);
+		case TimeUnit.Years: case TimeUnit.Years.slice(0, -1): return years(amt);
 		default: return amt;
 	}
 }
