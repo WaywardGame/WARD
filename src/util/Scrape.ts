@@ -32,7 +32,7 @@ module Scrape {
 		if (embed.title && (regex.test(after) || preserveLinks)) {
 			link = `[${embed.title}](${gdocsLink})`;
 			const extracted = await extractGDocs(after, true);
-			after = extracted?.message ?? "";
+			after = extracted?.message ?? after;
 			if (extracted?.link || extracted?.otherLinks?.length) {
 				embed.otherLinks ??= [];
 				embed.otherLinks.push(extracted.link!, ...extracted.otherLinks ?? []);
