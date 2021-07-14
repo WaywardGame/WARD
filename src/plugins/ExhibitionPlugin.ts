@@ -148,7 +148,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 
 		this.data.markDirty();
 		const first = exhibition.submissions.shift()!;
-		Arrays.shuffle(exhibition.submissions.filterNullish());
+		exhibition.submissions = Arrays.shuffle(exhibition.submissions.filterNullish()) as typeof exhibition.submissions;
 		exhibition.submissions.unshift(first);
 		this.logger.info(`${this.getName(message)} shuffled the submissions of the "${exhibitionName}" exhibition.`);
 
