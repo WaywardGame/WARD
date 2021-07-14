@@ -6,7 +6,7 @@ import Arrays from "../util/Arrays";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Scrape from "../util/Scrape";
 import Strings from "../util/Strings";
-import { getTime, hours, minutes } from "../util/Time";
+import { days, getTime, hours, minutes } from "../util/Time";
 
 interface IExhibitionPluginConfig {
 	exhibitions: Record<string, IExhibitionConfig>;
@@ -109,6 +109,27 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 		await this.onUpdate()
 			.then(() => this.data.saveOpportunity());
 		return CommandResult.pass();
+
+	@Command("exhibition delay")
+	public async onDelay (message: CommandMessage, exhibitionName: string) {
+		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
+			return CommandResult.pass();
+
+		const exhibition = this.data.exhibitions[exhibitionName];
+		if (!exhibition)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle(exhibitionName ? "Please provide an exhibition name." : `Unknown exhibition "${exhibitionName}"`)
+				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
+				.then(reply => CommandResult.fail(message, reply));
+
+		exhibition.lastShown += days(1);
+		this.data.markDirty();
+
+		return this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setTitle(`Showing the current "${exhibitionName}" exhibition for an additional day.`))
+			.then(() => CommandResult.pass());
 	}
 
 	@Command("exhibition submissions")
