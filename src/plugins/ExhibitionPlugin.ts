@@ -238,6 +238,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 		let result = await this.prompter("What is the title of your submission?")
 			.setDefaultValue(submission?.title)
 			.setMaxLength(256)
+			.setTimeout(minutes(10))
 			.reply(message);
 
 		delete message.previous;
@@ -284,6 +285,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 				.setDescription(field.detail || undefined)
 				.setDefaultValue(submission?.fields[i])
 				.setMaxLength(1024)
+				.setTimeout(minutes(10))
 				.reply(message);
 
 			delete message.previous;
