@@ -14,6 +14,7 @@ interface IExhibitionPluginConfig {
 
 interface IExhibitionConfig {
 	channel: string;
+	title: string;
 	fields: IExhibitionFieldConfig[];
 	duration: string;
 	pin: boolean;
@@ -347,7 +348,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 	private async getSubmissionEmbed (exhibition: IExhibitionConfig, submission: ISubmission) {
 		const author = await this.guild.members.fetch(submission.author);
 		return new MessageEmbed()
-			.setTitle(submission.title)
+			.setTitle(exhibition.title ? exhibition.title.replace("$1", submission.title) : submission.title)
 			.setAuthor(author.displayName)
 			.setThumbnail(author.user.avatarURL() ?? undefined)
 			.addField("Links", submission.links)
