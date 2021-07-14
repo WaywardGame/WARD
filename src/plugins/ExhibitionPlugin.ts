@@ -105,10 +105,22 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 			return CommandResult.pass();
 
 		const exhibition = this.data.exhibitions[exhibitionName];
+		if (!exhibition)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle(exhibitionName ? "Please provide an exhibition name." : `Unknown exhibition "${exhibitionName}"`)
+				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
+				.then(reply => CommandResult.fail(message, reply));
+
 		exhibition.lastShown = 0;
 		await this.onUpdate()
 			.then(() => this.data.saveOpportunity());
-		return CommandResult.pass();
+
+		return this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setTitle(`Skipping to the next "${exhibitionName}" submission.`))
+			.then(() => CommandResult.pass());
+	}
 
 	@Command("exhibition delay")
 	public async onDelay (message: CommandMessage, exhibitionName: string) {
