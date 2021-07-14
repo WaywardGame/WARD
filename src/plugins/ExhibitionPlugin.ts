@@ -175,9 +175,9 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
 				.then(reply => CommandResult.fail(message, reply));
 
-		this.logger.info(`${this.getName(message)} entered the exhibition wizard.`);
+		this.logger.info(`${this.getName(message)} entered the "${exhibitionName}" exhibition wizard.`);
 		const result = await this.exhibitionWizard(message, exhibitionName, exhibitionConfig);
-		this.logger.info(`${this.getName(message)} exited the exhibition wizard.`);
+		this.logger.info(`${this.getName(message)} exited the "${exhibitionName}" exhibition wizard.`);
 		return result;
 	}
 
