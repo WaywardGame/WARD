@@ -247,8 +247,9 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 				delete message.previous;
 				if (remove) {
 					this.data.markDirty();
-					exhibition.submissions.splice(exhibition.submissions.indexOf(submission), 1);
-					if (onExhibition) {
+					if (!onExhibition) {
+						exhibition.submissions.splice(exhibition.submissions.indexOf(submission), 1);
+					} else {
 						exhibition.lastShown = 0;
 						this.onUpdate()
 							.then(() => this.data.saveOpportunity());
