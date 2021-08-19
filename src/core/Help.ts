@@ -12,7 +12,8 @@ export default class HelpContainerPlugin implements Paginatable<[string]> {
 		return this;
 	}
 
-	public addCommand (name: string, description: string, initializer?: (container: HelpContainerCommand) => any) {
+	public addCommand (name: string | string[], description: string, initializer?: (container: HelpContainerCommand) => any) {
+		name = Array.isArray(name) ? name[0] : name;
 		const container = new HelpContainerCommand(name, description);
 		initializer?.(container);
 		this.commands.push([name, container]);

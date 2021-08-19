@@ -51,7 +51,7 @@ export interface IRegularsConfig {
 	daysVisitedMultiplier: number;
 	daysVisitedMultiplierReduction: number;
 	regularMilestoneXp: number;
-	commands?: false | Partial<typeof baseCommands>;
+	commands?: false | { [K in keyof typeof baseCommands]?: string | string[] };
 	role: string;
 	removeRegularWarning?: number;
 	rolesWithRegular?: string[];
