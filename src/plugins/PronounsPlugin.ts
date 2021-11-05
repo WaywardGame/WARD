@@ -114,7 +114,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		return CommandResult.pass();
 	}
 
-	@Command("pronouns clear")
+	@Command(["pronouns clear", "pronouns reset"])
 	protected async onCommandPronounsClear (message: CommandMessage) {
 		if (!this.data.systems[message.member?.id!])
 			return this.reply(message, "you have no pronouns set!")

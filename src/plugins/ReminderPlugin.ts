@@ -93,7 +93,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 					this.logger.info(`Sent a reminder to ${reminderOwner.displayName}`);
 
 				} else
-					this.logger.warning("Could not find a user for reminder, removing");
+					this.logger.warning(`Could not find user "${reminderOwner}" for reminder, removing`);
 
 				if (remove || !reminderOwner)
 					reminders.splice(i--, 1);
