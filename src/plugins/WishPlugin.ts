@@ -595,12 +595,28 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
-		if (this.data.stage === "making")
-			return this.reply(message, new MessageEmbed()
-				.setTitle("Wishes are being made!")
-				.setDescription(`${Object.keys(this.data.participants).length} wishes so far`)
-				.setColor("0088FF"))
+		if (this.data.stage === "making") {
+			const wishers = Stream.entries(this.data.participants)
+				.map<IField & { sortPos: number }>(([id, participant]) => ({
+					sortPos: this.guild.members.cache.get(id)?.displayName ? 1 : 0,
+					name: this.guild.members.cache.get(id)?.displayName ?? "⚠ Unknown wisher",
+					value: `Pinch: ${participant?.canPinch ? "Yes" : "No"}`,
+				}))
+				.sorted((a, b) => a.sortPos - b.sortPos)
+				.toArray();
+
+			const pinchGranters = Object.values(this.data.participants).filter(wisher => wisher?.canPinch).length;
+			const itchSignups = Object.values(this.data.participants).filter(wisher => wisher?.itch).length;
+			const itchCuts = Object.values(this.data.participants).filter(wisher => wisher?.itch && wisher.itchCut).length;
+			const scribbleSignups = Object.values(this.data.participants).filter(wisher => wisher?.scribble).length;
+
+			return Paginator.create(wishers)
+				.setPageHeader("Wishes are being made!")
+				.setPageDescription(`${Object.keys(this.data.participants).length} wishes so far.\n${pinchGranters} pinch-granters.\n${itchSignups} itch.io bundle signups.${itchCuts === itchSignups ? "" : ` (${itchCuts} cuts)`}\n${scribbleSignups} Scribble anthology signups.`)
+				.setColor("0088FF")
+				.reply(message)
 				.then(() => CommandResult.pass());
+		}
 
 		if (this.data.stage === "granting") { //|| this.data.stage === "pinchGranting") {
 			const wishGranters = Stream.values(this.data.participants)
