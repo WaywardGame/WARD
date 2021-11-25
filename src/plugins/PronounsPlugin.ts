@@ -96,7 +96,7 @@ export default class PronounsPlugin extends Plugin<PronounsPluginConfig, Pronoun
 		if (!pronouns || pronouns.members.length > 1)
 			return this.getPronounLanguage(PRONOUNS_GENERIC["they/them"]);
 
-		return this.getPronounLanguage(pronouns.members[0].pronouns[0]);
+		return this.getPronounLanguage(pronouns.members[0].pronouns[0] ?? PRONOUNS_GENERIC["they/them"]);
 	}
 
 	private readonly help = new HelpContainerPlugin()

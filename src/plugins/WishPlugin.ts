@@ -11,6 +11,9 @@ export interface IWishParticipant {
 	wish: string;
 	wishGranting: string;
 	canPinch?: boolean;
+	scribble?: boolean;
+	itch?: boolean;
+	itchCut?: boolean;
 	granter?: string;
 	gift?: {
 		message?: string;
@@ -290,11 +293,12 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		//
 
 		let response = await this.prompter("What story would you like to see?")
-			.setDescription("Give a prompt, a genre, etc. However much or little you'd like to give. **If there's anything you're uncomfortable seeing, make sure to mention it!**")
+			.setDescription("Give a prompt, a genre, etc. However much or little you'd like to give. **If there's anything you're uncomfortable seeing, make sure to mention it!**\n\nNote: Unless the author that grants your wish says otherwise, they will retain all rights to their material, even if it was based on your wish. Contact an event organiser if you have questions.")
 			.setColor("0088FF")
 			.setIdentity(...wishMakingWizard)
 			.setDefaultValue(participant.wish || undefined)
 			.setMaxLength(1024)
+			.setTimeout(minutes(30))
 			.reply(message);
 
 		if (response.cancelled)
@@ -310,11 +314,12 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		const wishGrantingWizard = ["Grant a wish!", message.author.avatarURL() ?? undefined];
 
 		response = await this.prompter("What kind of story are you good at or comfortable with writing?")
-			.setDescription("Give genres, features, etc — however much or little you'd like to define it. **If there's anything you're uncomfortable writing, make sure to mention it!**")
+			.setDescription("Give genres, features, etc — however much or little you'd like to define it. **If there's anything you're uncomfortable writing, make sure to mention it!**\n\nNote: You retain all rights to any material you write. By sending material to me, you give me the right to store it and distribute it as per the event timeline. Contact an event organiser if you have questions.")
 			.setColor("FFAA00")
 			.setIdentity(...wishGrantingWizard)
 			.setDefaultValue(participant.wishGranting || undefined)
 			.setMaxLength(1024)
+			.setTimeout(minutes(30))
 			.reply(message);
 
 		if (response.cancelled)
@@ -331,11 +336,56 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setAuthor(...wishGrantingWizard)
 			.setTitle("Would you like to be a pinch wish-granter?")
 			.setColor("FFFF00")
-			.setDescription("Some wish granters may fail to completely grant their assigned wish — in case this occurs, pinch wish-granters will be contacted and asked to write something small to fit the prompt. Pinch wish-grants will be created after the submission deadline is past.\n\nPlease only sign up to be a pinch wish-granter if you know you'll be capable of it.")
+			.setDescription("Some wish granters may not completely grant their assigned wish — in case this occurs, pinch wish-granters will be contacted and asked to write something small to fit the prompt. Pinch wish-grants will be created after the submission deadline is past.\n\nPlease only sign up to be a pinch wish-granter if you know you'll be capable of it.")
 			.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
 			.reply(message);
 
 		participant.canPinch = pinchGranter ?? false;
+
+		////////////////////////////////////
+		// itch
+		//
+
+		const itch = await this.yesOrNo(undefined, new MessageEmbed()
+			.setAuthor(...wishGrantingWizard)
+			.setTitle("Would you like the story you write to be part of the itch.io bundle?")
+			.setColor("FFFF00")
+			.setDescription("You will be responsible for uploading the story to itch yourself, but saying yes here allows us to keep track of who wants to be in the bundle and make sure that everyone that wants to get in gets in.\n\nNote: Don't worry about this too much if you don't know now — you can change this any time before the bundle is created.")
+			.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+			.reply(message);
+
+		participant.itch = itch ?? false;
+
+		if (participant.itch) {
+			////////////////////////////////////
+			// cut
+			//
+
+			const cut = await this.yesOrNo(undefined, new MessageEmbed()
+				.setAuthor(...wishGrantingWizard)
+				.setTitle("Do you want to receive a cut of the income from the itch.io bundle?")
+				.setColor("FFFF00")
+				.setDescription("You deserve compensation for your work, but in case your financial situation or local laws make it not possible for you to receive monetary compensation, you can opt-out here. Your cut will be distributed between the rest of the authors in the bundle.")
+				.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+				.reply(message);
+
+			participant.itchCut = cut ?? true;
+		}
+
+		////////////////////////////////////
+		// scribble
+		//
+
+		const scribble = await this.yesOrNo(undefined, new MessageEmbed()
+			.setAuthor(...wishGrantingWizard)
+			.setTitle("Would you like the story you write to be part of the Scribble Hub anthology?")
+			.setColor("FFFF00")
+			.setDescription("Again, this allows us to keep track of who wants to be in the anthology and make sure that everyone that wants to get in gets in. Note that even if your writing is published in the anthology, you can still upload your material yourself, separately.\n\nNote: Don't worry about this too much if you don't know now — you can change this any time before the bundle is created.")
+			.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+			.reply(message);
+
+		participant.scribble = scribble ?? false;
+
 
 		////////////////////////////////////
 		// updated
@@ -357,6 +407,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			{ name: "Wish", value: participant.wish },
 			{ name: "Can grant wishes of", value: participant.wishGranting },
 			{ name: "Can grant in a pinch", value: participant.canPinch ? "Yes" : "No" },
+			{ name: "Participating in the itch bundle", value: participant.itch ? `Yes${participant.itchCut ? "" : ", but no cut"}` : "No" },
+			{ name: "Participating in the Scribble Hub anthology", value: participant.scribble ? "Yes" : "No" },
 		];
 	}
 
