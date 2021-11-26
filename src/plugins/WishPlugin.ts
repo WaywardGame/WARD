@@ -3,6 +3,7 @@ import { DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmo
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
+import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Strings from "../util/Strings";
 import { getTime, hours, minutes, renderTime } from "../util/Time";
 import PronounsPlugin from "./PronounsPlugin";
@@ -18,7 +19,7 @@ export interface IWishParticipant {
 	gift?: {
 		message?: string;
 		url: string;
-	}
+	},
 }
 
 export interface IWishConfig {
@@ -38,6 +39,7 @@ export interface IWishData extends IInherentPluginData<IWishConfig> {
 	distributeTime?: number;
 	stage: keyof typeof WishStage;
 	participants: Record<string, IWishParticipant | undefined>;
+	messages?: number;
 }
 
 export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
@@ -153,6 +155,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setDescription(text.join(" "))
 			.addField("\u200b", "To reply, use `!wish message granter <...message>`"));
 
+		this.data.messages ??= 0;
+		this.data.messages++;
 		this.logger.info("A wish-granter sent a message to their wisher.");
 
 		return this.reply(message, "Your message was sent!")
@@ -199,6 +203,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			.setDescription(text.join(" "))
 			.addField("\u200b", "To reply, use `!wish message wisher <...message>`"));
 
+		this.data.messages ??= 0;
+		this.data.messages++;
 		this.logger.info("A wisher sent a message to their wish-granter.");
 
 		return this.reply(message, "Your message was sent!")
@@ -223,18 +229,20 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		const shouldUnwish = force === "force"
 			|| await this.yesOrNo(undefined, new MessageEmbed()
 				.addFields(...this.getWishParticipantFields(participant))
-				.setColor("00FF00")
+				.setColor(COLOR_WARNING)
 				.setAuthor(`${this.getName(message.author)}'s wish`, message.author.avatarURL() ?? undefined)
 				.setTitle("Would you like to take back your wish?")
 				.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
 				.reply(message);
 
-		this.reply(message, shouldUnwish ? "your wish has been taken back!" : "your wish is safe.");
-
 		if (shouldUnwish) {
 			this.logger.info(`${this.getName(message)} has taken back ${this.pronouns.referTo(message).their} wish!`);
 			delete this.data.participants[message.author.id];
 		}
+
+		this.reply(message, new MessageEmbed()
+			.setTitle(shouldUnwish ? "Your wish has been taken back!" : "Your wish is safe.")
+			.setColor(shouldUnwish ? COLOR_BAD : COLOR_GOOD));
 
 		return CommandResult.pass();
 	}
@@ -260,16 +268,24 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		};
 
 		if (!isNewWish) {
-			const shouldEdit = await this.yesOrNo(undefined, new MessageEmbed()
+			const prompt = await this.reply(message, new MessageEmbed()
 				.addFields(...this.getWishParticipantFields(participant))
 				.setColor("00FF00")
 				.setAuthor(`${this.getName(message.author)}'s wish`, message.author.avatarURL() ?? undefined)
 				.setTitle("Would you like to edit your wish?")
-				.addField("\u200b", ["✅ Yes", "❌ No"].join(" \u200b · \u200b ")))
+				.addField(Strings.BLANK, ["✅ Yes", "❌ No", "🗑 Delete"].join(Strings.SPACER_DOT)));
+
+			const { response } = await this.promptReaction(prompt)
+				.addOption("✅", "Yes")
+				.addOption("❌", "No")
+				.addOption("🗑", "Delete")
 				.reply(message);
 
-			if (!shouldEdit)
+			if (!response || response.name === "❌")
 				return CommandResult.pass();
+
+			if (response.name === "🗑")
+				return this.onUnwish(message);
 		}
 
 		this.logger.info(`${this.getName(message)} is making/updating ${this.pronouns.referTo(message).their} wish!`);
@@ -595,24 +611,27 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
+		const pinchGranters = Object.values(this.data.participants).filter(wisher => wisher?.canPinch).length;
+		const itchSignups = Object.values(this.data.participants).filter(wisher => wisher?.itch).length;
+		const itchCuts = Object.values(this.data.participants).filter(wisher => wisher?.itch && wisher.itchCut).length;
+		const scribbleSignups = Object.values(this.data.participants).filter(wisher => wisher?.scribble).length;
+
+		let info = `**${Object.keys(this.data.participants).length}** wishes.\n**${pinchGranters}** pinch-granters.\n**${itchSignups}** itch.io bundle signups.${itchCuts === itchSignups ? "" : ` (**${itchCuts}** cuts)`}\n**${scribbleSignups}** Scribble anthology signups.\n**${this.data.messages ?? 0}** messages sent.`;
+
 		if (this.data.stage === "making") {
 			const wishers = Stream.entries(this.data.participants)
 				.map<IField & { sortPos: number }>(([id, participant]) => ({
 					sortPos: this.guild.members.cache.get(id)?.displayName ? 1 : 0,
 					name: this.guild.members.cache.get(id)?.displayName ?? "⚠ Unknown wisher",
 					value: `Pinch: ${participant?.canPinch ? "Yes" : "No"}`,
+					inline: true,
 				}))
 				.sorted((a, b) => a.sortPos - b.sortPos)
 				.toArray();
 
-			const pinchGranters = Object.values(this.data.participants).filter(wisher => wisher?.canPinch).length;
-			const itchSignups = Object.values(this.data.participants).filter(wisher => wisher?.itch).length;
-			const itchCuts = Object.values(this.data.participants).filter(wisher => wisher?.itch && wisher.itchCut).length;
-			const scribbleSignups = Object.values(this.data.participants).filter(wisher => wisher?.scribble).length;
-
 			return Paginator.create(wishers)
 				.setPageHeader("Wishes are being made!")
-				.setPageDescription(`${Object.keys(this.data.participants).length} wishes so far.\n${pinchGranters} pinch-granters.\n${itchSignups} itch.io bundle signups.${itchCuts === itchSignups ? "" : ` (${itchCuts} cuts)`}\n${scribbleSignups} Scribble anthology signups.`)
+				.setPageDescription(info)
 				.setColor("0088FF")
 				.reply(message)
 				.then(() => CommandResult.pass());
@@ -625,12 +644,14 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				.map<IField & { sortPos: number }>(([granter, wishes]) => ({
 					sortPos: (granter && this.guild.members.cache.get(granter)?.displayName) ? 1 : 0,
 					name: (granter && this.guild.members.cache.get(granter)?.displayName) ?? `⚠ No or unknown granter — reassign with \`${this.commandPrefix}wish match unassigned\``,
-					value: wishes.partition(g => g)
-						.toArrayMap()
-						.entries()
-						.map(([hasGift, arr]) => `${hasGift ? "✅ Gift submitted" : "❌ No gift submitted"} (${arr.length})`)
-						.sorted()
-						.toString(Strings.SPACER_DOT),
+					value: `${!granter ? "" : `Pinch: ${this.data.participants[granter]?.canPinch ? "Yes" : "No"}`}\n`
+						+ `${wishes
+							.partition(g => g)
+							.toArrayMap()
+							.entries()
+							.map(([hasGift, arr]) => `${hasGift ? "✅ Gift submitted" : "❌ No gift submitted"} (${arr.length})`)
+							.sorted()
+							.toString(Strings.SPACER_DOT)}`,
 				}))
 				.sorted((a, b) => a.sortPos - b.sortPos)
 				.toArray();
@@ -642,15 +663,15 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 			return Paginator.create(wishGranters)
 				.setPageHeader(`Wishes are being ${/*this.data.stage === "pinchGranting" ? "pinch-" :*/ ""}granted!`)
-				.setPageDescription(`**${countCompleted}** out of **${wishGranters.length}** wish-granters have submitted gifts.\nHere's a list of the wish-granters and the status on their submissions:`)
+				.setPageDescription(`${info}\n\n**${countCompleted}** out of **${wishGranters.length}** wish-granters have submitted gifts.\nHere's a list of the wish-granters and the status on their submissions:`)
 				.setColor("FFAA00")
 				.reply(message)
 				.then(() => CommandResult.pass());
 		}
 
 		return this.reply(message, new MessageEmbed()
-			.setTitle("I have no idea what's happening!")
-			.setDescription("Chiri didn't make me smart enough to figure it out on my own 😭"))
+			.setTitle(`${Strings.sentence(this.data.stage)} stage`)
+			.setDescription(info))
 			.then(() => CommandResult.pass());
 	}
 
