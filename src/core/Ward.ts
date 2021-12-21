@@ -629,7 +629,7 @@ export class Ward {
 		let parsedValue: any;
 		try {
 			parsedValue = json5.parse(value);
-		} catch (err) {
+		} catch (err: any) {
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
 				.setDescription(`Can't modify config property \`${property}\` for plugin \`${pluginName}\`, unable to parse value. Is it well-formatted JSON data?`)

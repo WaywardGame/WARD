@@ -67,6 +67,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 			this.logger.info("Distributed gifts");
 			this.data.remove("distributeTime");
+			this.data.stage = "ended";
 		}
 	}
 
@@ -94,14 +95,15 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
-		const csv = `Wisher,Prompt,Wish-granter,Gift`
+		const csv = `Wisher,Prompt,Wish-granter,Gift,Itch,Scribble`
 			.newline(Object.entries(this.data.participants)
-				.filter(([, participant]) => participant!.gift)
 				.map(([participantId, participant]) => participant && [
 					this.guild.members.cache.get(participantId)?.displayName ?? "Unknown",
 					participant.wish,
-					this.guild.members.cache.get(participant.granter!)?.displayName ?? "Unknown",
-					participant.gift!.url]
+					!participant.granter ? "No granter" : this.guild.members.cache.get(participant.granter!)?.displayName ?? "Unknown",
+					participant.gift?.url ?? "No Gift",
+					!participant.itch ? "" : participant.itchCut ? "Yes" : "Yes, no cut",
+					participant.scribble ? "Yes" : ""]
 					.map(Strings.csvalue)
 					.join(","))
 				.filterNullish()
@@ -484,6 +486,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		// 	return CommandResult.pass();
 		// }
 
+		const canDeliverGift = WishStage[this.data.stage] >= WishStage.ended;
+
 		const wishes = Object.entries(this.data.participants)
 			.filter(([, wish]) => wish?.granter === message.author.id);
 
@@ -502,11 +506,11 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 					.addField("Granted?", wish?.gift ? "✅ Has gift" : "❌ No gift submitted")
 					.addField("\u200b",
 						["◀ Previous", "▶ Next", "❌ Cancel"].join(Strings.SPACER_DOT) + "\n" +
-						["🪄 Grant wish", wish?.gift && "🗑 Remove gift", wish?.gift && "💌 Deliver gift"].filterNullish().join(Strings.SPACER_DOT));
+						["🪄 Grant wish", wish?.gift && "🗑 Remove gift", wish?.gift && canDeliverGift && "💌 Deliver gift"].filterNullish().join(Strings.SPACER_DOT));
 			})
 				.addOption("🪄", "Grant this wish!")
 				.addOption(page => page.originalValue[1]?.gift && "🗑" || null, "Remove gift")
-				.addOption(page => page.originalValue[1]?.gift && "💌" || null, "Deliver gift")
+				.addOption(page => page.originalValue[1]?.gift && canDeliverGift && "💌" || null, "Deliver gift")
 				.setShouldDeleteOnUseOption(reaction => reaction.name !== "🪄" && reaction.name !== "🗑" && reaction.name !== "💌")
 				.event.subscribe("reaction", (paginator: Paginator<Wish>, reaction: Emoji | ReactionEmoji, responseMessage: Message) => {
 					const wish = paginator.get().originalValue;
@@ -515,7 +519,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 						resolve(wish);
 					}
 
-					if (reaction.name === "💌") {
+					if (reaction.name === "💌" && canDeliverGift) {
 						paginator.cancel();
 						resolve(undefined);
 						this.deliverGift(wish[0])
@@ -590,13 +594,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 				wish.gift.message ? { name: "Message", value: wish.gift.message } : undefined,
 				{ name: "File", value: wish.gift.url },
 			)
-			.addField(Strings.BLANK, "💌 Deliver to your wisher"));
+			.addFields(...canDeliverGift ? [{ name: Strings.BLANK, value: "💌 Deliver to your wisher" }] : []));
 
 		const { response } = await this.promptReaction(willBeGrantedMessage)
-			.addOption("💌")
+			.addOptions(...canDeliverGift ? [["💌"] as const] : [])
 			.reply(message);
 
-		if (response?.name === "💌")
+		if (response?.name === "💌" && canDeliverGift)
 			this.deliverGift(wishParticipantId)
 				.then(() => {
 					this.reply(message, "Gift delivered!");
@@ -783,35 +787,36 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 					return CommandResult.pass();
 				}
 
-				if (isPinchMatch) {
-					const [granterId] = granter;
-					const granterMember = this.guild.members.cache.get(granterId);
-					if (!granterMember) {
-						for (const organiser of organisers)
-							organiser.user.send("Whoops! I could not find a selected granter's profile. Wish matching will need to be restarted.");
-						return CommandResult.pass();
-					}
-
-					await organiser.user.send("Sending a request to the chosen wish-granter...");
-
-					const willPinch = await this.yesOrNo(undefined, new MessageEmbed()
-						.setTitle("Would you be willing to pinch-grant this wish?")
-						.setDescription("You are signed up as a pinch-wish-granter and have been selected as a candidate to pinch-grant the following wish:")
-						.addField("Wish", wish?.wish!)
-						.setColor("0088FF"))
-						.setTimeout(hours(5))
-						.send(granterMember);
-
-					if (!willPinch) {
-						await organiser.user.send("That granter denied to pinch-grant that wish, or let the request time out. Try another?");
-						continue;
-					}
-
-					await granterMember.send(`Thanks! Remember, you can use \`${this.commandPrefix}wish grant\` to see all of your assigned wishes and their wishers.`);
-					await organiser.user.send("That granter accepted the wish! May it be granted!");
-
+				if (!isPinchMatch)
 					break;
+
+				const [granterId] = granter;
+				const granterMember = this.guild.members.cache.get(granterId);
+				if (!granterMember) {
+					for (const organiser of organisers)
+						organiser.user.send("Whoops! I could not find a selected granter's profile. Wish matching will need to be restarted.");
+					return CommandResult.pass();
 				}
+
+				await organiser.user.send("Sending a request to the chosen wish-granter...");
+
+				const willPinch = await this.yesOrNo(undefined, new MessageEmbed()
+					.setTitle("Would you be willing to pinch-grant this wish?")
+					.setDescription("You are signed up as a pinch-wish-granter and have been selected as a candidate to pinch-grant the following wish:")
+					.addField("Wish", wish?.wish!)
+					.setColor("0088FF"))
+					.setTimeout(hours(5))
+					.send(granterMember);
+
+				if (!willPinch) {
+					await organiser.user.send("That granter denied to pinch-grant that wish, or let the request time out. Try another?");
+					continue;
+				}
+
+				await granterMember.send(`Thanks! Remember, you can use \`${this.commandPrefix}wish grant\` to see all of your assigned wishes and their wishers.`);
+				await organiser.user.send("That granter accepted the wish! May it be granted!");
+
+				break;
 			}
 
 			if (!isPinchMatch)
