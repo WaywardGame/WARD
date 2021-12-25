@@ -133,8 +133,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected async findMember (query: string): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
-		const results = await this.findMembers(query);
+	protected async findMember (query: string, collection = this.guild.members.cache): Promise<GuildMember | Collection<string, GuildMember> | undefined> {
+		const results = await this.findMembers(query, collection);
 		switch (results.size) {
 			case 0: return undefined;
 			case 1: return results.first();
@@ -147,7 +147,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 	 * @returns undefined if no members match, the matching Collection of members if multiple members match,
 	 * and the matching member if one member matches
 	 */
-	protected async findMembers (query: string) {
+	protected async findMembers (query: string, collection = this.guild.members.cache) {
 		query = query.toLowerCase();
 		let tag: string | undefined;
 
@@ -155,13 +155,15 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 		if (splitMatch)
 			[, query, tag] = splitMatch;
 
-		await this.guild.members.fetch({ force: true });
-		let results = this.guild.members.cache.filter(m => m.id === query);
+		if (collection === this.guild.members.cache)
+			await this.guild.members.fetch({ force: true });
+
+		let results = collection.filter(m => m.id === query);
 		if (!results.size)
-			results = this.guild.members.cache.filter(m => m.user.username.toLowerCase().includes(query));
+			results = collection.filter(m => m.user.username.toLowerCase().includes(query));
 
 		if (!results.size)
-			results = this.guild.members.cache.filter(m => m.displayName.toLowerCase().includes(query));
+			results = collection.filter(m => m.displayName.toLowerCase().includes(query));
 
 		if (tag)
 			results = results.filter(m => m.user.tag.endsWith(tag!));

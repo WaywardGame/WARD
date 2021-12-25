@@ -1,5 +1,5 @@
 import Stream from "@wayward/goodstream";
-import { DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
+import { Collection, DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
@@ -81,7 +81,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			embed: new MessageEmbed()
 				.setTitle("Your wish has been granted!")
 				.setColor("AA00FF")
-				.addFields(!participant.gift.message ? undefined : { name: "A message from your wish-granter:", value: participant.gift.message }),
+				.addFields(!participant.gift.message ? undefined : { name: "A message from your wish-granter:", value: participant.gift.message })
+				.addField(Strings.BLANK, "Remember that you can message your wish-granter without knowing their identity using `!wish message granter <...message>`"),
 			files: [new MessageAttachment(participant.gift.url)]
 		});
 		this.logger.info(`Sent gift to ${member.displayName}`);
@@ -130,11 +131,23 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return this.reply(message, "You have not been matched with a wisher.")
 				.then(() => CommandResult.pass());
 
-		if (wishes.length > 1)
-			return this.reply(message, "You are responsible for more than one wish. Messaging between more than one wisher is not currently supported.")
-				.then(() => CommandResult.pass());
+		let [wisherId] = wishes[0];
+		if (wishes.length > 1) {
+			const userQuery = text.shift();
+			const wishers = wishes.map(([id]) => [id, this.guild.members.cache.get(id)!] as const)
+				.filter(([, member]) => member);
+			const result = await this.findMember(userQuery!, new Collection(wishers));
+			if (result instanceof Collection)
+				return this.reply(message, `You are responsible for more than one wish. Your query '${userQuery}' matched multiple of your wishers.`)
+					.then(() => CommandResult.pass());
 
-		const [wisherId] = wishes[0];
+			if (!result)
+				return this.reply(message, `You are responsible for more than one wish. Your query '${userQuery}' matched none of your wishers.`)
+					.then(() => CommandResult.pass());
+
+			wisherId = result.id;
+		}
+
 		const wisher = this.guild.members.cache.get(wisherId);
 		if (!wisher) {
 			this.logger.warning("Could not find wish participant for messaging", wisherId);
@@ -706,7 +719,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return CommandResult.pass();
 		}
 
-		this.data.stage = "matching";
+		if (this.data.stage === "making")
+			this.data.stage = "matching";
 
 		const wishGranters = !isPinchMatch ? participants.slice()
 			: participants.filter(([, participant]) => participant!.canPinch);
