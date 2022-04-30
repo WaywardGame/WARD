@@ -564,7 +564,7 @@ export class Ward {
 		if (domain === "main")
 			domain = "plugin:main";
 
-		const match = domain.match(/^(plugin|api)[:\.\/](.*)$/);
+		const match = domain?.match(/^(plugin|api)[:\.\/](.*)$/);
 		if (!match)
 			return this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
