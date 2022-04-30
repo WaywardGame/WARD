@@ -560,37 +560,25 @@ export class Ward {
 		return CommandResult.pass();
 	}
 
-	private async resolveConfig (message: CommandMessage, domain: "main" | `${"plugin" | "api"}${":" | "." | "/"}${string}`): Promise<CommandResult | Importable> {
+	private async resolveConfig (message: CommandMessage, domain?: "main" | `${"plugin" | "api"}${":" | "." | "/"}${string}`): Promise<CommandResult | Importable> {
 		if (domain === "main")
 			domain = "plugin:main";
 
 		const match = domain?.match(/^(plugin|api)[:\.\/](.*)$/);
-		if (!match)
-			return this.reply(message, new MessageEmbed()
+		const [, type, name] = (match || []) as [any, "plugin" | "api", string] | [];
+
+		return this[type === "plugin" ? "plugins" : "apis"][name!]
+			?? this.reply(message, new MessageEmbed()
 				.setColor(COLOR_BAD)
-				.setDescription(`Invalid config domain \`${domain}\`. Must be \`main\`, \`plugin:<plugin name>\` or \`api:<api name>\``))
+				.setDescription(`${domain ? `Invalid config domain \`${domain}\`` : "No config domain provided"}. Must be any of:\n${["main",
+					...Object.keys(this.plugins).map(plugin => `plugin:${plugin}`),
+					...Object.keys(this.apis).map(api => `api:${api}`)]
+					.map(domain => `\`${domain}\``).join(", ")}`))
 				.then(reply => CommandResult.fail(message, reply));
-
-		const [, type, name] = match as [any, "plugin" | "api", string];
-		switch (type) {
-			case "plugin":
-				return this.plugins[name]
-					?? this.reply(message, new MessageEmbed()
-						.setColor(COLOR_BAD)
-						.setDescription(`Can't get config for plugin \`${name}\`, not found.`))
-						.then(reply => CommandResult.fail(message, reply));
-
-			case "api":
-				return this.apis[name]
-					?? this.reply(message, new MessageEmbed()
-						.setColor(COLOR_BAD)
-						.setDescription(`Can't get config for api \`${name}\`, not found.`))
-						.then(reply => CommandResult.fail(message, reply));
-		}
 	}
 
 	@Bound
-	private async commandConfigGet (message: CommandMessage, domain: string, property: string) {
+	private async commandConfigGet (message: CommandMessage, domain?: string, property?: string) {
 		if (!message.member?.permissions.has("ADMINISTRATOR") && message.author.id !== "92461141682307072") // Chiri is all-powerful
 			return CommandResult.pass();
 
@@ -600,13 +588,27 @@ export class Ward {
 
 		const importable = result;
 
-		const oldValue = (importable.data._config as any)?.[property];
+		if (!property) {
+			const validProperties = Object.keys(importable["_config"] || {});
+			if (!validProperties.length)
+				return this.reply(message, new MessageEmbed()
+					.setDescription(`There is no configuration for \`${domain}\``))
+					.then(() => CommandResult.fail(message));
+
+			return this.reply(message, new MessageEmbed()
+				.setDescription(`Provide a config property for \`${domain}\`:\n${validProperties
+					.map(key => `\`${key}\``)
+					.join(", ")}`))
+				.then(output => CommandResult.fail(message, output));
+		}
+
+		const oldValue = (importable.data._config as any)?.[property!];
 		const baseValue = Objects.followKeys(importable["_config"], property as never);
 
 		this.reply(message, new MessageEmbed()
-			.setDescription(`Config property \`${property}\` for plugin \`${domain}\`:`)
-			.addField("Overrided value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
-			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+			.setDescription(`Config property \`${property}\` for \`${domain}\`:`)
+			.addField("Overrided value", `\`\`\`json\n${JSON.stringify(oldValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``)
+			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``));
 
 		return CommandResult.pass();
 	}
@@ -647,9 +649,9 @@ export class Ward {
 		this.reply(message, new MessageEmbed()
 			.setColor(COLOR_GOOD)
 			.setDescription(`Modified config property \`${property}\` for plugin \`${pluginName}\``)
-			.addField("New value (current)", `\`\`\`json\n${JSON.stringify(parsedValue, null, "\t")}\n\`\`\``)
-			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
-			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+			.addField("New value (current)", `\`\`\`json\n${JSON.stringify(parsedValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``)
+			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``)
+			.addField("Base value", `\`\`\`json\n${JSON.stringify(baseValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``));
 
 		return CommandResult.pass();
 	}
@@ -679,8 +681,8 @@ export class Ward {
 		this.reply(message, new MessageEmbed()
 			.setColor(COLOR_GOOD)
 			.setDescription(`Removed config property \`${property}\` for plugin \`${pluginName}\``)
-			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue, null, "\t")}\n\`\`\``)
-			.addField("Base value (current)", `\`\`\`json\n${JSON.stringify(baseValue, null, "\t")}\n\`\`\``));
+			.addField("Old value", `\`\`\`json\n${JSON.stringify(oldValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``)
+			.addField("Base value (current)", `\`\`\`json\n${JSON.stringify(baseValue ?? null, null, "\t").slice(0, 1010)}\n\`\`\``));
 
 		return CommandResult.pass();
 	}
