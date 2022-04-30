@@ -343,7 +343,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		let xpChange = this.config.xpForMessage;
 
-		if (trackedMember.maxXpForMessageBlockStartTime + getTime(this.config.maxXpForMessage[1]) < Date.now()) {
+		if (trackedMember.maxXpForMessageBlockStartTime + (getTime(this.config.maxXpForMessage[1]) ?? 0) < Date.now()) {
 			trackedMember.maxXpForMessageBlockStartTime = Date.now();
 			trackedMember.maxXpForMessageBlockMessagesSent = 0;
 			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the hour.`);
@@ -355,7 +355,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 		trackedMember.maxXpForMessageBlockMessagesSent++;
 
-		if (trackedMember.xpLossForMessageBlockStartTime + getTime(this.config.xpLossForMessage[1]) < Date.now()) {
+		if (trackedMember.xpLossForMessageBlockStartTime + (getTime(this.config.xpLossForMessage[1]) ?? 0) < Date.now()) {
 			trackedMember.xpLossForMessageBlockStartTime = Date.now();
 			trackedMember.xpLossForMessageBlockMessagesSent = 0;
 			this.logger.verbose(`${member.displayName} has sent ${pronouns.their} first message for the ${this.config.xpLossForMessage[1]}.`);

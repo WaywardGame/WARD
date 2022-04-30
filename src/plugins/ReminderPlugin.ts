@@ -133,7 +133,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 			return message.reply(`Unknown reminder type "${type}"`)
 				.then(reply => CommandResult.fail(message, reply));
 
-		const time = getTime(timeString);
+		const time = getTime(timeString) ?? 0;
 		const reminderMessage = reminder.join(" ");
 		this.data.reminders.push({
 			message: reminderMessage,
@@ -278,7 +278,7 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 			if (!downtime)
 				downtime = this.data.downtime[message.author.id] = {};
 
-			const offset = getTime(timeStr) * (agoStr === "ago" ? -1 : 1);
+			const offset = (getTime(timeStr) ?? 0) * (agoStr === "ago" ? -1 : 1);
 			this.data.downtime[message.author.id][config] = (Date.now() + offset) % days(1);
 			this.data.markDirty();
 		}

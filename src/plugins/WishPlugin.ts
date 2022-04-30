@@ -884,7 +884,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return this.reply(message, "It's too early to distribute wishes, it's not even the granting stage yet!")
 				.then(() => CommandResult.pass());
 
-		const time = getTime(timeString);
+		const time = getTime(timeString) ?? 0;
 		this.data.distributeTime = Date.now() + time;
 
 		this.logger.info(`Set gift distribution to occur after ${renderTime(time)}`);

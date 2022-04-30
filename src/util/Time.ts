@@ -64,19 +64,19 @@ const timeAbbreviations: Record<string, TimeUnit> = Object.fromEntries(Object.en
 // tslint:disable cyclomatic-complexity
 const valRegex = /^([0-9\.]+) ?([a-z]+)$/;
 export function getTime (unit: TimeUnit, amt: number): number;
-export function getTime (time?: string | [TimeUnit, number]): number;
+export function getTime (time?: string | [TimeUnit, number]): number | undefined;
 export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: number) {
 	if (typeof unit == "string" && amt === undefined) {
 		const match = unit.match(valRegex);
 		if (!match)
-			return 0;
+			return undefined;
 
 		amt = +match[1];
 		unit = match[2] as TimeUnit;
 	}
 
 	else if (unit === undefined)
-		return 0;
+		return undefined;
 	else
 		unit = unit;
 
@@ -89,9 +89,10 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 		unit = timeAbbreviations[unit];
 
 	if (amt === undefined)
-		return amt;
+		return undefined;
 
 	switch (unit) {
+		case TimeUnit.Milliseconds: case TimeUnit.Milliseconds.slice(0, -1): return amt;
 		case TimeUnit.Seconds: case TimeUnit.Seconds.slice(0, -1): return seconds(amt);
 		case TimeUnit.Minutes: case TimeUnit.Minutes.slice(0, -1): return minutes(amt);
 		case TimeUnit.Hours: case TimeUnit.Hours.slice(0, -1): return hours(amt);
@@ -99,7 +100,8 @@ export function getTime (unit?: TimeUnit | string | [TimeUnit, number], amt?: nu
 		case TimeUnit.Weeks: case TimeUnit.Weeks.slice(0, -1): return weeks(amt);
 		case TimeUnit.Months: case TimeUnit.Months.slice(0, -1): return months(amt);
 		case TimeUnit.Years: case TimeUnit.Years.slice(0, -1): return years(amt);
-		default: return amt;
+		case TimeUnit.Years: case TimeUnit.Years.slice(0, -1): return years(amt);
+		default: return undefined;
 	}
 }
 

@@ -6,7 +6,7 @@ import Arrays from "../util/Arrays";
 import { COLOR_BAD, COLOR_GOOD, COLOR_WARNING } from "../util/Colors";
 import Scrape from "../util/Scrape";
 import Strings from "../util/Strings";
-import { days, getTime, hours, minutes } from "../util/Time";
+import { days, getTime, hours, minutes, renderTime } from "../util/Time";
 
 interface IExhibitionPluginConfig {
 	exhibitions: Record<string, IExhibitionConfig>;
@@ -67,7 +67,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 			if (!exhibition)
 				continue;
 
-			if (Date.now() - exhibition.lastShown - minutes(30) < getTime(exhibitionConfig.duration))
+			if (Date.now() - exhibition.lastShown - minutes(30) < (getTime(exhibitionConfig.duration) ?? 0))
 				continue; // not enough time passed
 
 			const channel = this.getChannel(exhibitionConfig.channel);
@@ -123,7 +123,7 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 	}
 
 	@Command("exhibition delay")
-	public async onDelay (message: CommandMessage, exhibitionName: string) {
+	public async onDelay (message: CommandMessage, exhibitionName: string, timeString?: string) {
 		if (!message.member?.permissions.has("MANAGE_MESSAGES"))
 			return CommandResult.pass();
 
@@ -135,12 +135,23 @@ export default class ExhibitionPlugin extends Plugin<IExhibitionPluginConfig, IE
 				.addField("Valid Exhibitions", Object.keys(this.config.exhibitions).join(", ")))
 				.then(reply => CommandResult.fail(message, reply));
 
-		exhibition.lastShown += days(1);
+		if (timeString === "get") {
+			const exhibitionDuration = getTime(this.config.exhibitions[exhibitionName]?.duration) ?? 0;
+			return this.reply(message, new MessageEmbed()
+				.setTitle(`Next "${exhibitionName}" exhibition in ${renderTime((exhibition.lastShown + exhibitionDuration) - Date.now())}`))
+				.then(() => CommandResult.pass());
+		}
+
+		if (exhibition.submissions[0] === null)
+			exhibition.lastShown = Date.now();
+
+		const time = getTime(timeString) ?? days(1);
+		exhibition.lastShown += time;
 		this.data.markDirty();
 
 		return this.reply(message, new MessageEmbed()
 			.setColor(COLOR_GOOD)
-			.setTitle(`Showing the current "${exhibitionName}" exhibition for an additional day.`))
+			.setTitle(`Showing the current "${exhibitionName}" exhibition for an additional ${renderTime(time)}.`))
 			.then(() => CommandResult.pass());
 	}
 
