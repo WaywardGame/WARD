@@ -130,11 +130,19 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 	@Command("remind")
 	protected async onRemind (message: CommandMessage, type: string, timeString: string, ...reminder: string[]) {
 		if (type !== "after" && type !== "every")
-			return message.reply(`Unknown reminder type "${type}"`)
+			return message.reply(new MessageEmbed()
+				.setTitle(`Unknown reminder type "${type}"`)
+				.setColor(COLOR_BAD))
 				.then(reply => CommandResult.fail(message, reply));
 
 		const time = getTime(timeString) ?? 0;
 		const reminderMessage = reminder.join(" ");
+		if (!reminderMessage)
+			return message.reply(new MessageEmbed()
+				.setTitle(`No reminder text provided`)
+				.setColor(COLOR_BAD))
+				.then(reply => CommandResult.fail(message, reply));
+
 		this.data.reminders.push({
 			message: reminderMessage,
 			time,
