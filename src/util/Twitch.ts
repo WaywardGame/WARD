@@ -45,7 +45,8 @@ export interface IPaginatedResult {
 
 export interface ITwitchConfig {
 	client: string;
-	token: string;
+	secret: string;
+	redirectUri: string;
 }
 
 const defaultSleepTime = 10000;
@@ -56,6 +57,28 @@ let lastRequestTime = 0;
 export class Twitch extends Api<ITwitchConfig> {
 	public getDefaultId () {
 		return "twitch";
+	}
+
+	public getAuthURL () {
+		return `https://id.twitch.tv/oauth2/authorize?client_id=${this.config.client}&redirect_uri=${this.config.redirectUri}&response_type=code&scope=user:read:email`;
+	}
+
+	public async getToken (authCode: string) {
+		return fetch("https://id.twitch.tv/oauth2/token", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: Object.entries({
+				client_id: this.config.client,
+				client_secret: this.config.secret,
+				code: authCode,
+				grant_type: "authorization_code",
+			})
+				.map(entry => entry.join("="))
+				.join("&"),
+		})
+			.then(response => response.json());
 	}
 
 	public async getStreams (game: string): Promise<IStream[]> {

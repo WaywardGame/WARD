@@ -1,6 +1,7 @@
-import { MessageEmbed, TextChannel } from "discord.js";
-import { ImportApi } from "../core/Api";
+import { DMChannel, MessageEmbed, TextChannel } from "discord.js";
+import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
+import { COLOR_BAD, COLOR_GOOD } from "../util/Colors";
 import { minutes } from "../util/Time";
 import { IStream, IUser, Twitch } from "../util/Twitch";
 
@@ -34,8 +35,12 @@ export interface ITwitchStreamPluginConfig {
 }
 
 export interface ITwitchStreamPluginData extends IInherentPluginData<ITwitchStreamPluginConfig> {
-	trackedStreams: Record<string, number>,
-	failing: boolean,
+	trackedStreams: Record<string, number>;
+	failing: boolean;
+	tokens?: {
+		access: string;
+		refresh: string;
+	};
 }
 
 export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitchStreamPluginData> {
@@ -64,15 +69,45 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			await this.cleanupTrackedStreams(updateTime);
 		} catch (err) {
 			this.logger.error("Cannot update Twitch streams", err);
-			if (err.message === "Invalid OAuth token" && !this.data.failing) {
+			if ((err as Error).message === "Invalid OAuth token" && !this.data.failing) {
 				this.data.failing = true;
 				this.warningChannel?.send(new MessageEmbed()
 					.setColor("FF0000")
 					.setTitle("Unable to update streams 😭")
-					.setDescription("Twitch OAuth token has been reset (for some reason)"));
+					.setDescription("Twitch OAuth token must be reset. Use `!twitch auth`"));
 			}
 		}
 		// this.log("Update complete.");
+	}
+
+	@Command("twitch auth")
+	protected async onCommandAuth (message: CommandMessage) {
+		if (!message.member?.permissions.has("ADMINISTRATOR"))
+			return CommandResult.pass();
+		if (!(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		this.reply(message, new MessageEmbed());
+
+		const response = await this.prompter("Authorise with Twitch")
+			.setColor(COLOR_GOOD)
+			.setDescription("Once authorisation is complete, you'll be delivered to a page with a code to copy. Send me that code!")
+			.setURL(this.twitch.getAuthURL())
+			.reply(message);
+
+		if (response.cancelled || !response.message?.content)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle("Authorisation cancelled.")
+				.setDescription("Did you forget about me? 😢"))
+				.then(() => CommandResult.pass());
+
+		const authCode = response.message.content;
+		const token = await this.twitch.getToken(authCode);
+		this.reply(message, new MessageEmbed()
+			.setDescription(`\`\`\`json\n${JSON.stringify(token, null, "\n")}`));
+
+		return CommandResult.pass();
 	}
 
 	private async cleanupTrackedStreams (updateTime: number) {
