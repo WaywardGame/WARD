@@ -1,0 +1,54 @@
+<title>Authorise WARD with Twitch</title>
+<style>
+	:root { 
+		color-scheme: dark;
+	}
+	
+	body {
+		margin: 0;
+		font-size: 18pt;
+		font-family: "Open Sans", sans-serif;
+		font-weight: 100;
+		text-align: center;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		height: 100%;
+		box-sizing: border-box;
+	}
+	
+	.hidden {
+		display: none;
+	}
+	
+	#code {
+		user-select: all;
+	}
+	
+	#copy {
+		cursor: pointer;
+		font-size: inherit;
+		padding: 4px 12px;
+		width: fit-content;
+	}
+</style>
+<h1 id="code">Where did you come from?</h1>
+<p id="description">This page is meant for authorising a WARD instance with Twitch. Go away!</p>
+<button id="copy" class="hidden">Copy</button>
+<script>
+	const params = Object.fromEntries(new URLSearchParams(location.search).entries());
+	if (params.code) {
+		document.getElementById("code").textContent = params.code;
+		
+		const description = document.getElementById("description");
+		description.textContent = "Copy this code and send it to WARD.";
+		
+		const copyButton = document.getElementById("copy");
+		copyButton.classList.remove("hidden");
+		copyButton.addEventListener("click", () => {
+			description.textContent = "You've copied the code — now send it to WARD!";
+			navigator.clipboard.writeText(params.code);
+		});
+	}
+</script>
