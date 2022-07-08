@@ -49,6 +49,26 @@ export interface ITwitchConfig {
 	redirectUri: string;
 }
 
+export interface IAuthError {
+	status: number;
+	message: string;
+}
+
+export interface IAuthTokenResponse {
+	status: undefined;
+	message: undefined;
+	access_token: string;
+	expires_in: number;
+	refresh_token: string;
+	scope: string[];
+	token_type: "bearer";
+}
+
+export interface ITokens {
+	access: string;
+	refresh: string;
+}
+
 const defaultSleepTime = 10000;
 let sleepTime = defaultSleepTime;
 let isRequesting = false;
@@ -63,7 +83,7 @@ export class Twitch extends Api<ITwitchConfig> {
 		return `https://id.twitch.tv/oauth2/authorize?client_id=${this.config.client}&redirect_uri=${this.config.redirectUri}&response_type=code&scope=user:read:email`;
 	}
 
-	public async getToken (authCode: string) {
+	public async getToken (authCode: string): Promise<IAuthError | IAuthTokenResponse> {
 		return fetch("https://id.twitch.tv/oauth2/token", {
 			method: "POST",
 			headers: {
@@ -74,6 +94,7 @@ export class Twitch extends Api<ITwitchConfig> {
 				client_secret: this.config.secret,
 				code: authCode,
 				grant_type: "authorization_code",
+				redirect_uri: this.config.redirectUri,
 			})
 				.map(entry => entry.join("="))
 				.join("&"),
@@ -81,27 +102,27 @@ export class Twitch extends Api<ITwitchConfig> {
 			.then(response => response.json());
 	}
 
-	public async getStreams (game: string): Promise<IStream[]> {
-		return this.paginationTwitchRequest(`streams?game_id=${game}&first=100`);
+	public async getStreams (tokens: ITokens, game: string): Promise<IStream[]> {
+		return this.paginationTwitchRequest(tokens, `streams?game_id=${game}&first=100`);
 	}
 
-	public async getStream (streamer?: string): Promise<IStream | undefined> {
-		return streamer && this.twitchRequest(`streams?user_login=${streamer}`).then(result => result.data[0]);
+	public async getStream (tokens: ITokens, streamer?: string): Promise<IStream | undefined> {
+		return streamer && this.twitchRequest(tokens, `streams?user_login=${streamer}`).then(result => result.data[0]);
 	}
 
-	public async getUser (id: string): Promise<IUser | undefined> {
-		return this.twitchRequest(`users?id=${id}`).then(result => result.data[0]);
+	public async getUser (tokens: ITokens, id: string): Promise<IUser | undefined> {
+		return this.twitchRequest(tokens, `users?id=${id}`).then(result => result.data[0]);
 	}
 
-	public async getGame (id: string): Promise<IGame | undefined> {
-		return this.twitchRequest(`games?id=${id}`).then(result => result.data[0]);
+	public async getGame (tokens: ITokens, id: string): Promise<IGame | undefined> {
+		return this.twitchRequest(tokens, `games?id=${id}`).then(result => result.data[0]);
 	}
 
-	private async paginationTwitchRequest (rq: string): Promise<any[]> {
+	private async paginationTwitchRequest (tokens: ITokens, rq: string): Promise<any[]> {
 		const results = [];
 		let rqResult: IPaginatedResult | undefined;
 		do {
-			rqResult = await this.twitchRequest(rqResult ? `${rq}&after=${rqResult.pagination.cursor}` : rq);
+			rqResult = await this.twitchRequest(tokens, rqResult ? `${rq}&after=${rqResult.pagination.cursor}` : rq);
 			if (!rqResult)
 				break;
 
@@ -111,7 +132,7 @@ export class Twitch extends Api<ITwitchConfig> {
 		return results;
 	}
 
-	private async twitchRequest (rq: string) {
+	private async twitchRequest (tokens: ITokens, rq: string) {
 		while (isRequesting) {
 			await sleep(100);
 		}
@@ -129,7 +150,7 @@ export class Twitch extends Api<ITwitchConfig> {
 				const r = fetch(`${rq.startsWith(endpoint) ? "" : endpoint}${rq}`, {
 					headers: {
 						"Client-ID": this.config.client,
-						"Authorization": `Bearer ${this.config.token}`
+						"Authorization": `Bearer ${tokens.access}`
 					},
 				});
 
@@ -145,7 +166,7 @@ export class Twitch extends Api<ITwitchConfig> {
 				lastRequestTime = Date.now();
 
 				if (err?.message === "Invalid OAuth token")
-					throw err;
+					await this.refreshToken(tokens);
 
 				if (++tries > 100)
 					throw err;
@@ -159,5 +180,29 @@ export class Twitch extends Api<ITwitchConfig> {
 		lastRequestTime = Date.now();
 
 		return result;
+	}
+
+	private async refreshToken (tokens: ITokens) {
+		const newTokens = await fetch("https://id.twitch.tv/oauth2/token", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: Object.entries({
+				client_id: this.config.client,
+				client_secret: this.config.secret,
+				refresh_token: tokens.refresh,
+				grant_type: "refresh_token",
+			})
+				.map(entry => entry.join("="))
+				.join("&"),
+		})
+			.then(response => response.json()) as IAuthTokenResponse;
+
+		if (!newTokens.refresh_token)
+			throw Object.assign(new Error("Invalid OAuth token"), { detail: "Unable to refresh token" });
+
+		tokens.access = newTokens.access_token;
+		tokens.refresh = newTokens.refresh_token;
 	}
 }

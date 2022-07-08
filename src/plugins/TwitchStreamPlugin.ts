@@ -3,7 +3,7 @@ import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
 import { COLOR_BAD, COLOR_GOOD } from "../util/Colors";
 import { minutes } from "../util/Time";
-import { IStream, IUser, Twitch } from "../util/Twitch";
+import { IStream, ITokens, IUser, Twitch } from "../util/Twitch";
 
 interface IEmbedDescription {
 	author?: string;
@@ -37,10 +37,7 @@ export interface ITwitchStreamPluginConfig {
 export interface ITwitchStreamPluginData extends IInherentPluginData<ITwitchStreamPluginConfig> {
 	trackedStreams: Record<string, number>;
 	failing: boolean;
-	tokens?: {
-		access: string;
-		refresh: string;
-	};
+	tokens?: ITokens;
 }
 
 export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitchStreamPluginData> {
@@ -61,7 +58,6 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	}
 
 	public async onUpdate () {
-		// this.log("Updating streams...");
 		const updateTime = Date.now();
 		try {
 			await this.updateStreams(updateTime);
@@ -77,7 +73,8 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 					.setDescription("Twitch OAuth token must be reset. Use `!twitch auth`"));
 			}
 		}
-		// this.log("Update complete.");
+
+		this.data.markDirty();
 	}
 
 	@Command("twitch auth")
@@ -86,8 +83,6 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			return CommandResult.pass();
 		if (!(message.channel instanceof DMChannel))
 			return CommandResult.pass();
-
-		this.reply(message, new MessageEmbed());
 
 		const response = await this.prompter("Authorise with Twitch")
 			.setColor(COLOR_GOOD)
@@ -104,10 +99,23 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 
 		const authCode = response.message.content;
 		const token = await this.twitch.getToken(authCode);
-		this.reply(message, new MessageEmbed()
-			.setDescription(`\`\`\`json\n${JSON.stringify(token, null, "\n")}`));
+		if (token.status !== undefined)
+			return this.reply(message, new MessageEmbed()
+				.setColor(COLOR_BAD)
+				.setTitle(`${token.status}: Unable to authorise.`)
+				.setDescription(token.message))
+				.then(() => CommandResult.pass());
 
-		return CommandResult.pass();
+		const tokens: Partial<ITokens> = this.data.tokens ?? {};
+		tokens.access = token.access_token;
+		tokens.refresh = token.refresh_token;
+		this.data.tokens = tokens as ITokens;
+		this.data.markDirty();
+
+		return this.reply(message, new MessageEmbed()
+			.setColor(COLOR_GOOD)
+			.setTitle(`Success! The twitch plugin will now work on this server.`))
+			.then(() => CommandResult.pass());
 	}
 
 	private async cleanupTrackedStreams (updateTime: number) {
@@ -117,17 +125,20 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 	}
 
 	private async updateStreams (updateTime: number) {
+		if (!this.data.tokens)
+			return;
+
 		const updates: (readonly [string, number])[] = [];
 
 		for (const streamDetector of this.config.streamDetectors) {
 			if (streamDetector.game) {
-				const streams = await this.twitch.getStreams(streamDetector.game);
+				const streams = await this.twitch.getStreams(this.data.tokens, streamDetector.game);
 
 				for (const stream of streams)
 					updates.push(await this.updateStream(streamDetector, stream, updateTime));
 
 			} else {
-				const stream = await this.twitch.getStream(streamDetector.streamer);
+				const stream = await this.twitch.getStream(this.data.tokens, streamDetector.streamer);
 				if (stream)
 					updates.push(await this.updateStream(streamDetector, stream, updateTime));
 			}
@@ -144,8 +155,8 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 		if (!this.trackedStreams[stream.user_name]) {
 			this.logger.info(`Channel ${stream.user_name} went live: ${stream.title}`);
 
-			const user = await this.twitch.getUser(stream.user_id);
-			const game = await this.twitch.getGame(stream.game_id);
+			const user = await this.twitch.getUser(this.data.tokens!, stream.user_id);
+			const game = await this.twitch.getGame(this.data.tokens!, stream.game_id);
 			const channel = this.guild.channels.cache.get(streamDetector.channel) as TextChannel;
 
 			const embed = typeof streamDetector.embed === "object" ? streamDetector.embed : {};

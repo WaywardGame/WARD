@@ -463,7 +463,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 					.setThumbnail(_thumbnail)
 					.setAuthor(_title, _image)
 					.setTitle(prompt)
-					.setDescription(_description)
+					.setDescription(_description ?? "\u200b")
 					.addFields(
 						!_maxLength ? undefined : { name: "Max length", value: `${_maxLength} characters` },
 						!defaultValue ? undefined : { name: "Current response", value: defaultValue },
