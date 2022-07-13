@@ -371,7 +371,11 @@ export class Ward {
 	}
 
 	private async login () {
-		this.discord = new Client();
+		this.discord = new Client({
+			allowedMentions: {
+				parse: ["roles", "users"],
+			},
+		});
 		this.discord.on("error", console.error);
 		this.discord.on("disconnect", console.error);
 		const readyPromise = new Promise<void>(resolve => this.discord!.once("ready", resolve));
