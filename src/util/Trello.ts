@@ -288,8 +288,10 @@ export class Trello extends Api<ITrelloConfig> {
 		listVersionInfo.str =
 			`${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
 
-		listVersionInfo.strPretty =
-			() => `Wayward: ${this.getMajorName(listVersionInfo) ?? "Uncharted Waters"}${listVersionInfo.minor ? ` Update ${listVersionInfo.minor}` : ""}`;
+		listVersionInfo.strPretty = () => {
+			const minor = listVersionInfo.stage === "beta" ? listVersionInfo.patch : listVersionInfo.minor;
+			return `Wayward: ${this.getMajorName(listVersionInfo) ?? "Uncharted Waters"}${minor ? ` Update ${minor}` : ""}`;
+		};
 
 		return listVersionInfo;
 	}
@@ -298,7 +300,7 @@ export class Trello extends Api<ITrelloConfig> {
 		return this.versionCache
 			.find(version => version.stage === minor.stage
 				&& version.major === minor.major
-				&& version.minor === 0
+				&& version.minor === (version.stage === "beta" ? version.minor : 0)
 				&& version.patch === 0
 			)
 			?.name;

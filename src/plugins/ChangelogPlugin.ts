@@ -50,7 +50,7 @@ const colors = {
 	green: "#38D567",
 };
 
-const changelogVersion = 11;
+const changelogVersion = 12;
 
 type ReportedChange = [trelloId: string, textHash: number, messageId?: string];
 
@@ -253,7 +253,7 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 
 	private getChangeText (version: IVersionInfo | string, card: ITrelloCard) {
 		let change = this.getChangeTypeEmojis(card).map(([emoji]) => emoji).join("");
-		change += typeof version === "string" ? "" : ` [${version.strPretty}]`;
+		change += typeof version === "string" ? "" : ` [${typeof version.strPretty === "function" ? version.strPretty() : version.strPretty}]`;
 		change += ` ${card.name} ${card.shortUrl}`;
 		return change;
 	}
