@@ -8,7 +8,7 @@
 				"isDefault": true
 			},
 			"type": "shell",
-			"command": "gulp watch",
+			"command": "npx gulp watch",
 			"problemMatcher": []
 		}
 	]
