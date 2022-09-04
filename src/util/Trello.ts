@@ -290,7 +290,7 @@ export class Trello extends Api<ITrelloConfig> {
 
 		listVersionInfo.strPretty = () => {
 			const minor = listVersionInfo.stage === "beta" ? listVersionInfo.patch : listVersionInfo.minor;
-			return `Wayward: ${this.getMajorName(listVersionInfo) ?? "Uncharted Waters"}${minor ? ` Update ${minor}` : ""}`;
+			return `Wayward: ${this.getMajorName(listVersionInfo) ?? "Uncharted Waters"}${minor ? ` (Update ${minor})` : ""}`;
 		};
 
 		return listVersionInfo;
