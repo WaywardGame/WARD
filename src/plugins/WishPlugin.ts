@@ -90,6 +90,36 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		return true;
 	}
 
+	@Command("wish reset")
+	protected async onWishReset (message: CommandMessage) {
+		let organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+			return CommandResult.pass();
+
+		const confirmation = await this.yesOrNo(undefined, new MessageEmbed()
+			.setTitle("Are you sure you want to clear all wish data?")
+			.setColor(COLOR_WARNING))
+			.reply(message);
+
+		if (!confirmation)
+			return message.reply(new MessageEmbed()
+				.setTitle("Wish data was not cleared.")
+				.setColor(COLOR_GOOD))
+				.then(() => CommandResult.pass());
+
+		this.data.reset();
+
+		const role = this.config.participant && await this.findRole(this.config.participant);
+		if (role)
+			for (const member of role.members.values())
+				await member.roles.remove(role);
+
+		return message.reply(new MessageEmbed()
+			.setTitle("All wish data cleared.")
+			.setColor(COLOR_BAD))
+			.then(() => CommandResult.pass());
+	}
+
 	@Command("wish csv")
 	protected async onCommandWishCSV (message: CommandMessage) {
 		let organiser = this.guild.members.cache.get(message.author.id);
