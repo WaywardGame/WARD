@@ -41,11 +41,19 @@ export default class Data {
 				return target[prop as keyof typeof target] ?? target.get(prop as keyof DATA);
 			},
 			set (target, prop, value) {
-				target.set(prop as keyof DATA, value);
+				if (dataClassFields.includes(prop)) {
+					(target as any)[prop] = value;
+				} else {
+					target.set(prop as keyof DATA, value);
+				}
 				return true;
 			},
 			deleteProperty (target, prop) {
-				target.remove(prop as keyof DATA);
+				if (dataClassFields.includes(prop)) {
+					delete (target as any)[prop];
+				} else {
+					target.remove(prop as keyof DATA);
+				}
 				return true;
 			},
 		}) as FullDataContainer<DATA>;
@@ -111,6 +119,15 @@ export interface IDataContainerHost<DATA extends {} = any> {
 	dataPath: string;
 	initData (): DATA;
 }
+
+const dataClassFields: (string | number | symbol)[] = [
+	"_data",
+	"dataJson",
+	"dirty",
+	"_lastSave",
+	"saving",
+	"loaded",
+];
 
 export class DataContainer<DATA extends {} = any> {
 
