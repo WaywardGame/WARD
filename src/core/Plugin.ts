@@ -585,7 +585,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 		return true;
 	}
 
-	public mentionRole (role: Role, channel?: Channel) {
+	public mentionRole (role?: Role, channel?: Channel) {
+		if (!role) return "\\@unknown-role";
+
 		if (channel instanceof DMChannel)
 			return `@${role.name}`;
 
