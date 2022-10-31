@@ -107,15 +107,15 @@ export class Twitch extends Api<ITwitchConfig> {
 	}
 
 	public async getStream (tokens: ITokens, streamer?: string): Promise<IStream | undefined> {
-		return streamer && this.twitchRequest(tokens, `streams?user_login=${streamer}`).then(result => result.data[0]);
+		return streamer && this.twitchRequest(tokens, `streams?user_login=${streamer}`).then(result => result.data?.[0]);
 	}
 
 	public async getUser (tokens: ITokens, id: string): Promise<IUser | undefined> {
-		return this.twitchRequest(tokens, `users?id=${id}`).then(result => result.data[0]);
+		return this.twitchRequest(tokens, `users?id=${id}`).then(result => result.data?.[0]);
 	}
 
 	public async getGame (tokens: ITokens, id: string): Promise<IGame | undefined> {
-		return this.twitchRequest(tokens, `games?id=${id}`).then(result => result.data[0]);
+		return this.twitchRequest(tokens, `games?id=${id}`).then(result => result.data?.[0]);
 	}
 
 	private async paginationTwitchRequest (tokens: ITokens, rq: string): Promise<any[]> {
