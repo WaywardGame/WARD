@@ -176,7 +176,7 @@ export class Trello extends Api<ITrelloConfig> {
 	}
 
 	public async getVersions (maxVersion?: IVersionInfo): Promise<IVersionInfo[]> {
-		const result = [];
+		const versions: IVersionInfo[] = [];
 		if (Date.now() - this.lastCachedVersions < minutes(20)) {
 			return this.versionCache;
 		}
@@ -184,29 +184,34 @@ export class Trello extends Api<ITrelloConfig> {
 		// Check both open and unopened lists on the default board
 		let board = await this.getBoard(this.config.board);
 		if (board) {
-			result.push(...this.getCardsFromBoard(board).map(v => {
+			versions.push(...this.getVersionsFromBoard(board).map(v => {
 				v.active = true;
 				return v;
 			}));
 			board = await this.getBoard(this.config.board, true);
-			result.push(...this.getCardsFromBoard(board).map(v => {
+			versions.push(...this.getVersionsFromBoard(board).map(v => {
 				v.active = false;
 				return v;
 			}));
 		}
 
-		result.sort((infoA, infoB) => sortVersionInfo(infoA, infoB, true));
+		versions.sort((infoA, infoB) => sortVersionInfo(infoA, infoB, true));
 		if (maxVersion) {
 			// Remove versions past the maximum version
-			while (sortVersionInfo(result[0], maxVersion) > 0) {
-				result.shift();
+			while (sortVersionInfo(versions[0], maxVersion) > 0) {
+				versions.shift();
 			}
 		}
 
-		this.versionCache = result;
+		for (const version of versions) {
+			const minor = version.stage === "beta" ? version.patch : version.minor;
+			version.strPretty = `Wayward: ${this.getMajorName(version, versions) ?? "Uncharted Waters"}${minor ? ` (Update ${minor})` : ""}`;
+		}
+
+		this.versionCache = versions;
 		this.lastCachedVersions = Date.now();
 
-		return result;
+		return versions;
 	}
 
 	public async getActiveVersions () {
@@ -218,7 +223,7 @@ export class Trello extends Api<ITrelloConfig> {
 		return this.trelloRequest(`/cards/${cardId}/members`);
 	}
 
-	private getCardsFromBoard (board: ITrelloBoard) {
+	private getVersionsFromBoard (board: ITrelloBoard) {
 		const result = [];
 
 		if (board.lists) {
@@ -288,19 +293,14 @@ export class Trello extends Api<ITrelloConfig> {
 		listVersionInfo.str =
 			`${listVersionInfo.stage}${listVersionInfo.major}.${listVersionInfo.minor}.${listVersionInfo.patch}`;
 
-		listVersionInfo.strPretty = () => {
-			const minor = listVersionInfo.stage === "beta" ? listVersionInfo.patch : listVersionInfo.minor;
-			return `Wayward: ${this.getMajorName(listVersionInfo) ?? "Uncharted Waters"}${minor ? ` (Update ${minor})` : ""}`;
-		};
-
 		return listVersionInfo;
 	}
 
-	private getMajorName (minor: IVersionInfo) {
-		return this.versionCache
+	private getMajorName (minor: IVersionInfo, versions = this.versionCache) {
+		return versions
 			.find(version => version.stage === minor.stage
 				&& version.major === minor.major
-				&& version.minor === (version.stage === "beta" ? version.minor : 0)
+				&& version.minor === (minor.stage === "beta" ? minor.minor : 0)
 				&& version.patch === 0
 			)
 			?.name;
