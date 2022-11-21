@@ -196,6 +196,24 @@ export class Ward {
 	}
 
 	public async update () {
+		const sendToChiriLog = Logger.sendToChiriLog;
+		const chiri = this.discord?.users.cache.get("92461141682307072");
+		if (sendToChiriLog.length && chiri) {
+			let sent = false;
+			const toLog = sendToChiriLog.splice(0, Infinity);
+			const dm = await chiri.createDM().catch(() => undefined);
+			if (dm) {
+				await Paginator.create(toLog, msg => `\`\`\`${msg.slice(0, 1000)}\`\`\``)
+					.setColor(COLOR_BAD)
+					.send(dm)
+					.then(() => sent = true)
+					.catch(() => { });
+			}
+
+			if (!sent)
+				sendToChiriLog.push(...toLog);
+		}
+
 		const promises: Array<Promise<any>> = [];
 
 		for (const pluginName in this.plugins) {

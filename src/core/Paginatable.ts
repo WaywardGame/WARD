@@ -335,44 +335,48 @@ export class Paginator<T = any> {
 			await previousMessage.delete();
 
 		let resolved = false;
-		return new Promise<Message>(async resolve => {
-			while (true) {
-				let currentContent = this.get();
-				let currentEmbed = (currentContent.embed ?? new MessageEmbed()
-					.setTitle(currentContent.title)
-					.setDescription(currentContent.content || currentContent.description)
-					.setColor(currentContent.color)
-					.addFields(...currentContent.fields));
+		return new Promise<Message>(async (resolve, reject) => {
+			try {
+				while (true) {
+					let currentContent = this.get();
+					let currentEmbed = (currentContent.embed ?? new MessageEmbed()
+						.setTitle(currentContent.title)
+						.setDescription(currentContent.content || currentContent.description)
+						.setColor(currentContent.color)
+						.addFields(...currentContent.fields));
 
-				if (!currentEmbed.footer || currentEmbed.author)
-					currentEmbed.setFooter(this.getPageNumberText());
-				else
-					currentEmbed.setAuthor(this.getPageNumberText());
+					if (!currentEmbed.footer || currentEmbed.author)
+						currentEmbed.setFooter(this.getPageNumberText());
+					else
+						currentEmbed.setAuthor(this.getPageNumberText());
 
-				const messagePromise = channel.send(undefined, { embed: currentEmbed, replyTo: commandMessage }) as Promise<Message>;
-				if (!resolved) {
-					resolved = true;
-					resolve(messagePromise);
+					const messagePromise = channel.send(undefined, { embed: currentEmbed, replyTo: commandMessage }) as Promise<Message>;
+					if (!resolved) {
+						resolved = true;
+						resolve(messagePromise);
+					}
+
+					const message = await messagePromise;
+
+					const reaction = await this.awaitReaction(message, inputUser);
+
+					if (!reaction || reaction.name === PaginatorReaction.Cancel) {
+						this.cancelled = true;
+						this.event.emit("cancel", this);
+						return;
+					}
+
+					if (this.shouldDeleteOnUseOption?.(reaction) ?? true)
+						await message.delete();
+
+					await this.handleReaction(reaction, message);
+					if (this.cancelled) {
+						this.event.emit("cancel", this);
+						return;
+					}
 				}
-
-				const message = await messagePromise;
-
-				const reaction = await this.awaitReaction(message, inputUser);
-
-				if (!reaction || reaction.name === PaginatorReaction.Cancel) {
-					this.cancelled = true;
-					this.event.emit("cancel", this);
-					return;
-				}
-
-				if (this.shouldDeleteOnUseOption?.(reaction) ?? true)
-					await message.delete();
-
-				await this.handleReaction(reaction, message);
-				if (this.cancelled) {
-					this.event.emit("cancel", this);
-					return;
-				}
+			} catch (err) {
+				reject(err);
 			}
 		});
 	}

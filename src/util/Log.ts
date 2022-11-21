@@ -42,6 +42,7 @@ y = scopeColors;
 
 export default class Logger {
 	private static readonly waitToLog: string[] = [];
+	public static readonly sendToChiriLog: string[] = [];
 	private static isReadyToLog = false;
 	private static config: IConfig["logging"] = {
 		console: "verbose",
@@ -101,6 +102,9 @@ export default class Logger {
 		if (level <= LogLevel[this.config.console])
 			// tslint:disable-next-line no-console
 			console.log(...toLog);
+
+		if (level <= LogLevel.error)
+			Logger.sendToChiriLog.push(stripAnsi(toLog.join(" ")));
 
 		if (this.config.file) {
 			if (level <= LogLevel[this.config.file])
