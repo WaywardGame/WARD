@@ -95,7 +95,8 @@ export default class Logger {
 		if (level === LogLevel.verbose)
 			what = what.map(value => typeof value === "string" ? colorizer(value) : value);
 
-		toLog.push(...what);
+		toLog.push(...what
+			.map(thing => typeof thing === "object" ? thing instanceof Error ? (thing.stack ?? thing.message) : `${thing}` === "[object Object]" ? JSON.stringify(thing) : `${thing}` : `${thing}`));
 
 		if (level <= LogLevel[this.config.console])
 			// tslint:disable-next-line no-console
