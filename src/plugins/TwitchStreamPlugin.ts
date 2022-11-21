@@ -163,7 +163,7 @@ export class TwitchStreamPlugin extends Plugin<ITwitchStreamPluginConfig, ITwitc
 			channel.send(streamDetector.message ? interpolateStreamInfo(streamDetector.message, stream, user) : "",
 				streamDetector.embed ? new MessageEmbed()
 					.setAuthor(user?.display_name || stream.user_name, game ? user?.profile_image_url : undefined)
-					.setURL(user && `https://twitch.tv/${user.login}`)
+					.setURL(`https://twitch.tv/${user?.login ?? stream.user_name}`)
 					.setTitle(interpolateStreamInfo(embed.title || "{title}", stream, user))
 					.setDescription(game ? `Streaming **${game?.name}** on Twitch.tv` : undefined)
 					.setThumbnail(game ? game.box_art_url.replace("{width}", "285").replace("{height}", "380") : user?.profile_image_url) : undefined);
