@@ -723,7 +723,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 	}
 
 	@Command("wish match")
-	protected async onWishMatch (message: CommandMessage, mode?: string) {
+	protected async onWishMatch (message: CommandMessage, mode?: string, solo?: string) {
 		let organiser = this.guild.members.cache.get(message.author.id);
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
@@ -731,10 +731,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		this.logger.info(`${this.getName(message)} has started wish matching!`);
 
 		const isUnassignedMatch = mode === "unassigned";
-		const isPinchMatch = mode === "pinch" || isUnassignedMatch;
+		const isPinchMatch = mode === "pinch";
+		const isSoloMode = solo === "solo";
 
-		const organisers = this.guild.roles.cache.get(this.config.organiser)?.members?.values().toArray() ?? [];
-		if (organisers.length < 2) {
+		const organisers = isSoloMode ? [organiser]
+			: this.guild.roles.cache.get(this.config.organiser)?.members?.values().toArray() ?? [];
+
+		if (organisers.length < 2 && !isUnassignedMatch && !isPinchMatch) {
 			this.reply(message, "Not enough organisers. Requires at least 2.");
 			return CommandResult.pass();
 		}
@@ -787,7 +790,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 			const granters = wishGranters.filter(([id]) =>
 				id !== wishParticipantId
-				&& (isPinchMatch || id !== organiser!.id));
+				&& (isPinchMatch || isUnassignedMatch || id !== organiser!.id));
 
 			if (!granters.length) {
 				for (const organiser of organisers)
@@ -802,8 +805,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 						const granterMember = this.guild.members.cache.get(granterId);
 						return new MessageEmbed()
 							.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
-							.setTitle(`Candidate #${i + 1}${isPinchMatch ? `: ${granterMember?.displayName ?? "Unknown granter"}` : ""}`)
-							.setThumbnail(isPinchMatch && granterMember?.user.avatarURL() || undefined)
+							.setTitle(`Candidate #${i + 1}${isPinchMatch || isUnassignedMatch ? `: ${granterMember?.displayName ?? "Unknown granter"}` : ""}`)
+							.setThumbnail((isPinchMatch || isUnassignedMatch) && granterMember?.user.avatarURL() || undefined)
 							.setColor("FFAA00")
 							.setDescription(granter?.wishGranting)
 							.addField("Assigned wishes", Object.values(this.data.participants)
