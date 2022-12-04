@@ -388,7 +388,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 		};
 	}
 
-	protected prompter (prompt: string) {
+	protected prompter (prompt: string | false) {
 		let defaultValue: string | undefined;
 		let deletable = false;
 		let timeout = minutes(5);
@@ -410,6 +410,9 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 				value?: string;
 				apply<T extends { [key in K]?: string | undefined }, K extends keyof T> (to: T, prop: K): void;
 			};
+
+		let cancel: (value: false) => void;
+		const cancelled = new Promise<false>(resolve => cancel = resolve);
 
 		return {
 			setIdentity (title?: string, image?: string) {
@@ -453,52 +456,62 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 				timeout = t;
 				return this;
 			},
+			cancel () {
+				cancel(false);
+			},
 			async reply (message: CommandMessage): Promise<Result> {
 				if (defaultValue === "")
 					deletable = false;
 
-				const reply = await self.reply(message, new MessageEmbed()
-					.setColor(_color)
-					.setURL(_url)
-					.setThumbnail(_thumbnail)
-					.setAuthor(_title, _image)
-					.setTitle(prompt)
-					.setDescription(_description ?? "\u200b")
-					.addFields(
-						!_maxLength ? undefined : { name: "Max length", value: `${_maxLength} characters` },
-						!defaultValue ? undefined : { name: "Current response", value: defaultValue },
-					)
-					.addField("\u200b", [
-						"Send a message with your response",
-						defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} response`,
-						!deletable ? undefined : "🗑 \u200b Use no response",
-						"❌ \u200b Cancel",
-					].filterNullish().join(" \u200b · \u200b "))) as Message;
-
+				let reply: Message | undefined;
 				let ended = false;
-				(async () => {
-					if (defaultValue !== undefined)
-						await reply.react("✅");
+				if (prompt) {
+					reply = await self.reply(message, new MessageEmbed()
+						.setColor(_color)
+						.setURL(_url)
+						.setThumbnail(_thumbnail)
+						.setAuthor(_title, _image)
+						.setTitle(prompt)
+						.setDescription(_description ?? "\u200b")
+						.addFields(
+							!_maxLength ? undefined : { name: "Max length", value: `${_maxLength} characters` },
+							!defaultValue ? undefined : { name: "Current response", value: defaultValue },
+						)
+						.addField("\u200b", [
+							"Send a message with your response",
+							defaultValue === undefined ? undefined : `✅ \u200b Use ${defaultValue ? `current` : "no"} response`,
+							!deletable ? undefined : "🗑 \u200b Use no response",
+							"❌ \u200b Cancel",
+						].filterNullish().join(" \u200b · \u200b "))) as Message;
 
-					if (deletable && !ended)
-						await reply.react("🗑");
+					(async () => {
+						if (defaultValue !== undefined)
+							await reply.react("✅");
 
-					if (!ended)
-						await reply.react("❌");
-				})();
+						if (deletable && !ended)
+							await reply.react("🗑");
+
+						if (!ended)
+							await reply.react("❌");
+					})();
+				}
 
 				while (true) {
 					const collected = await Promise.race([
 						message.channel.awaitMessages(nm => nm.author.id === message.author.id, { max: 1, time: timeout }),
-						reply.awaitReactions((react, user) =>
+						...!reply ? [] : [reply.awaitReactions((react, user) =>
 							user.id === message.author.id
 							&& (react.emoji.name === "❌"
 								|| react.emoji.name === "✅"
 								|| react.emoji.name === "🗑"),
-							{ max: 1, time: timeout }),
+							{ max: 1, time: timeout })],
+						cancelled,
 					]);
 
 					message.channel.clearAwaitingMessages();
+
+					if (collected === false)
+						return { cancelled: true };
 
 					const result = collected?.first();
 					if (result instanceof Message) {

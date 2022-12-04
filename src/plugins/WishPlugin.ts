@@ -1,5 +1,5 @@
 import Stream from "@wayward/goodstream";
-import { Collection, DMChannel, Emoji, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
+import { Collection, DMChannel, Emoji, GuildMember, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
@@ -483,7 +483,12 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		const wishesToUnassign = Object.values(this.data.participants)
 			.filter(wish => wish?.granter === userid) as IWishParticipant[];
 
+		await this.guild.members.fetch({ force: true });
 		const granter = this.guild.members.cache.get(userid);
+		if (!granter)
+			return this.reply(message, `Can't find member with query '${userid}'.`)
+				.then(() => CommandResult.pass());
+
 		const granterName = granter?.displayName ?? "Unknown User";
 
 		if (!wishesToUnassign.length)
@@ -658,12 +663,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
 			return CommandResult.pass();
 
+		const wishes = Object.values(this.data.participants).filter(wish => wish?.wish !== "N/A").length;
 		const pinchGranters = Object.values(this.data.participants).filter(wisher => wisher?.canPinch).length;
 		const itchSignups = Object.values(this.data.participants).filter(wisher => wisher?.itch).length;
 		const itchCuts = Object.values(this.data.participants).filter(wisher => wisher?.itch && wisher.itchCut).length;
 		const scribbleSignups = Object.values(this.data.participants).filter(wisher => wisher?.scribble).length;
 
-		let info = `**${Object.keys(this.data.participants).length}** wishes.\n**${pinchGranters}** pinch-granters.\n**${itchSignups}** itch.io bundle signups.${itchCuts === itchSignups ? "" : ` (**${itchCuts}** cuts)`}\n**${scribbleSignups}** Scribble anthology signups.\n**${this.data.messages ?? 0}** messages sent.`;
+		let info = `**${wishes}** wishes.\n**${pinchGranters}** pinch-granters.\n**${itchSignups}** itch.io bundle signups.${itchCuts === itchSignups ? "" : ` (**${itchCuts}** cuts)`}\n**${scribbleSignups}** Scribble anthology signups.\n**${this.data.messages ?? 0}** messages sent.`;
 
 		if (this.data.stage === "making") {
 			const wishers = Stream.entries(this.data.participants)
@@ -686,6 +692,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 		if (this.data.stage === "granting") { //|| this.data.stage === "pinchGranting") {
 			const wishGranters = Stream.values(this.data.participants)
+				.filter(wish => wish?.wish !== "N/A")
 				.partition(wish => wish?.granter, wish => !!wish?.gift)
 				.partitions()
 				.map<IField & { sortPos: number }>(([granter, wishes]) => ({
@@ -800,8 +807,9 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 			let granter: Participant | undefined;
 			while (true) {
-				granter = await new Promise<Participant | undefined>(resolve => {
-					Paginator.create(granters, ([granterId, granter], paginator, i) => {
+				let shouldAsk = isUnassignedMatch || isPinchMatch;
+				granter = await new Promise<Participant | undefined>(async resolve => {
+					const paginator = Paginator.create(granters, ([granterId, granter], paginator, i) => {
 						const granterMember = this.guild.members.cache.get(granterId);
 						return new MessageEmbed()
 							.setAuthor(`Candidate ${isPinchMatch ? "pinch " : ""}wish-granters`)
@@ -821,11 +829,47 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 							const granter = paginator.get().originalValue;
 							if (reaction.name === "✅") {
 								paginator.cancel();
+								prompter.cancel();
 								resolve(granter);
 							}
 						})
-						.event.subscribe("cancel", () => resolve(undefined))
-						.send(organiser!.user, organiser!.user);
+						.event.subscribe("cancel", () => {
+							resolve(undefined);
+							prompter.cancel();
+						});
+
+					paginator.send(organiser!.user, organiser!.user);
+
+					let member: GuildMember | undefined;
+					const prompter = this.prompter(false)
+						.setTimeout(hours(5))
+						.setValidator(async message => {
+							let [force, ...id] = message.content.split(/\s+/g);
+							if (force === "force") shouldAsk = false;
+							else id.unshift(force);
+
+							member = this.validateFindResult(await this.findMember(id.join(" "))).member;
+							return member ? true : undefined;
+						});
+
+					await prompter.reply(message);
+					if (!member)
+						return;
+
+					paginator.cancel();
+
+					const confirmation = await this.yesOrNo(undefined, new MessageEmbed()
+						.setTitle(`Are you sure you want to manually match this wish to ${member.displayName}? They may not be participating in the event, or they may be already assigned other wishes.`)
+						.setColor(COLOR_WARNING))
+						.reply(message);
+
+					if (!confirmation)
+						resolve(undefined);
+
+					resolve([member.id, this.data.participants[member.id] ??= {
+						wish: "N/A",
+						wishGranting: "N/A",
+					}]);
 				});
 
 				if (!granter) {
@@ -834,7 +878,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 					return CommandResult.pass();
 				}
 
-				if (!isPinchMatch)
+				if (!shouldAsk)
 					break;
 
 				const [granterId] = granter;
@@ -849,7 +893,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 				const willPinch = await this.yesOrNo(undefined, new MessageEmbed()
 					.setTitle("Would you be willing to pinch-grant this wish?")
-					.setDescription("You are signed up as a pinch-wish-granter and have been selected as a candidate to pinch-grant the following wish:")
+					.setDescription("You are signed up as a pinch-wish-granter and/or have been selected as a candidate to pinch-grant the following wish:")
 					.addField("Wish", wish?.wish!)
 					.setColor("0088FF"))
 					.setTimeout(hours(5))
