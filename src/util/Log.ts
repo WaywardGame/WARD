@@ -96,6 +96,9 @@ export default class Logger {
 		if (level === LogLevel.verbose)
 			what = what.map(value => typeof value === "string" ? colorizer(value) : value);
 
+		if (toLog.some(thing => thing.includes("object")))
+			toLog.push(new Error().stack);
+
 		toLog.push(...what
 			.map(thing => typeof thing === "object" ? thing instanceof Error ? (thing.stack ?? thing.message) : `${thing}` === "[object Object]" ? JSON.stringify(thing) : `${thing}` : `${thing}`));
 

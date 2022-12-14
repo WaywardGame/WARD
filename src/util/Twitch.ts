@@ -165,13 +165,15 @@ export class Twitch extends Api<ITwitchConfig> {
 			} catch (err) {
 				lastRequestTime = Date.now();
 
-				if (err?.message === "Invalid OAuth token")
+				if ((err as Error)?.message === "Invalid OAuth token") {
 					await this.refreshToken(tokens);
+					continue;
+				}
 
-				if (++tries > 100)
+				if (++tries > 20)
 					throw err;
 
-				Logger.error(err);
+				Logger.error(err instanceof Error ? err.toString() : JSON.stringify(err));
 			}
 
 		} while (!result);
