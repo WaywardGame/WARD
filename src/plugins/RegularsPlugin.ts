@@ -229,6 +229,7 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				&& !this.shouldUserBeRegular(member)); // should not be regular
 
 		let removed: string[] = [];
+		let membersRegularNotTracked: GuildMember[] = [];
 		for (const [, member] of membersRegularAndUntracked) {
 			this.logger.warning(`Member '${member.displayName}' is regular but not tracked`);
 
@@ -237,9 +238,16 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 				removed.push(member.displayName);
 
 			} else {
+				membersRegularNotTracked.push(member);
 				this.warningChannel?.send(`Member '${member.displayName}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
 			}
 		}
+
+		if (membersRegularNotTracked.length && this.warningChannel)
+			this.sendAll(this.warningChannel,
+				`There are ${membersRegularNotTracked.length} members that have the regular role, but aren't tracked. This can happen due to unrelated issues with the bot.`,
+				`If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``,
+				...membersRegularNotTracked.map(member => `> \`${member.displayName}\` @${member.user.tag}`));
 
 		if (removed.length)
 			this.warningChannel?.send(`Removed regular from ${removed.join(", ")}.`);

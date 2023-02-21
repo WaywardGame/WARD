@@ -278,7 +278,7 @@ export class GiveawayPlugin extends Plugin<IGiveawayPluginConfig, IGiveawayData>
 			for (const winner of entrants.splice(winnerIndex, 1)) {
 				const member = await this.findMember(winner.id);
 				if (!member) {
-					this.logger.warning(`Chose winner ${winner.username}${winner.tag} that is no longer a guild member. Skipping...`);
+					this.logger.warning(`Chose winner ${winner.tag} that is no longer a guild member. Skipping...`);
 					continue;
 				}
 
