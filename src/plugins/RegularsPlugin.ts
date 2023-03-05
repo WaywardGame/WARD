@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { GuildMember, Message, MessageEmbed, TextChannel, User } from "discord.js";
+import { Collection, GuildMember, Message, MessageEmbed, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { Paginator } from "../core/Paginatable";
@@ -223,8 +223,8 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 	}
 
 	private async checkRegularUntracked (remove = false) {
-		const membersRegularAndUntracked = (await this.guild.members.fetch({ force: true }))
-			.filter(member => !this.getTrackedMember(member.id, false) // is untracked
+		const membersRegularAndUntracked = (await this.guild.members.fetch({ force: true }).catch(err => { this.logger.warning(err.stack); return [] as any as Collection<string, GuildMember>; }))
+			.filter((member: GuildMember) => !this.getTrackedMember(member.id, false) // is untracked
 				&& member.roles.cache.has(this.config.role) // is regular
 				&& !this.shouldUserBeRegular(member)); // should not be regular
 

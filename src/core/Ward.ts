@@ -843,7 +843,7 @@ export class Ward {
 
 		let member = this.guild.members.cache.get(message.author.id);
 		if (!member)
-			member = await this.guild.members.fetch(message.author.id);
+			member = await this.guild.members.fetch(message.author.id).catch(() => undefined);
 
 		if (!member)
 			return false;

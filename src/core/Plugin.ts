@@ -18,7 +18,7 @@ export interface IGetApi<T> {
 	(name: string): T;
 }
 
-export interface IInherentPluginData<CONFIG = {}> extends IInherentImportableData<CONFIG> {
+export interface IInherentPluginData<CONFIG extends {} = {}> extends IInherentImportableData<CONFIG> {
 	_lastUpdate?: number;
 }
 
@@ -156,7 +156,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 			[, query, tag] = splitMatch;
 
 		if (collection === this.guild.members.cache)
-			await this.guild.members.fetch({ force: true });
+			await this.guild.members.fetch({ force: true }).catch(err => this.logger.warning(err.stack));
 
 		let results = collection.filter(m => m.id === query);
 		if (!results.size)
@@ -184,7 +184,8 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 
 		if (fetch)
 			return this.guild.roles.fetch(undefined, undefined, true)
-				.then(() => this.findRole(role, false));
+				.then(() => this.findRole(role, false))
+				.catch(err => { this.logger.warning(err.stack); return undefined; });
 
 		return this.guild.roles.cache.get(role)
 			?? this.guild.roles.cache.find(r => r.name === role)
@@ -565,7 +566,7 @@ export abstract class Plugin<CONFIG extends {} = any, DATA extends IInherentPlug
 
 		const users = new Set<User>();
 		for (const reaction of message?.reactions.cache.values() ?? [])
-			for (const user of (await reaction.users.fetch()).values())
+			for (const user of (await reaction.users.fetch().catch(() => [])).values())
 				users.add(user);
 
 		return users;

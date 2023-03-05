@@ -128,7 +128,7 @@ I will not send any other notification messages, apologies for the interruption.
 
 	public async getColorRoles (fetch = true) {
 		if (fetch)
-			await this.guild.members.fetch({ force: true });
+			await this.guild.members.fetch({ force: true }).catch(err => this.logger.warning(err.stack));
 
 		return this.guild.roles.cache.filter(r => this.isColorRole(r.name));
 	}
@@ -145,8 +145,8 @@ I will not send any other notification messages, apologies for the interruption.
 	}
 
 	private async removeUnusedColorRoles (colorRoles?: Collection<string, Role>) {
-		await this.guild.roles.fetch(undefined, undefined, true);
-		await this.guild.members.fetch({ force: true });
+		await this.guild.roles.fetch(undefined, undefined, true).catch(err => this.logger.warning(err.stack));
+		await this.guild.members.fetch({ force: true }).catch(err => this.logger.warning(err.stack));
 		if (!colorRoles)
 			colorRoles = this.guild.roles.cache;
 

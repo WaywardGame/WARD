@@ -483,7 +483,7 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 		const wishesToUnassign = Object.values(this.data.participants)
 			.filter(wish => wish?.granter === userid) as IWishParticipant[];
 
-		await this.guild.members.fetch({ force: true });
+		await this.guild.members.fetch({ force: true }).catch(err => this.logger.warning(err.stack));
 		const granter = this.guild.members.cache.get(userid);
 		if (!granter)
 			return this.reply(message, `Can't find member with query '${userid}'.`)

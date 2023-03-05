@@ -110,7 +110,7 @@ export default class WelcomePlugin extends Plugin<IWelcomeConfig, IWelcomeData> 
 	}
 
 	private async welcomeNewUsers () {
-		await this.guild.members.fetch({ force: true });
+		await this.guild.members.fetch({ force: true }).catch(err => this.logger.warning(err.stack));
 
 		const welcomeRoles = await this.getWelcomeRoles();
 		// each guild member that has a welcome role

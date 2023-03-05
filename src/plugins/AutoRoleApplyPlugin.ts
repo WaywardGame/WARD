@@ -40,7 +40,7 @@ export default class AutoRolePlugin extends Plugin<IAutoRoleConfig> {
 	}
 
 	public async onUpdate () {
-		await this.guild.members.fetch();
+		await this.guild.members.fetch().catch(err => this.logger.warning(err.stack));
 
 		for (const rule of this.rules) {
 			const users = this.guild.members.cache.filter(member => rule.match.matchesRoles(member.roles.cache));
