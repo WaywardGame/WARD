@@ -10,6 +10,12 @@
 			"type": "shell",
 			"command": "npx gulp watch",
 			"problemMatcher": []
+		},
+		{
+			"label": "deploy",
+			"type": "shell",
+			"command": "npx gulp deploy",
+			"problemMatcher": []
 		}
 	]
 }

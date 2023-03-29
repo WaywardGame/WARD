@@ -20,7 +20,8 @@
 		"@wayward/goodstream": "0.5.2",
 		"open-graph-scraper": "4.8.2",
 		"to-zalgo": "1.0.1",
-		"node-fetch": "2.6.1"
+		"node-fetch": "2.6.1",
+		"dotenv": "16.0.3"
 	},
 	"devDependencies": {
 		"@types/node-fetch": "2.5.10",

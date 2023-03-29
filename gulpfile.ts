@@ -1,6 +1,12 @@
+import * as env from "dotenv";
+import * as fs from "fs";
 import Task, { Pipe, remove } from "./gulp/Task";
 import TypescriptWatch from "./gulp/TypescriptWatch";
+import { nameFunction } from "./gulp/Util";
 import mocha = require("gulp-mocha");
+
+fs.appendFileSync(".env", "");
+env.config();
 
 ////////////////////////////////////
 // Tasks
@@ -23,3 +29,11 @@ new Task("watch", remove("out"))
 	.create();
 
 Task.create("default", "watch");
+
+new Task("deploy", nameFunction("remove WARD_DEPLOY_PATH", async () => {
+	if (!process.env.WARD_DEPLOY_PATH)
+		throw new Error("Cannot deploy, WARD_DEPLOY_PATH not set");
+	return del(process.env.WARD_DEPLOY_PATH, { force: true });
+}))
+	.then("copy", Pipe.create("out/**/*").pipe(process.env.WARD_DEPLOY_PATH!))
+	.create();

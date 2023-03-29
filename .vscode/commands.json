@@ -1,0 +1,10 @@
+{
+	"commands": [
+		{
+			"command": "workbench.action.tasks.runTask",
+			"text": "$(rocket)  Deploy",
+			"tooltip": "Sends the previous build to WARD_DEPLOY_PATH",
+			"arguments": ["deploy"]
+		}
+	]
+}
