@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import * as chalk from "chalk";
 import { DMChannel, Emoji, GuildEmoji, GuildMember, Message, MessageAttachment, MessageEmbed, ReactionEmoji, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";

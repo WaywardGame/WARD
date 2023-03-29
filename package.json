@@ -16,7 +16,7 @@
 		"fs-extra-p": "8.1.0",
 		"strip-ansi": "6.0.0",
 		"reflect-metadata": "0.1.13",
-		"chalk": "2.4.2",
+		"chalk": "4.1.2",
 		"@wayward/goodstream": "0.5.2",
 		"open-graph-scraper": "4.8.2",
 		"to-zalgo": "1.0.1",

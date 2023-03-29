@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import * as chalk from "chalk";
 import { exec } from "child_process";
 import * as path from "path";
 

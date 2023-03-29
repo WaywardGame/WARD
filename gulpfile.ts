@@ -4,6 +4,7 @@ import Task, { Pipe, remove } from "./gulp/Task";
 import TypescriptWatch from "./gulp/TypescriptWatch";
 import { nameFunction } from "./gulp/Util";
 import mocha = require("gulp-mocha");
+import del = require("del");
 
 fs.appendFileSync(".env", "");
 env.config();

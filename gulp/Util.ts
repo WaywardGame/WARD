@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import * as chalk from "chalk";
 
 export async function sleep (ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));

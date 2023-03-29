@@ -1,4 +1,4 @@
-import chalk, { Chalk } from "chalk";
+import * as chalk from "chalk";
 import * as fs from "mz/fs";
 import { IConfig } from "../core/Config";
 import Arrays from "./Arrays";
@@ -24,7 +24,7 @@ const levelColors = {
 };
 
 // @ts-expect-error
-let x: Record<LogLevel, keyof Chalk>;
+let x: Record<LogLevel, keyof chalk.Chalk>;
 // test whether using valid colours
 x = levelColors;
 

@@ -1,5 +1,5 @@
 import Stream from "@wayward/goodstream";
-import chalk from "chalk";
+import * as chalk from "chalk";
 import { Client, DMChannel, Guild, GuildMember, Message, MessageEmbed, MessageReaction, PartialMessage, TextChannel, User } from "discord.js";
 import { EventEmitter } from "events";
 import AutoRolePlugin from "../plugins/AutoRoleApplyPlugin";
