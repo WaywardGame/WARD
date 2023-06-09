@@ -2,7 +2,6 @@ config.json5
 data
 out
 encrypt-config.bat
-WARD.bat
 backup
 
 

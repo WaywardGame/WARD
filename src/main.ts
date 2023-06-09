@@ -1,6 +1,8 @@
 // tslint:disable-next-line
 import "@wayward/goodstream/apply";
 import "reflect-metadata";
+
+import { fs } from "mz";
 import { Config, IConfig, IGuildConfig } from "./core/Config";
 import { Ward } from "./core/Ward";
 import { sleep } from "./util/Async";
@@ -9,6 +11,12 @@ import Logger from "./util/Log";
 import Functions = require("./util/Functions");
 
 let wards = new Map<IGuildConfig, Ward>();
+let interval = setInterval(async () => {
+	if (await fs.exists("update.notify")) {
+		fs.unlinkSync("update.notify");
+		return exitHandler(new Error("Updating..."));
+	}
+}, 200);
 
 async function start () {
 	const config = await new Config().get();
@@ -19,6 +27,8 @@ async function start () {
 	for (const guildConfig of config.instances)
 		createWardInstance(config, guildConfig);
 }
+
+
 
 function createWardInstance (config: IConfig, guildConfig: IGuildConfig) {
 	const ward = new Ward({ ...config, instances: [], ...guildConfig });
@@ -35,6 +45,8 @@ function createWardInstance (config: IConfig, guildConfig: IGuildConfig) {
 }
 
 async function stop () {
+	clearInterval(interval);
+
 	await Promise.race([
 		Promise.all(wards.values()
 			.map(ward => ward?.stop())),

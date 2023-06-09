@@ -1,5 +1,6 @@
 import * as env from "dotenv";
 import * as fs from "fs";
+import * as path from "path";
 import Task, { Pipe, remove } from "./gulp/Task";
 import TypescriptWatch from "./gulp/TypescriptWatch";
 import { nameFunction } from "./gulp/Util";
@@ -37,4 +38,5 @@ new Task("deploy", nameFunction("remove WARD_DEPLOY_PATH", async () => {
 	return del(process.env.WARD_DEPLOY_PATH, { force: true });
 }))
 	.then("copy", Pipe.create("out/**/*").pipe(process.env.WARD_DEPLOY_PATH!))
+	.then("notify update", (cb) => fs.writeFile(path.join(process.env.WARD_DEPLOY_PATH!, "..", "update.notify"), "update", cb))
 	.create();

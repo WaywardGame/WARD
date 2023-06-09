@@ -40,7 +40,7 @@ type Command = { function?: CommandFunction, plugin?: string, subcommands: Comma
 type CommandMap = Map<string, Command>;
 
 interface IMainData extends IInherentPluginData<IMainConfig> {
-	restartMessage?: [location: "guild" | "dm", channel: string, message: string];
+	restartMessage?: [location: "guild" | "dm", channel: string, message: string, type: "restart" | "update"];
 }
 
 interface IMainConfig {
@@ -531,14 +531,18 @@ export class Ward {
 
 	@Bound
 	private async commandRestart (message: CommandMessage, allStr?: string) {
-		const all = allStr === "all";
+		return this.restartInternal(message, allStr);
+	}
+
+	private async restartInternal (message: CommandMessage, allStr?: string, update = false) {
+		const all = allStr === "all" || update;
 		const canRunCommand = message.author.id === "92461141682307072" // Chiri is all-powerful
 			|| (!all && message.member?.permissions.has("ADMINISTRATOR"));
 
 		if (canRunCommand) {
-			const reply = await this.reply(message, new MessageEmbed().setDescription(`Restarting${all ? " every instance" : ""}...`));
+			const reply = await this.reply(message, new MessageEmbed().setDescription(update ? "Updating..." : `Restarting${all ? " every instance" : ""}...`));
 			const dm = message.channel instanceof DMChannel;
-			this.plugins.main.data.set("restartMessage", [dm ? "dm" : "guild", dm ? message.author.id : message.channel.id, Arrays.or(reply)[0].id]);
+			this.plugins.main.data.set("restartMessage", [dm ? "dm" : "guild", dm ? message.author.id : message.channel.id, Arrays.or(reply)[0].id, update ? "update" : "restart"]);
 			this.event.emit("restart", all);
 		}
 
