@@ -3,6 +3,7 @@ import { Message, MessageEmbed, TextChannel, User } from "discord.js";
 import { Command, CommandMessage, CommandResult, ImportApi } from "../core/Api";
 import HelpContainerPlugin from "../core/Help";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
+import { COLOR_BAD, COLOR_GOOD } from "../util/Colors";
 import Strings from "../util/Strings";
 import { hours } from "../util/Time";
 import { ChangeType, ITrelloCard, IVersionInfo, Trello } from "../util/Trello";
@@ -69,6 +70,8 @@ enum CommandLanguage {
 	ChangelogDescription = "If too many changes happen at once, the bot pauses in case something happened so that it doesn't spam. The following are commands provided in case this occurs.",
 	ChangelogConfirmDescription = "This command *confirms* printing the changelog.",
 	ChangelogSkipDescription = "This command *skips* printing the changelog.",
+	ChangelogForgetDescription = "This command forgets having reported a change by its Discord message ID.",
+	ChangelogForgetDescriptionArgumentMessageId = "The Discord message ID of the change to forget reporting.",
 }
 
 export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
@@ -134,7 +137,9 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	private readonly help = new HelpContainerPlugin()
 		.setDescription(CommandLanguage.ChangelogDescription)
 		.addCommand("changelog confirm", CommandLanguage.ChangelogConfirmDescription)
-		.addCommand("changelog skip", CommandLanguage.ChangelogSkipDescription);
+		.addCommand("changelog skip", CommandLanguage.ChangelogSkipDescription)
+		.addCommand("changelog forget", CommandLanguage.ChangelogForgetDescription, command => command
+			.addArgument("messageId", CommandLanguage.ChangelogForgetDescriptionArgumentMessageId));
 
 	@Command(["help changelog", "changelog help"])
 	protected async commandHelp (message: CommandMessage) {
@@ -154,6 +159,20 @@ export class ChangelogPlugin extends Plugin<IChangelogConfig, IChangelogData> {
 	@Command<ChangelogPlugin>("changelog skip")
 	protected skipChangelog (message: CommandMessage) {
 		this.continueLogging(message, false);
+		return CommandResult.pass();
+	}
+
+	@Command<ChangelogPlugin>("changelog forget")
+	protected async unreportChange (message: CommandMessage, findMessageId: string) {
+		if (message.member?.permissions.has("ADMINISTRATOR")) {
+			const length = this.reportedChanges.length;
+			this.reportedChanges.spliceWhere(([trelloId, textHash, messageId]) => messageId === findMessageId);
+			return message.reply(new MessageEmbed()
+				.setTitle(length > this.reportedChanges.length ? "Okay, I've forgotten about reporting that change." : "Could not find a change by that Discord message ID.")
+				.setColor(length > this.reportedChanges.length ? COLOR_GOOD : COLOR_BAD))
+				.then(() => CommandResult.pass());
+		}
+
 		return CommandResult.pass();
 	}
 
