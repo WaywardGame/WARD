@@ -129,6 +129,8 @@ export class RemindersPlugin extends Plugin<{}, IReminderPluginData> {
 
 	@Command("remind")
 	protected async onRemind (message: CommandMessage, type: string, timeString: string, ...reminder: string[]) {
+		if (type === "in") type = "after";
+
 		if (type !== "after" && type !== "every")
 			return message.reply(new MessageEmbed()
 				.setTitle(`Unknown reminder type "${type}"`)
