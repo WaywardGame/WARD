@@ -239,7 +239,6 @@ export class RegularsPlugin extends Plugin<IRegularsConfig, IRegularsData> {
 
 			} else {
 				membersRegularNotTracked.push(member);
-				this.warningChannel?.send(`Member '${member.displayName}' is regular but not tracked. This can happen due to unrelated issues with the bot. If this user hasn't sent messages in a while, confirm their regular removal with: \`${this.commandPrefix}regular remove confirm\``);
 			}
 		}
 
