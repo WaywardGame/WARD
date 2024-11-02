@@ -1,5 +1,5 @@
 import Stream from "@wayward/goodstream";
-import { Collection, DMChannel, Emoji, GuildMember, Message, MessageAttachment, MessageEmbed, ReactionEmoji } from "discord.js";
+import { Collection, DMChannel, Emoji, GuildMember, Message, MessageAttachment, MessageEmbed, Permissions, ReactionEmoji } from "discord.js";
 import { Command, CommandMessage, CommandResult, IField, ImportPlugin } from "../core/Api";
 import { Paginator } from "../core/Paginatable";
 import { IInherentPluginData, Plugin } from "../core/Plugin";
@@ -92,8 +92,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish reset")
 	protected async onWishReset (message: CommandMessage) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		const organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		const confirmation = await this.yesOrNo(undefined, new MessageEmbed()
@@ -122,8 +122,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish csv")
 	protected async onCommandWishCSV (message: CommandMessage) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		const organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		const csv = `Wisher,Prompt,Wish-granter,Gift,Itch,Scribble`
@@ -659,8 +659,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish status")
 	protected async onWishStatus (message: CommandMessage) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		const organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		const wishes = Object.values(this.data.participants).filter(wish => wish?.wish !== "N/A").length;
@@ -731,8 +731,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish match")
 	protected async onWishMatch (message: CommandMessage, mode?: string, solo?: string) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		let organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		this.logger.info(`${this.getName(message)} has started wish matching!`);
@@ -938,8 +938,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish distribute cancel")
 	protected async onCommandWishDistributeCancel (message: CommandMessage) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		const organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		this.data.remove("distributeTime");
@@ -953,8 +953,8 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 
 	@Command("wish distribute after")
 	protected async onCommandWishDistribute (message: CommandMessage, timeString: string) {
-		let organiser = this.guild.members.cache.get(message.author.id);
-		if (!organiser?.roles.cache.has(this.config.organiser) || !(message.channel instanceof DMChannel))
+		const organiser = this.resolveOrganiser(message)
+		if (!organiser)
 			return CommandResult.pass();
 
 		if (WishStage[this.data.stage] < WishStage.granting)
@@ -977,7 +977,13 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 			return this.reply(message, "This command can only be used in a DM.")
 				.then(() => CommandResult.pass());
 
-		const participant = this.data.participants[message.author.id];
+		let participant = this.data.participants[message.author.id];
+		if (message.command === "wish pinch")
+			participant = this.data.participants[message.author.id] = {
+				wish: "*This wish profile was created solely for pinch granting, and as such it does not have a wish.*",
+				wishGranting: "*This wish profile was created solely for pinch granting, and as such it does not have a granter profile.*",
+			};
+
 		if (!participant)
 			return this.reply(message, "You aren't a participant, silly!")
 				.then(() => CommandResult.pass());
@@ -1005,5 +1011,17 @@ export default class WishPlugin extends Plugin<IWishConfig, IWishData> {
 	private isOrganiser (userId: string) {
 		return this.guild.members.cache.get(userId)
 			?.roles.cache.has(this.config.organiser);
+	}
+
+	private resolveOrganiser (message: CommandMessage): GuildMember | undefined {
+		if (!(message.channel instanceof DMChannel))
+			return undefined
+
+		const role = this.guild.roles.cache.get(this.config.organiser)
+		const organiser = this.guild.members.cache.get(message.author.id);
+		if (!organiser?.roles.cache.has(this.config.organiser) && !(organiser?.permissions.has(Permissions.FLAGS.MANAGE_ROLES) && organiser.roles.highest.position > (role?.position ?? Infinity)))
+			return undefined
+
+		return organiser
 	}
 }
